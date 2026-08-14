@@ -1,0 +1,15 @@
+import express from "express";
+import uploadRoutes from "./uploadRoutes.ts";
+import profileRoutes from "./profileRoutes.ts";
+import notificationRoutes from "./notificationRoutes.ts";
+import privacyRoutes from "./privacyRoutes.ts";
+import institutionRoutes from "./institutionRoutes.ts";
+import activityMaterialRoutes from "./activityMaterialRoutes.ts";
+const router = express.Router();
+router.use(uploadRoutes);
+router.use(profileRoutes);
+router.use(notificationRoutes);
+router.use(privacyRoutes);
+router.use(institutionRoutes);
+router.use(activityMaterialRoutes);
+export default router;

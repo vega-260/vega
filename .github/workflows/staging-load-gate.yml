@@ -1,0 +1,35 @@
+name: VEGA Staging Load Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_vus:
+        description: Maximum virtual users
+        required: false
+        default: '1000'
+      rps_peak:
+        description: Peak arrival rate per second
+        required: false
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  production-readiness-load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+      - name: Run staging production-readiness gate
+        env:
+          BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          STUDENT_TOKEN: ${{ secrets.STAGING_STUDENT_TOKEN }}
+          STUDENT_USER_ID: ${{ secrets.STAGING_STUDENT_USER_ID }}
+          COMPANY_TOKEN: ${{ secrets.STAGING_COMPANY_TOKEN }}
+          COMPANY_USER_ID: ${{ secrets.STAGING_COMPANY_USER_ID }}
+          JOB_ID: ${{ secrets.STAGING_JOB_ID }}
+          INTERVIEW_ID: ${{ secrets.STAGING_INTERVIEW_ID }}
+          MAX_VUS: ${{ inputs.max_vus }}
+          RPS_3: ${{ inputs.rps_peak }}
+        run: k6 run load-tests/production-readiness.js

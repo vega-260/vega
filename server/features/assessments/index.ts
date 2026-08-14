@@ -1,0 +1,18 @@
+import express from "express";
+import tpoQuestionRoutes from "./tpoQuestionRoutes.ts";
+import tpoTestRoutes from "./tpoTestRoutes.ts";
+import studentAttemptRoutes from "./studentAttemptRoutes.ts";
+import tpoAnalyticsRoutes from "./tpoAnalyticsRoutes.ts";
+import companyDefinitionRoutes from "./companyDefinitionRoutes.ts";
+import companyStudentWorkflowRoutes from "./companyStudentWorkflowRoutes.ts";
+import companyBulkAdvanceRoutes from "./companyBulkAdvanceRoutes.ts";
+const router = express.Router();
+router.use(tpoQuestionRoutes);
+router.use(tpoTestRoutes);
+router.use(studentAttemptRoutes);
+router.use(tpoAnalyticsRoutes);
+router.use(companyDefinitionRoutes);
+router.use(companyStudentWorkflowRoutes);
+router.use(companyBulkAdvanceRoutes);
+export default router;
+export { submitAssessmentAttempt } from "./companyStudentWorkflowRoutes.ts";

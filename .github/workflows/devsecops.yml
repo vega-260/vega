@@ -1,0 +1,94 @@
+name: VEGA Production CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript validation
+        run: npm run lint
+      - name: Architecture and security regression tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Validate Compose rendering
+        env:
+          DB_PASSWORD: ci-placeholder-password
+          MYSQL_ROOT_PASSWORD: ci-placeholder-root-password
+          JWT_SECRET: ci_access_secret_abcdefghijklmnopqrstuvwxyz123456
+          REFRESH_SECRET: ci_refresh_secret_abcdefghijklmnopqrstuvwxyz1234
+          GEMINI_API_KEY: ci-placeholder
+          SMTP_HOST: smtp.example.invalid
+          SMTP_USER: ci@example.invalid
+          SMTP_PASS: ci-placeholder
+          METRICS_TOKEN: ci_metrics_token_abcdefghijklmnopqrstuvwxyz
+          TURN_URLS: turn:turn.example.invalid:3478
+          TURN_SHARED_SECRET: ci_turn_secret_abcdefghijklmnopqrstuvwxyz
+        run: docker compose config --quiet
+      - name: High/Critical dependency audit
+        run: npm audit --audit-level=high
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  container-security:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build release candidate image locally
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: vega-release-candidate:${{ github.sha }}
+      - name: Scan release candidate image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: vega-release-candidate:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Upload scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push scanned image
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/talentbridge"
+          docker tag "vega-release-candidate:${GITHUB_SHA}" "$IMAGE:${GITHUB_SHA}"
+          docker tag "vega-release-candidate:${GITHUB_SHA}" "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"

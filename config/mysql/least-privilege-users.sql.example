@@ -1,0 +1,19 @@
+-- Run as a MySQL administrator after replacing host/password values.
+-- Never use the migration user from API containers.
+CREATE USER IF NOT EXISTS 'vega_app'@'%' IDENTIFIED BY 'REPLACE_WITH_SECRET';
+CREATE USER IF NOT EXISTS 'vega_readonly'@'%' IDENTIFIED BY 'REPLACE_WITH_SECRET';
+CREATE USER IF NOT EXISTS 'vega_migrator'@'%' IDENTIFIED BY 'REPLACE_WITH_DIFFERENT_SECRET';
+
+-- Runtime application: DML + EXECUTE only; no CREATE/ALTER/DROP/TRIGGER.
+GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON talentbridge01.* TO 'vega_app'@'%';
+
+-- Read replica / analytics read account.
+GRANT SELECT, SHOW VIEW ON talentbridge01.* TO 'vega_readonly'@'%';
+
+-- Deployment-only migration identity.
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX,
+      CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EXECUTE, TRIGGER,
+      REFERENCES
+ON talentbridge01.* TO 'vega_migrator'@'%';
+
+FLUSH PRIVILEGES;

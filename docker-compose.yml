@@ -1,0 +1,136 @@
+services:
+  nginx-edge:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./server/config/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app-service-1:
+        condition: service_healthy
+      app-service-2:
+        condition: service_healthy
+    networks: [talentbridge_network]
+    restart: unless-stopped
+
+  app-service-1: &app
+    build: .
+    init: true
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_TYPE: mysql
+      DB_HOST: db-primary
+      DB_USER: ${DB_USER:-vega_app}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:-talentbridge}
+      REDIS_URL: redis://redis-broker:6379/0
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      REFRESH_SECRET: ${REFRESH_SECRET:?REFRESH_SECRET is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER is required}
+      SMTP_PASS: ${SMTP_PASS:?SMTP_PASS is required}
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required}
+      TURN_URLS: ${TURN_URLS:?TURN_URLS is required}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:?TURN_SHARED_SECRET is required}
+      REQUIRE_AI: "true"
+      REQUIRE_EMAIL: "true"
+      REQUIRE_OBJECT_STORAGE: "true"
+      REQUIRE_TURN: "true"
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-30}
+      DB_POOL_MAX_IDLE: ${DB_POOL_MAX_IDLE:-15}
+      HTTP_REQUEST_TIMEOUT_MS: ${HTTP_REQUEST_TIMEOUT_MS:-30000}
+      HTTP_HEADERS_TIMEOUT_MS: ${HTTP_HEADERS_TIMEOUT_MS:-15000}
+      HTTP_KEEP_ALIVE_TIMEOUT_MS: ${HTTP_KEEP_ALIVE_TIMEOUT_MS:-5000}
+      HTTP_MAX_REQUESTS_PER_SOCKET: ${HTTP_MAX_REQUESTS_PER_SOCKET:-1000}
+      SOCKET_PING_INTERVAL_MS: ${SOCKET_PING_INTERVAL_MS:-25000}
+      SOCKET_PING_TIMEOUT_MS: ${SOCKET_PING_TIMEOUT_MS:-20000}
+      EMAIL_WORKER_CONCURRENCY: ${EMAIL_WORKER_CONCURRENCY:-4}
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      redis-broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [talentbridge_network]
+    restart: unless-stopped
+
+  app-service-2:
+    <<: *app
+
+  task-worker:
+    <<: *app
+    command: ["node", "dist/worker.cjs"]
+    healthcheck:
+      disable: true
+
+  db-migrate:
+    build: .
+    command: ["node", "dist/migrate.cjs"]
+    environment:
+      NODE_ENV: production
+      DB_TYPE: mysql
+      DB_HOST: db-primary
+      DB_USER: ${DB_USER:-vega_app}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:-talentbridge}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      REFRESH_SECRET: ${REFRESH_SECRET:?REFRESH_SECRET is required}
+    depends_on:
+      db-primary:
+        condition: service_healthy
+    networks: [talentbridge_network]
+    restart: "no"
+
+  redis-broker:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [talentbridge_network]
+    restart: unless-stopped
+
+  db-primary:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${DB_NAME:-talentbridge}
+      MYSQL_USER: ${DB_USER:-vega_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    command:
+      - --max-connections=300
+      - --innodb-buffer-pool-size=512M
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [talentbridge_network]
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  talentbridge_network:
+    driver: bridge

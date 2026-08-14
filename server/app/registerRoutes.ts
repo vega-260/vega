@@ -1,0 +1,47 @@
+import type { Express } from "express";
+import authRoutes from "../routes/auth.ts";
+import studentRoutes from "../routes/student.ts";
+import companyRoutes from "../routes/company.ts";
+import jobRoutes from "../routes/job.ts";
+import aiRoutes from "../routes/ai.ts";
+import adminRoutes from "../routes/admin.ts";
+import tpoRoutes from "../routes/tpo.ts";
+import resumeRoutes from "../routes/resume.ts";
+import analyticsRoutes from "../routes/analytics.ts";
+import psychometricRoutes from "../routes/psychometric.ts";
+import accessibilityRoutes from "../routes/accessibility.ts";
+import xpRoutes from "../routes/xp.ts";
+import quizRoutes from "../routes/quiz.ts";
+import codingRoutes from "../routes/coding.ts";
+import chatbotRoutes from "../routes/chatbot.ts";
+import intelligenceRoutes from "../routes/intelligence.ts";
+import communityRoutes from "../routes/community.ts";
+import careerGapRoutes from "../routes/careerGap.ts";
+import interviewRoutes from "../routes/interview.ts";
+import assessmentRoutes from "../routes/assessments.ts";
+import contactRoutes from "../routes/contact.ts";
+
+export function registerApiRoutes(app: Express) {
+  app.use("/api/auth", authRoutes);
+  app.use("/api/students", studentRoutes);
+  app.use("/api/companies", companyRoutes);
+  app.use("/api/company", companyRoutes);
+  app.use("/api/jobs", jobRoutes);
+  app.use("/api/ai", aiRoutes);
+  app.use("/api/admin", adminRoutes);
+  app.use("/api/tpo", tpoRoutes);
+  app.use("/api/resume", resumeRoutes);
+  app.use("/api/analytics", analyticsRoutes);
+  app.use("/api/psychometric", psychometricRoutes);
+  app.use("/api/accessibility", accessibilityRoutes);
+  app.use("/api/xp", xpRoutes);
+  app.use("/api/quiz", quizRoutes);
+  app.use("/api/coding", codingRoutes);
+  app.use("/api/chatbot", chatbotRoutes);
+  app.use("/api/intelligence", intelligenceRoutes);
+  app.use("/api/community", communityRoutes);
+  app.use("/api/career-gap", careerGapRoutes);
+  app.use("/api/interviews", interviewRoutes);
+  app.use("/api/assessments", assessmentRoutes);
+  app.use("/api/contact", contactRoutes);
+}
