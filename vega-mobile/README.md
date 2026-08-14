@@ -77,44 +77,38 @@ A cross-platform (iOS & Android) mobile client for the VEGA SaaS recruitment, AI
 
 ---
 
-## 🚀 How to Run Locally
+## 🚀 How to Run with Expo Go (On Your Phone)
 
-### Prerequisites
-- Node.js >= 18
-- Android Studio (for Android emulator) or Xcode (for iOS simulator)
-- Watchman (macOS)
+### Step 1: Install Expo Go on your Phone
+- **Android**: Download **Expo Go** from Google Play Store.
+- **iPhone / iOS**: Download **Expo Go** from the Apple App Store.
 
-### Steps
-
-1. **Navigate to the mobile directory:**
+### Step 2: Start the Expo Development Server on your Computer
+1. Open your terminal and navigate to the mobile project directory:
    ```bash
    cd vega-mobile
    ```
 
-2. **Install dependencies:**
+2. Install dependencies:
    ```bash
    npm install
-   # or
-   yarn install
    ```
 
-3. **Configure API Endpoint (if connecting to a local backend):**
-   - Open `src/services/api.ts` and set your backend URL (e.g., `http://10.0.2.2:3000/api` for Android Emulator or `http://localhost:3000/api` for iOS Simulator).
-
-4. **Start the Metro Bundler:**
+3. Launch the Expo bundler:
    ```bash
-   npm start
-   # or
-   npx react-native start
+   npx expo start
    ```
+   *(Or `npx expo start --tunnel` if your phone and computer are on different Wi-Fi networks / mobile data).*
 
-5. **Launch on Device or Emulator:**
-   - **Android:**
-     ```bash
-     npm run android
-     ```
-   - **iOS (macOS only):**
-     ```bash
-     cd ios && pod install && cd ..
-     npm run ios
-     ```
+### Step 3: Open on Your Phone
+- **Android**: Open the **Expo Go** app and tap **"Scan QR code"**, then scan the QR code displayed in your terminal.
+- **iOS**: Open your iPhone's default **Camera app**, point it at the QR code, and tap the **"Open in Expo Go"** banner.
+
+---
+
+## ⚡ Quick Troubleshooting for Expo Go
+- **Same Wi-Fi Network**: Ensure your computer and phone are connected to the same Wi-Fi network.
+- **Tunnel Mode**: If your college/office Wi-Fi blocks local network communication between devices, start Expo with tunnel mode:
+  ```bash
+  npx expo start --tunnel
+  ```
