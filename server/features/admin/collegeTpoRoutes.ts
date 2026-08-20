@@ -207,8 +207,9 @@ router.get("/colleges", async (req, res) => {
 router.delete("/colleges/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    await db.query("DELETE FROM tpo_colleges WHERE college_id = ?", [id]);
-    await db.query("DELETE FROM academic_batches WHERE college_id = ?", [id]);
+    try { await db.query("DELETE FROM tpo_colleges WHERE college_id = ?", [id]); } catch (e) {}
+    try { await db.query("DELETE FROM batches WHERE college_id = ?", [id]); } catch (e) {}
+    try { await db.query("DELETE FROM assessment_batches WHERE college_id = ?", [id]); } catch (e) {}
     await db.query("DELETE FROM college_master WHERE id = ?", [id]);
     await logAdminAction((req as any).user.userId, "DELETE_COLLEGE", { collegeId: id }, req);
     res.json({ success: true, message: "College deleted successfully" });
