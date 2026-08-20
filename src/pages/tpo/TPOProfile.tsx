@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   User, 
   UserCheck, 
@@ -20,7 +20,13 @@ import {
   ExternalLink, 
   Camera, 
   Info, 
-  Calendar
+  Calendar,
+  UploadCloud,
+  FileUp,
+  Trash2,
+  Image as ImageIcon,
+  Check,
+  X
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
@@ -82,15 +88,6 @@ interface StatsData {
   createdTests: number;
 }
 
-const PRESET_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop&q=80',
-];
-
 export default function TPOProfile() {
   const { user: authUser } = useAuth();
   
@@ -99,7 +96,11 @@ export default function TPOProfile() {
   const [activeTab, setActiveTab] = useState<'personal' | 'office'>('personal');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string>('');
+  const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initial & Form states
   const [initialData, setInitialData] = useState<TPOProfileData | null>(null);
@@ -190,6 +191,84 @@ export default function TPOProfile() {
       }
       return updated;
     });
+  };
+
+  const handleOpenAvatarModal = () => {
+    setPendingPhotoUrl(formData.profile_photo_url || '');
+    setCustomAvatarUrl(formData.profile_photo_url?.startsWith('http') ? formData.profile_photo_url : '');
+    setSelectedFileName('');
+    setShowAvatarModal(true);
+  };
+
+  const handleProcessLocalFile = (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (PNG, JPG, JPEG, WEBP, SVG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image file size exceeds 5MB limit. Please choose a smaller image.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      if (base64) {
+        setPendingPhotoUrl(base64);
+        setSelectedFileName(file.name);
+        toast.success(`Loaded "${file.name}"`);
+      }
+    };
+    reader.onerror = () => {
+      toast.error('Failed to read image file from disk');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleProcessLocalFile(file);
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleProcessLocalFile(file);
+    }
+  };
+
+  const handleApplyPhoto = () => {
+    handleFieldChange('profile_photo_url', pendingPhotoUrl);
+    setShowAvatarModal(false);
+    if (pendingPhotoUrl) {
+      toast.success('Profile photo applied. Click "Save Profile Changes" to persist.');
+    } else {
+      toast.success('Profile photo removed.');
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPendingPhotoUrl('');
+    setSelectedFileName('');
+    setCustomAvatarUrl('');
   };
 
   const handleReset = () => {
@@ -297,8 +376,8 @@ export default function TPOProfile() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-16 mb-6">
             <div className="flex items-end gap-5">
               {/* Avatar Box with Change trigger */}
-              <div className="relative group">
-                <div className="w-28 h-28 rounded-2xl bg-white p-1 shadow-md border border-slate-200 overflow-hidden">
+              <div className="relative group cursor-pointer" onClick={handleOpenAvatarModal}>
+                <div className="w-28 h-28 rounded-2xl bg-white p-1 shadow-md border border-slate-200 overflow-hidden relative">
                   {formData.profile_photo_url ? (
                     <img 
                       src={formData.profile_photo_url} 
@@ -308,16 +387,24 @@ export default function TPOProfile() {
                       onError={() => handleFieldChange('profile_photo_url', '')}
                     />
                   ) : (
-                    <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 font-bold text-3xl">
+                    <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl flex items-center justify-center text-blue-700 font-bold text-3xl">
                       {formData.full_name ? formData.full_name.charAt(0).toUpperCase() : 'T'}
                     </div>
                   )}
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center text-white text-xs font-semibold gap-1 backdrop-blur-[2px]">
+                    <UploadCloud className="w-4 h-4" />
+                    <span>Change</span>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowAvatarModal(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenAvatarModal();
+                  }}
                   className="absolute bottom-1 right-1 p-2 bg-slate-900 text-white rounded-xl shadow-md hover:bg-blue-600 transition-colors"
-                  title="Update Profile Photo"
+                  title="Upload / Change Photo from Computer"
                 >
                   <Camera className="w-4 h-4" />
                 </button>
@@ -840,83 +927,180 @@ export default function TPOProfile() {
         </div>
       )}
 
-      {/* Avatar Picker Modal */}
+      {/* Local Machine Avatar Upload Modal */}
       {showAvatarModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-5 animate-scale-in">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Camera className="w-4 h-4 text-blue-600" />
-                Select Profile Avatar
-              </h3>
+        <div 
+          id="tpo-avatar-upload-modal"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-6 animate-scale-in">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-blue-600" />
+                  Update Profile Photo
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Select an official image from your computer to represent your profile
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAvatarModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-semibold p-1"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                title="Close"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Presets */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-700">Choose from Academic Presets</label>
-              <div className="grid grid-cols-3 gap-3">
-                {PRESET_AVATARS.map((url, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      handleFieldChange('profile_photo_url', url);
-                      setCustomAvatarUrl(url);
-                      setShowAvatarModal(false);
-                      toast.success('Avatar selected. Click Save to persist.');
-                    }}
-                    className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all group ${
-                      formData.profile_photo_url === url ? 'border-blue-600 ring-2 ring-blue-600/20' : 'border-slate-200 hover:border-blue-400'
-                    }`}
-                  >
-                    <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" referrerPolicy="no-referrer" />
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Hidden native file input for local machine selection */}
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+              onChange={handleFileInputChange}
+              className="hidden"
+            />
 
-            {/* Custom URL */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <label className="text-xs font-semibold text-slate-700">Or Paste Image URL</label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={customAvatarUrl}
-                  onChange={(e) => setCustomAvatarUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-blue-600 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (customAvatarUrl) {
-                      handleFieldChange('profile_photo_url', customAvatarUrl);
-                      setShowAvatarModal(false);
-                      toast.success('Custom avatar URL applied. Click Save to persist.');
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition-colors"
+            {/* Image Preview & Local Upload Zone */}
+            <div className="space-y-4">
+              {pendingPhotoUrl ? (
+                /* Active Preview State */
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center gap-5">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm shrink-0 relative group">
+                    <img 
+                      src={pendingPhotoUrl} 
+                      alt="Selected preview" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={() => {
+                        toast.error('Unable to render this image');
+                        setPendingPhotoUrl('');
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2 text-center sm:text-left">
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 flex items-center justify-center sm:justify-start gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Photo Ready
+                      </p>
+                      <p className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5">
+                        {selectedFileName ? selectedFileName : 'Custom profile photo loaded'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        Choose Different Photo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remove Photo
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Drag and Drop Zone */
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`p-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                    isDragging 
+                      ? 'border-blue-600 bg-blue-50/70 scale-[1.01]' 
+                      : 'border-slate-300 hover:border-blue-500 bg-slate-50/50 hover:bg-blue-50/20'
+                  }`}
                 >
-                  Apply
-                </button>
+                  <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 shadow-inner">
+                    <UploadCloud className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Upload image from your local machine
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                    Drag and drop your picture here, or click to browse files
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <FileUp className="w-4 h-4" />
+                    Browse Computer
+                  </button>
+                  <p className="text-[11px] text-slate-400 mt-2">
+                    Supports PNG, JPG, JPEG, WEBP, SVG (Max 5MB)
+                  </p>
+                </div>
+              )}
+
+              {/* Optional Web URL Input */}
+              <div className="pt-2">
+                <details className="group">
+                  <summary className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer list-none flex items-center gap-1">
+                    <span className="group-open:rotate-90 transition-transform">▸</span>
+                    <span>Or enter an external Image URL</span>
+                  </summary>
+                  <div className="mt-2.5 flex gap-2">
+                    <input
+                      type="url"
+                      value={customAvatarUrl}
+                      onChange={(e) => setCustomAvatarUrl(e.target.value)}
+                      placeholder="https://example.com/photo.jpg"
+                      className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customAvatarUrl.trim()) {
+                          setPendingPhotoUrl(customAvatarUrl.trim());
+                          setSelectedFileName('External Web URL');
+                          toast.success('Image URL loaded');
+                        } else {
+                          toast.error('Please enter a valid URL');
+                        }
+                      }}
+                      className="px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      Load
+                    </button>
+                  </div>
+                </details>
               </div>
             </div>
 
-            {/* Close */}
-            <div className="pt-3 border-t border-slate-100 flex justify-end">
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowAvatarModal(false)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-200"
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-200 transition-colors"
               >
-                Close
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyPhoto}
+                className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-sm transition-all flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                Apply Photo
               </button>
             </div>
           </div>

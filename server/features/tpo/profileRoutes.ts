@@ -4,19 +4,62 @@ import { getTPOContext } from "./tpoContext.ts";
 
 const router = express.Router();
 
+let schemaEnsured = false;
+
+/**
+ * Dynamically self-heals tpo_profiles schema if columns like alternate_contact are missing.
+ * Handles both MySQL and SQLite runtimes gracefully.
+ */
+async function ensureTPOProfileSchema() {
+  if (schemaEnsured) return;
+  const columnsToAdd = [
+    { name: "employee_id", definition: "VARCHAR(100) NULL" },
+    { name: "phone", definition: "VARCHAR(50) NULL" },
+    { name: "alternate_contact", definition: "VARCHAR(50) NULL" },
+    { name: "department", definition: "VARCHAR(150) DEFAULT 'Training & Placement Cell'" },
+    { name: "office_location", definition: "VARCHAR(255) NULL" },
+    { name: "office_hours", definition: "VARCHAR(150) NULL" },
+    { name: "bio", definition: "TEXT NULL" },
+    { name: "linkedin_url", definition: "VARCHAR(255) NULL" },
+    { name: "profile_photo_url", definition: "LONGTEXT NULL" },
+    { name: "secondary_email", definition: "VARCHAR(255) NULL" },
+    { name: "experience_years", definition: "VARCHAR(50) NULL" },
+    { name: "qualification", definition: "VARCHAR(150) NULL" },
+  ];
+
+  for (const col of columnsToAdd) {
+    try {
+      await db.query(`ALTER TABLE tpo_profiles ADD COLUMN ${col.name} ${col.definition}`);
+    } catch (e) {
+      // Ignore error if column already exists (e.g. duplicate column name in MySQL / SQLite)
+    }
+  }
+  schemaEnsured = true;
+}
+
 /**
  * Ensures the TPO profile record exists for the given user.
  */
 async function getOrCreateTPOProfile(userId: number, email: string) {
+  await ensureTPOProfileSchema();
   let [rows]: any = await db.query("SELECT * FROM tpo_profiles WHERE user_id = ?", [userId]);
   if (!rows || rows.length === 0) {
     const defaultName = email ? email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "Placement Officer";
     const employeeId = `TPO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    await db.query(
-      `INSERT INTO tpo_profiles (user_id, full_name, designation, department, status, employee_id) 
-       VALUES (?, ?, ?, 'Training & Placement Cell', 'ACTIVE', ?)`,
-      [userId, defaultName, "Training & Placement Officer", employeeId]
-    );
+    try {
+      await db.query(
+        `INSERT INTO tpo_profiles (user_id, full_name, designation, department, status, employee_id) 
+         VALUES (?, ?, ?, 'Training & Placement Cell', 'ACTIVE', ?)`,
+        [userId, defaultName, "Training & Placement Officer", employeeId]
+      );
+    } catch (err) {
+      // Fallback if some columns are still unavailable
+      await db.query(
+        `INSERT INTO tpo_profiles (user_id, full_name, designation, status) 
+         VALUES (?, ?, 'Training & Placement Officer', 'ACTIVE')`,
+        [userId, defaultName]
+      );
+    }
     [rows] = await db.query("SELECT * FROM tpo_profiles WHERE user_id = ?", [userId]);
   }
   return rows[0];
@@ -147,6 +190,7 @@ router.get("/profile", async (req: any, res) => {
 router.put("/profile", async (req: any, res) => {
   try {
     const userId = req.user.userId;
+    await ensureTPOProfileSchema();
     const {
       full_name,
       contact_number,

@@ -677,7 +677,18 @@ export async function initDb() {
       // Add TPO Profile columns
       const tpoColumns = [
         { name: "employee_id", definition: "VARCHAR(100) NULL" },
-        { name: "phone", definition: "VARCHAR(20) NULL" }
+        { name: "phone", definition: "VARCHAR(50) NULL" },
+        { name: "alternate_contact", definition: "VARCHAR(50) NULL" },
+        { name: "department", definition: "VARCHAR(150) DEFAULT 'Training & Placement Cell'" },
+        { name: "office_location", definition: "VARCHAR(255) NULL" },
+        { name: "office_hours", definition: "VARCHAR(150) NULL" },
+        { name: "bio", definition: "TEXT NULL" },
+        { name: "linkedin_url", definition: "VARCHAR(255) NULL" },
+        { name: "profile_photo_url", definition: "LONGTEXT NULL" },
+        { name: "secondary_email", definition: "VARCHAR(255) NULL" },
+        { name: "experience_years", definition: "VARCHAR(50) NULL" },
+        { name: "qualification", definition: "VARCHAR(150) NULL" },
+        { name: "updated_at", definition: "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" }
       ];
       for (const col of tpoColumns) {
         try {
@@ -767,11 +778,24 @@ export async function initDb() {
           id INT PRIMARY KEY AUTO_INCREMENT,
           user_id INT UNIQUE NOT NULL,
           full_name VARCHAR(255) NOT NULL,
-          contact_number VARCHAR(20),
-          designation VARCHAR(100),
+          contact_number VARCHAR(50),
+          alternate_contact VARCHAR(50),
+          designation VARCHAR(150),
+          department VARCHAR(150) DEFAULT 'Training & Placement Cell',
+          employee_id VARCHAR(100),
+          phone VARCHAR(50),
+          office_location VARCHAR(255),
+          office_hours VARCHAR(150),
+          bio TEXT,
+          linkedin_url VARCHAR(255),
+          profile_photo_url LONGTEXT,
+          secondary_email VARCHAR(255),
+          experience_years VARCHAR(50),
+          qualification VARCHAR(150),
           status ENUM('ACTIVE', 'INACTIVE') DEFAULT 'ACTIVE',
           first_login TINYINT DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
       `);

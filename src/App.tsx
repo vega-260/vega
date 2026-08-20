@@ -66,7 +66,6 @@ const TPOAlumni = lazy(() => import("./pages/tpo/TPOAlumni.tsx"));
 const TPOEvents = lazy(() => import("./pages/tpo/TPOEvents.tsx"));
 const TPOAnalytics = lazy(() => import("./pages/tpo/TPOAnalytics.tsx"));
 const TPOAssessments = lazy(() => import("./pages/tpo/TPOAssessments.tsx"));
-const TPOSkillGap = lazy(() => import("./pages/tpo/TPOSkillGap.tsx"));
 const TPOVerification = lazy(() => import("./pages/tpo/TPOVerification.tsx"));
 const TPOReports = lazy(() => import("./pages/tpo/TPOReports.tsx"));
 const TPONotifications = lazy(() => import("./pages/tpo/TPONotifications.tsx"));
@@ -287,7 +286,6 @@ export default function App() {
                 <Route path="events" element={<TPOEvents />} />
                 <Route path="analytics" element={<TPOAnalytics />} />
                 <Route path="assessments" element={<TPOAssessments />} />
-                <Route path="skill-gap" element={<TPOSkillGap />} />
                 <Route path="verification" element={<TPOVerification />} />
                 <Route path="reports" element={<TPOReports />} />
                 <Route path="notifications" element={<TPONotifications />} />
