@@ -422,14 +422,55 @@ export default function TPOManagement() {
     setExpandedBatches(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Search filter
+  // Search filters
   const filteredTree = treeData.filter(col => {
+    if (!searchQuery.trim()) return true;
     const searchLower = searchQuery.toLowerCase();
     return (
-      col.college_name.toLowerCase().includes(searchLower) ||
-      col.college_code.toLowerCase().includes(searchLower) ||
+      (col.college_name && col.college_name.toLowerCase().includes(searchLower)) ||
+      (col.college_code && col.college_code.toLowerCase().includes(searchLower)) ||
       (col.district && col.district.toLowerCase().includes(searchLower)) ||
       (col.state && col.state.toLowerCase().includes(searchLower))
+    );
+  });
+
+  const filteredColleges = colleges.filter(col => {
+    if (!searchQuery.trim()) return true;
+    const s = searchQuery.toLowerCase();
+    return (
+      (col.college_name && col.college_name.toLowerCase().includes(s)) ||
+      (col.college_code && col.college_code.toLowerCase().includes(s)) ||
+      (col.university && col.university.toLowerCase().includes(s)) ||
+      (col.district && col.district.toLowerCase().includes(s)) ||
+      (col.state && col.state.toLowerCase().includes(s)) ||
+      (col.official_email && col.official_email.toLowerCase().includes(s)) ||
+      (col.principal_name && col.principal_name.toLowerCase().includes(s)) ||
+      (col.placement_head && col.placement_head.toLowerCase().includes(s))
+    );
+  });
+
+  const filteredTpos = tpos.filter(tpo => {
+    if (!searchQuery.trim()) return true;
+    const s = searchQuery.toLowerCase();
+    return (
+      (tpo.full_name && tpo.full_name.toLowerCase().includes(s)) ||
+      (tpo.email && tpo.email.toLowerCase().includes(s)) ||
+      (tpo.contact_number && tpo.contact_number.toLowerCase().includes(s)) ||
+      (tpo.designation && tpo.designation.toLowerCase().includes(s)) ||
+      (tpo.employee_id && tpo.employee_id.toLowerCase().includes(s)) ||
+      (tpo.assigned_colleges && String(tpo.assigned_colleges).toLowerCase().includes(s))
+    );
+  });
+
+  const filteredBatches = batches.filter(batch => {
+    if (!searchQuery.trim()) return true;
+    const s = searchQuery.toLowerCase();
+    return (
+      (batch.batch_name && batch.batch_name.toLowerCase().includes(s)) ||
+      (batch.department && batch.department.toLowerCase().includes(s)) ||
+      (batch.academic_year && batch.academic_year.toLowerCase().includes(s)) ||
+      (batch.college_name && batch.college_name.toLowerCase().includes(s)) ||
+      (batch.tpo_name && batch.tpo_name.toLowerCase().includes(s))
     );
   });
 
@@ -806,277 +847,355 @@ export default function TPOManagement() {
 
           {/* TAB 2: MANAGE COLLEGES */}
           {activeTab === 'colleges' && (
-            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Building2 className="text-blue-600" /> College Directory Database
-                </h2>
-                <div className="text-xs text-slate-500 font-bold">
-                  Total Records: {colleges.length}
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-3.5 text-slate-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search college, region, code, contact..." 
+                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                  Colleges: Showing {filteredColleges.length} of {colleges.length}
                 </div>
               </div>
 
-              <div className="overflow-x-auto w-full max-w-full min-w-0">
-                <table className="w-full min-w-[720px] text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                      <th className="p-4">College details</th>
-                      <th className="p-4">Location</th>
-                      <th className="p-4">Primary Contact</th>
-                      <th className="p-4">Authorities</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {colleges.map(college => (
-                      <tr key={college.id} className="hover:bg-slate-50/30 transition-all">
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-slate-100 text-slate-600 rounded-lg font-black border border-slate-200/60">
-                              {college.college_code}
-                            </div>
-                            <div>
-                              <div className="font-extrabold text-slate-850 text-sm">{college.college_name}</div>
-                              <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{college.university}</div>
-                              {college.website && (
-                                <a href={college.website} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1">
-                                  {college.website} <ExternalLink size={10} />
-                                </a>
+              <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
+                  <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Building2 className="text-blue-600" /> College Directory Database
+                  </h2>
+                  <div className="text-xs text-slate-500 font-bold">
+                    Total Records: {filteredColleges.length}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto w-full max-w-full min-w-0">
+                  {filteredColleges.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <Building2 className="mx-auto text-slate-300 mb-3" size={40} />
+                      <p className="font-bold text-sm text-slate-600">No colleges matching search query</p>
+                      <p className="text-xs text-slate-400 mt-1">Try another search keyword</p>
+                    </div>
+                  ) : (
+                    <table className="w-full min-w-[720px] text-left text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                          <th className="p-4">College details</th>
+                          <th className="p-4">Location</th>
+                          <th className="p-4">Primary Contact</th>
+                          <th className="p-4">Authorities</th>
+                          <th className="p-4">Status</th>
+                          <th className="p-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredColleges.map(college => (
+                          <tr key={college.id} className="hover:bg-slate-50/30 transition-all">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-slate-100 text-slate-600 rounded-lg font-black border border-slate-200/60">
+                                  {college.college_code}
+                                </div>
+                                <div>
+                                  <div className="font-extrabold text-slate-850 text-sm">{college.college_name}</div>
+                                  <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{college.university}</div>
+                                  {college.website && (
+                                    <a href={college.website} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1">
+                                      {college.website} <ExternalLink size={10} />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="text-slate-800 font-bold text-xs">{college.district || 'Not specified'}</div>
+                              <div className="text-slate-500 text-[11px] mt-0.5">{college.state || 'Maharashtra'}, {college.country || 'India'}</div>
+                            </td>
+                            <td className="p-4">
+                              {college.official_email && (
+                                <div className="flex items-center gap-1.5 text-slate-700 text-xs">
+                                  <Mail size={12} className="text-slate-400" /> {college.official_email}
+                                </div>
                               )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-slate-800 font-bold text-xs">{college.district || 'Not specified'}</div>
-                          <div className="text-slate-500 text-[11px] mt-0.5">{college.state || 'Maharashtra'}, {college.country || 'India'}</div>
-                        </td>
-                        <td className="p-4">
-                          {college.official_email && (
-                            <div className="flex items-center gap-1.5 text-slate-700 text-xs">
-                              <Mail size={12} className="text-slate-400" /> {college.official_email}
-                            </div>
-                          )}
-                          {college.contact_number && (
-                            <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-1">
-                              <Phone size={12} className="text-slate-400" /> {college.contact_number}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          {college.principal_name && (
-                            <div className="text-slate-700 text-xs font-semibold">
-                              Prin: <span className="font-bold">{college.principal_name}</span>
-                            </div>
-                          )}
-                          {college.placement_head && (
-                            <div className="text-slate-500 text-[11px] mt-0.5 font-semibold">
-                              Head: <span className="font-bold">{college.placement_head}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${college.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
-                            {college.status}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handleEditCollegeClick(college)}
-                              className="p-2 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-lg transition-all border border-slate-200"
-                              title="Edit College Profile"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteCollege(college.id)}
-                              className="p-2 bg-slate-50 hover:bg-red-50 text-red-600 rounded-lg transition-all border border-slate-200 hover:border-red-100"
-                              title="Deactivate College"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              {college.contact_number && (
+                                <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-1">
+                                  <Phone size={12} className="text-slate-400" /> {college.contact_number}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {college.principal_name && (
+                                <div className="text-slate-700 text-xs font-semibold">
+                                  Prin: <span className="font-bold">{college.principal_name}</span>
+                                </div>
+                              )}
+                              {college.placement_head && (
+                                <div className="text-slate-500 text-[11px] mt-0.5 font-semibold">
+                                  Head: <span className="font-bold">{college.placement_head}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${college.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                                {college.status}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <button 
+                                  onClick={() => handleEditCollegeClick(college)}
+                                  className="p-2 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-lg transition-all border border-slate-200"
+                                  title="Edit College Profile"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteCollege(college.id)}
+                                  className="p-2 bg-slate-50 hover:bg-red-50 text-red-600 rounded-lg transition-all border border-slate-200 hover:border-red-100"
+                                  title="Deactivate College"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
           {/* TAB 3: MANAGE TPOS */}
           {activeTab === 'tpos' && (
-            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Users className="text-blue-600" /> Training & Placement Officer (TPO) Registry
-                </h2>
-                <div className="text-xs text-slate-500 font-bold">
-                  Total Registrants: {tpos.length}
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-3.5 text-slate-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search TPO officer, email, phone, college..." 
+                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                  Officers: Showing {filteredTpos.length} of {tpos.length}
                 </div>
               </div>
 
-              <div className="overflow-x-auto w-full max-w-full min-w-0">
-                <table className="w-full min-w-[720px] text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                      <th className="p-4">Officer profile</th>
-                      <th className="p-4">Designation & ID</th>
-                      <th className="p-4">Contact Detail</th>
-                      <th className="p-4">Assigned Institutes</th>
-                      <th className="p-4">Ecosystem Status</th>
-                      <th className="p-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {tpos.map(tpo => (
-                      <tr key={tpo.id} className="hover:bg-slate-50/30 transition-all">
-                        <td className="p-4">
-                          <div className="font-extrabold text-slate-850 text-sm">{tpo.full_name}</div>
-                          <div className="text-[11px] text-blue-600 font-semibold mt-0.5 flex items-center gap-1">
-                            <Mail size={10} /> {tpo.email}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-slate-800 font-bold text-xs">{tpo.designation || 'TPO Head'}</div>
-                          <div className="text-slate-500 text-[11px] mt-0.5">Emp ID: {tpo.employee_id || 'N/A'}</div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-1.5 text-slate-700 text-xs">
-                            <Phone size={12} className="text-slate-400" /> {tpo.contact_number || 'No contact info'}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          {tpo.assigned_colleges ? (
-                            <div className="flex flex-wrap gap-1.5 max-w-xs">
-                              {String(tpo.assigned_colleges).split(',').map((name, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-slate-105 border border-slate-200 text-slate-600 rounded font-bold text-[10px] tracking-wide whitespace-nowrap">
-                                  {name.trim()}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-xs italic">No colleges allocated</span>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${tpo.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
-                            {tpo.user_status}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handleEditTpoClick(tpo)}
-                              className="p-2 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-lg transition-all border border-slate-200"
-                              title="Edit Profile & Allocations"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteTpo(tpo.id)}
-                              className="p-2 bg-slate-50 hover:bg-red-50 text-red-600 rounded-lg transition-all border border-slate-200 hover:border-red-100"
-                              title="Delete TPO Account"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
+                  <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Users className="text-blue-600" /> Training & Placement Officer (TPO) Registry
+                  </h2>
+                  <div className="text-xs text-slate-500 font-bold">
+                    Total Registrants: {filteredTpos.length}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto w-full max-w-full min-w-0">
+                  {filteredTpos.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <Users className="mx-auto text-slate-300 mb-3" size={40} />
+                      <p className="font-bold text-sm text-slate-600">No TPOs matching search query</p>
+                      <p className="text-xs text-slate-400 mt-1">Try another search keyword</p>
+                    </div>
+                  ) : (
+                    <table className="w-full min-w-[720px] text-left text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                          <th className="p-4">Officer profile</th>
+                          <th className="p-4">Designation & ID</th>
+                          <th className="p-4">Contact Detail</th>
+                          <th className="p-4">Assigned Institutes</th>
+                          <th className="p-4">Ecosystem Status</th>
+                          <th className="p-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredTpos.map(tpo => (
+                          <tr key={tpo.id} className="hover:bg-slate-50/30 transition-all">
+                            <td className="p-4">
+                              <div className="font-extrabold text-slate-850 text-sm">{tpo.full_name}</div>
+                              <div className="text-[11px] text-blue-600 font-semibold mt-0.5 flex items-center gap-1">
+                                <Mail size={10} /> {tpo.email}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="text-slate-800 font-bold text-xs">{tpo.designation || 'TPO Head'}</div>
+                              <div className="text-slate-500 text-[11px] mt-0.5">Emp ID: {tpo.employee_id || 'N/A'}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-1.5 text-slate-700 text-xs">
+                                <Phone size={12} className="text-slate-400" /> {tpo.contact_number || 'No contact info'}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              {tpo.assigned_colleges ? (
+                                <div className="flex flex-wrap gap-1.5 max-w-xs">
+                                  {String(tpo.assigned_colleges).split(',').map((name, i) => (
+                                    <span key={i} className="px-2 py-0.5 bg-slate-105 border border-slate-200 text-slate-600 rounded font-bold text-[10px] tracking-wide whitespace-nowrap">
+                                      {name.trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-xs italic">No colleges allocated</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${tpo.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                                {tpo.user_status}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <button 
+                                  onClick={() => handleEditTpoClick(tpo)}
+                                  className="p-2 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-lg transition-all border border-slate-200"
+                                  title="Edit Profile & Allocations"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteTpo(tpo.id)}
+                                  className="p-2 bg-slate-50 hover:bg-red-50 text-red-600 rounded-lg transition-all border border-slate-200 hover:border-red-100"
+                                  title="Delete TPO Account"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
           {/* TAB 4: ACADEMIC BATCHES */}
           {activeTab === 'batches' && (
-            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="text-blue-600" /> Academic Batches Directory
-                </h2>
-                <div className="text-xs text-slate-500 font-bold">
-                  Total Batches: {batches.length}
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-3.5 text-slate-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search batch name, department, year, college, TPO..." 
+                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                  Batches: Showing {filteredBatches.length} of {batches.length}
                 </div>
               </div>
 
-              <div className="overflow-x-auto w-full max-w-full min-w-0">
-                <table className="w-full min-w-[720px] text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                      <th className="p-4">Batch details</th>
-                      <th className="p-4">Parent College</th>
-                      <th className="p-4">Assigned TPO</th>
-                      <th className="p-4">Roster Strength</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {batches.map(batch => (
-                      <tr key={batch.id} className="hover:bg-slate-50/30 transition-all">
-                        <td className="p-4">
-                          <div className="font-extrabold text-slate-850 text-sm">{batch.batch_name}</div>
-                          <div className="text-[11px] text-slate-500 font-semibold mt-1">
-                            Dept: <span className="text-slate-800 font-bold">{batch.department || 'N/A'}</span> &bull; Year: {batch.academic_year || 'N/A'} &bull; Sem: {batch.semester || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-slate-800 font-bold text-xs">{batch.college_name}</div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-slate-800 text-xs font-semibold flex items-center gap-1.5">
-                            <UserCheck size={12} className="text-slate-400" /> {batch.tpo_name || <span className="text-rose-600 font-bold">Unassigned</span>}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <button
-                            onClick={() => handleViewStudentsClick(batch)}
-                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded border border-blue-100 hover:border-blue-200 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
-                            title="Click to view and manage batch roster"
-                          >
-                            <Users size={12} />
-                            {batch.student_count || 0} students
-                          </button>
-                        </td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${batch.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
-                            {batch.status}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handleViewStudentsClick(batch)}
-                              className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg transition-all border border-slate-200"
-                              title="View & Manage Students"
-                            >
-                              <Users size={14} />
-                            </button>
-                            <button 
-                              onClick={() => handleEditBatchClick(batch)}
-                              className="p-2 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-lg transition-all border border-slate-200"
-                              title="Edit Academic Batch"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteBatch(batch.id)}
-                              className="p-2 bg-slate-50 hover:bg-red-50 text-red-600 rounded-lg transition-all border border-slate-200 hover:border-red-100"
-                              title="Delete Batch"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
+                  <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Layers className="text-blue-600" /> Academic Batches Directory
+                  </h2>
+                  <div className="text-xs text-slate-500 font-bold">
+                    Total Batches: {filteredBatches.length}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto w-full max-w-full min-w-0">
+                  {filteredBatches.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <Layers className="mx-auto text-slate-300 mb-3" size={40} />
+                      <p className="font-bold text-sm text-slate-600">No batches matching search query</p>
+                      <p className="text-xs text-slate-400 mt-1">Try another search keyword</p>
+                    </div>
+                  ) : (
+                    <table className="w-full min-w-[720px] text-left text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                          <th className="p-4">Batch details</th>
+                          <th className="p-4">Parent College</th>
+                          <th className="p-4">Assigned TPO</th>
+                          <th className="p-4">Roster Strength</th>
+                          <th className="p-4">Status</th>
+                          <th className="p-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredBatches.map(batch => (
+                          <tr key={batch.id} className="hover:bg-slate-50/30 transition-all">
+                            <td className="p-4">
+                              <div className="font-extrabold text-slate-850 text-sm">{batch.batch_name}</div>
+                              <div className="text-[11px] text-slate-500 font-semibold mt-1">
+                                Dept: <span className="text-slate-800 font-bold">{batch.department || 'N/A'}</span> &bull; Year: {batch.academic_year || 'N/A'} &bull; Sem: {batch.semester || 'N/A'}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="text-slate-800 font-bold text-xs">{batch.college_name}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className="text-slate-800 text-xs font-semibold flex items-center gap-1.5">
+                                <UserCheck size={12} className="text-slate-400" /> {batch.tpo_name || <span className="text-rose-600 font-bold">Unassigned</span>}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <button
+                                onClick={() => handleViewStudentsClick(batch)}
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded border border-blue-100 hover:border-blue-200 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
+                                title="Click to view and manage batch roster"
+                              >
+                                <Users size={12} />
+                                {batch.student_count || 0} students
+                              </button>
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${batch.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                                {batch.status}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <button 
+                                  onClick={() => handleViewStudentsClick(batch)}
+                                  className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg transition-all border border-slate-200"
+                                  title="View & Manage Students"
+                                >
+                                  <Users size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleEditBatchClick(batch)}
+                                  className="p-2 bg-slate-50 hover:bg-slate-100 text-blue-600 rounded-lg transition-all border border-slate-200"
+                                  title="Edit Academic Batch"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteBatch(batch.id)}
+                                  className="p-2 bg-slate-50 hover:bg-red-50 text-red-600 rounded-lg transition-all border border-slate-200 hover:border-red-100"
+                                  title="Deactivate Academic Batch"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           )}
