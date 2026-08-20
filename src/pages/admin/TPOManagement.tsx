@@ -851,7 +851,7 @@ export default function TPOManagement() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                          <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${college.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                          <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${college.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                             {college.status}
                           </span>
                           {expandedColleges[college.id] ? <ChevronDown size={18} className="text-slate-400" /> : <ChevronRight size={18} className="text-slate-400" />}
@@ -962,7 +962,7 @@ export default function TPOManagement() {
                                                         TS: {student.talent_score}
                                                       </span>
                                                     )}
-                                                    <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${student.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${student.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                                                       {student.user_status}
                                                     </span>
                                                   </div>
@@ -1107,7 +1107,7 @@ export default function TPOManagement() {
                               )}
                             </td>
                             <td className="p-4">
-                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${college.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${college.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                                 {college.status}
                               </span>
                             </td>
@@ -1226,7 +1226,7 @@ export default function TPOManagement() {
                               )}
                             </td>
                             <td className="p-4">
-                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${tpo.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${tpo.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                                 {tpo.user_status}
                               </span>
                             </td>
@@ -1341,7 +1341,7 @@ export default function TPOManagement() {
                               </button>
                             </td>
                             <td className="p-4">
-                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${batch.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${batch.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                                 {batch.status}
                               </span>
                             </td>
@@ -1899,7 +1899,7 @@ export default function TPOManagement() {
                               )}
                             </td>
                             <td className="p-3 text-center">
-                              <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${student.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                              <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${student.user_status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                                 {student.user_status}
                               </span>
                             </td>
