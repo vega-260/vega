@@ -176,12 +176,14 @@ router.get("/tpos", async (req, res) => {
   try {
     const [tpos]: any = await db.query(`
       SELECT t.*, u.email, u.status as user_status, 
-      GROUP_CONCAT(c.college_name) as assigned_colleges
+      GROUP_CONCAT(c.college_name) as assigned_colleges,
+      GROUP_CONCAT(tc.college_id) as assigned_college_ids
       FROM tpo_profiles t
       JOIN users u ON t.user_id = u.id
       LEFT JOIN tpo_colleges tc ON t.id = tc.tpo_id
       LEFT JOIN college_master c ON tc.college_id = c.id
       GROUP BY t.id
+      ORDER BY t.id DESC
     `);
     res.json({ success: true, data: tpos });
   } catch (error) {

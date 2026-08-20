@@ -211,7 +211,7 @@ router.get("/college-tree", async (req, res) => {
     const [colleges]: any = await db.query(`
       SELECT id, college_name, college_code, district, state, status, website, official_email 
       FROM college_master 
-      ORDER BY college_name ASC
+      ORDER BY id DESC
     `);
 
     // 2. Fetch all batches

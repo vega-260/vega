@@ -197,7 +197,7 @@ router.put("/colleges/:id", async (req, res) => {
 
 router.get("/colleges", async (req, res) => {
   try {
-    const [colleges]: any = await db.query("SELECT * FROM college_master ORDER BY college_name ASC");
+    const [colleges]: any = await db.query("SELECT * FROM college_master ORDER BY id DESC");
     res.json({ success: true, data: colleges });
   } catch (error) {
     res.status(500).json({ success: false, message: "Error fetching colleges" });
@@ -219,6 +219,7 @@ router.delete("/colleges/:id", async (req, res) => {
 // --- TPO MANAGEMENT ---
 
 router.post("/tpos", async (req, res) => {
+  let createdUserId: number | null = null;
   try {
     const { email, full_name, contact_number, designation, employee_id, college_ids } = req.body;
 
@@ -226,7 +227,7 @@ router.post("/tpos", async (req, res) => {
       return res.status(400).json({ success: false, message: "Email and full name are required." });
     }
 
-    const cleanEmail = String(email).trim();
+    const cleanEmail = String(email).trim().toLowerCase();
     if (!EMAIL_REGEX.test(cleanEmail)) {
       return res.status(400).json({ success: false, message: "Please enter a valid email address." });
     }
@@ -237,10 +238,42 @@ router.post("/tpos", async (req, res) => {
       }
     }
 
+    // Check if employee_id already exists
+    const cleanEmpId = typeof employee_id === "string" && employee_id.trim() ? employee_id.trim() : null;
+    if (cleanEmpId) {
+      const [existingEmp]: any = await db.query(
+        "SELECT id FROM tpo_profiles WHERE LOWER(TRIM(employee_id)) = LOWER(?)",
+        [cleanEmpId]
+      );
+      if (existingEmp.length > 0) {
+        return res.status(400).json({ success: false, message: "Employee ID already exists" });
+      }
+    }
+
+    // Check if contact_number already exists
+    const cleanPhone = contact_number && typeof contact_number === "string" && contact_number.trim() ? contact_number.trim() : null;
+    if (cleanPhone) {
+      const [existingPhone]: any = await db.query(
+        "SELECT id FROM tpo_profiles WHERE contact_number = ? OR phone = ?",
+        [cleanPhone, cleanPhone]
+      );
+      if (existingPhone.length > 0) {
+        return res.status(400).json({ success: false, message: "Contact phone number already exists" });
+      }
+    }
+
     // Check if user already exists
-    const [existingUsers]: any = await db.query("SELECT * FROM users WHERE email = ?", [email]);
+    const [existingUsers]: any = await db.query("SELECT id, role FROM users WHERE LOWER(TRIM(email)) = LOWER(?)", [cleanEmail]);
     if (existingUsers.length > 0) {
-      return res.status(400).json({ success: false, message: "Email already exists" });
+      const existingUser = existingUsers[0];
+      // Check if this is an orphaned user record from an interrupted attempt
+      const [profiles]: any = await db.query("SELECT id FROM tpo_profiles WHERE user_id = ?", [existingUser.id]);
+      if (profiles.length === 0 && existingUser.role === 'TPO') {
+        // Clean up orphaned user record from previous failed creation attempt
+        await db.query("DELETE FROM users WHERE id = ?", [existingUser.id]);
+      } else {
+        return res.status(400).json({ success: false, message: "Email already exists" });
+      }
     }
 
     // Create User
@@ -250,15 +283,15 @@ router.post("/tpos", async (req, res) => {
     const [userResult]: any = await db.query(`
       INSERT INTO users (email, password_hash, role, status, is_verified)
       VALUES (?, ?, 'TPO', 'ACTIVE', 1)
-    `, [email, passwordHash]);
+    `, [cleanEmail, passwordHash]);
 
-    const userId = userResult.insertId;
+    createdUserId = userResult.insertId;
 
     // Create TPO Profile
     const [tpoResult]: any = await db.query(`
       INSERT INTO tpo_profiles (user_id, full_name, contact_number, designation, employee_id, phone, status)
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `, [userId, full_name, contact_number || null, designation || null, employee_id || null, contact_number || null]);
+    `, [createdUserId, full_name, contact_number || null, designation || null, employee_id || null, contact_number || null]);
 
     const tpoId = tpoResult.insertId;
 
@@ -272,25 +305,33 @@ router.post("/tpos", async (req, res) => {
     // Send SMTP Credentials & Log Email
     try {
       const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
-      await sendTPOCredentials(email, full_name, tempPassword, loginUrl);
+      await sendTPOCredentials(cleanEmail, full_name, tempPassword, loginUrl);
       
       await db.query(`
         INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
         VALUES (?, 'TPO_CREDENTIALS', ?, 'Welcome to VEGA - TPO Credentials', 'SENT')
-      `, [userId, email]);
+      `, [createdUserId, cleanEmail]);
     } catch (emailErr) {
       console.error("Failed to send SMTP email:", emailErr);
     }
 
-    await logAdminAction((req as any).user.userId, "CREATE_TPO", { email, full_name, college_ids }, req);
+    await logAdminAction((req as any).user.userId, "CREATE_TPO", { email: cleanEmail, full_name, college_ids }, req);
 
     res.json({ 
       success: true, 
-      message: "TPO account created successfully and credentials sent to official email."
+      message: "TPO registered successfully and credentials sent to official email."
     });
   } catch (error: any) {
     console.error("Create TPO Error:", error);
-    res.status(500).json({ success: false, message: "Error creating TPO account" });
+    if (createdUserId) {
+      try {
+        await db.query("DELETE FROM tpo_profiles WHERE user_id = ?", [createdUserId]);
+        await db.query("DELETE FROM users WHERE id = ?", [createdUserId]);
+      } catch (cleanupErr) {
+        console.error("Cleanup error during rollback:", cleanupErr);
+      }
+    }
+    res.status(500).json({ success: false, message: error.message || "Error creating TPO account" });
   }
 });
 
@@ -305,12 +346,34 @@ router.put("/tpos/:id", async (req, res) => {
     }
     const userId = tpoProfiles[0].user_id;
 
+    const cleanEmpId = typeof employee_id === "string" && employee_id.trim() ? employee_id.trim() : null;
+    if (cleanEmpId) {
+      const [existingEmp]: any = await db.query(
+        "SELECT id FROM tpo_profiles WHERE LOWER(TRIM(employee_id)) = LOWER(?) AND id != ?",
+        [cleanEmpId, id]
+      );
+      if (existingEmp.length > 0) {
+        return res.status(400).json({ success: false, message: "Employee ID already exists" });
+      }
+    }
+
+    const cleanPhone = contact_number && typeof contact_number === "string" && contact_number.trim() ? contact_number.trim() : null;
+    if (cleanPhone) {
+      const [existingPhone]: any = await db.query(
+        "SELECT id FROM tpo_profiles WHERE (contact_number = ? OR phone = ?) AND id != ?",
+        [cleanPhone, cleanPhone, id]
+      );
+      if (existingPhone.length > 0) {
+        return res.status(400).json({ success: false, message: "Contact phone number already exists" });
+      }
+    }
+
     // Update profiles
     await db.query(`
       UPDATE tpo_profiles SET
         full_name = ?, contact_number = ?, designation = ?, employee_id = ?, phone = ?, status = ?
       WHERE id = ?
-    `, [full_name, contact_number || null, designation || null, employee_id || null, contact_number || null, status || "ACTIVE", id]);
+    `, [full_name, cleanPhone, designation || null, cleanEmpId, cleanPhone, status || "ACTIVE", id]);
 
     // Update users table status
     if (status) {

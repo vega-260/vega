@@ -123,30 +123,54 @@ export default function TPOManagement() {
 
   // Parser helper function for students text / CSV
   const parseStudentsFromRawText = (text: string) => {
+    if (!text || typeof text !== 'string') return [];
+    
+    // Quick binary check - reject string if it contains null bytes or binary control characters
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 2000))) {
+      return [];
+    }
+
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const list: { name: string; email: string; department?: string }[] = [];
+
     for (const line of lines) {
       if (line.toLowerCase().includes('email') && line.toLowerCase().includes('name')) continue;
+      
+      // Skip lines with unprintable binary characters
+      if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(line)) continue;
+
       const parts = line.split(/,|\t|;/).map(p => p.trim());
       if (parts.length >= 2) {
-        const emailIndex = parts.findIndex(part => part.includes('@'));
+        const emailIndex = parts.findIndex(part => EMAIL_REGEX.test(part.trim()));
         if (emailIndex !== -1) {
           const email = parts[emailIndex].trim();
           const nonEmailParts = parts.filter((_, idx) => idx !== emailIndex);
-          const name = nonEmailParts[0]?.replace(/["']/g, '').trim() || '';
-          const dept = nonEmailParts[1]?.replace(/["']/g, '').trim() || '';
+          const rawName = nonEmailParts[0]?.replace(/["']/g, '').trim() || '';
+          const rawDept = nonEmailParts[1]?.replace(/["']/g, '').trim() || '';
+          const name = rawName.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
+          const dept = rawDept.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
           if (name && email) {
             list.push({ name, email, department: dept || undefined });
           }
         } else {
-          const name = parts[0].replace(/["']/g, '').trim();
-          const email = parts[1].trim();
-          const dept = parts[2]?.replace(/["']/g, '').trim() || '';
-          if (name && email.includes('@')) {
-            list.push({ name, email, department: dept || undefined });
+          // Fallback email check
+          const fallbackEmailIdx = parts.findIndex(part => part.includes('@'));
+          if (fallbackEmailIdx !== -1) {
+            const potentialEmail = parts[fallbackEmailIdx].trim();
+            if (EMAIL_REGEX.test(potentialEmail)) {
+              const nonEmailParts = parts.filter((_, idx) => idx !== fallbackEmailIdx);
+              const rawName = nonEmailParts[0]?.replace(/["']/g, '').trim() || '';
+              const rawDept = nonEmailParts[1]?.replace(/["']/g, '').trim() || '';
+              const name = rawName.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
+              const dept = rawDept.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
+              if (name && potentialEmail) {
+                list.push({ name, email: potentialEmail, department: dept || undefined });
+              }
+            }
           }
         }
-      } else if (parts.length === 1 && parts[0].includes('@')) {
+      } else if (parts.length === 1 && EMAIL_REGEX.test(parts[0].trim())) {
         const email = parts[0].trim();
         const deducedName = email.split('@')[0].split(/[._+-]+/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
         list.push({ name: deducedName, email });
@@ -164,12 +188,49 @@ export default function TPOManagement() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const fileName = file.name || '';
+    const fileExt = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
+    const allowedExtensions = ['csv', 'txt'];
+
+    const unsupportedExts = ['doc', 'docx', 'pdf', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'exe'];
+    const isUnsupportedDoc = unsupportedExts.includes(fileExt) || 
+      file.type.includes('word') || 
+      file.type.includes('officedocument') || 
+      file.type.includes('pdf');
+
+    if (!allowedExtensions.includes(fileExt) || isUnsupportedDoc) {
+      toast.error('Invalid file format. Only .csv and .txt files are supported.');
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
+
+      // Binary content check
+      if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 1000))) {
+        toast.error('Invalid file format. Only .csv and .txt files are supported.');
+        e.target.value = '';
+        return;
+      }
+
       handleStudentsTextChange(text);
-      toast.success(`Successfully parsed ${parseStudentsFromRawText(text).length} students from roster file.`);
+      const parsed = parseStudentsFromRawText(text);
+      if (parsed.length === 0) {
+        toast.error('No valid student entries found in the file.');
+      } else {
+        toast.success(`Successfully parsed ${parsed.length} student${parsed.length === 1 ? '' : 's'} from roster file.`);
+      }
+      e.target.value = '';
     };
+
+    reader.onerror = () => {
+      toast.error('Error reading file.');
+      e.target.value = '';
+    };
+
     reader.readAsText(file);
   };
 
@@ -179,15 +240,15 @@ export default function TPOManagement() {
   };
 
   const handleDeleteCollege = async (id: number) => {
-    if (!window.confirm('Are you sure you want to deactivate this college?')) return;
+    if (!window.confirm('Are you sure you want to delete this college record?')) return;
     try {
       const res = await api.delete(`/admin/colleges/${id}`);
       if (res.data.success) {
-        toast.success('College marked as INACTIVE');
+        toast.success('College deleted successfully');
         fetchInitialData();
       }
     } catch (err: any) {
-      toast.error('Error deactivating college');
+      toast.error('Error deleting college');
     }
   };
 
@@ -1244,7 +1305,12 @@ export default function TPOManagement() {
           setShowTpoModal(false);
           setEditingTpo(null);
         }}
-        onSuccess={() => {
+        onSuccess={(message?: string) => {
+          if (message) {
+            toast.success(message);
+          } else {
+            toast.success('TPO registered successfully');
+          }
           fetchInitialData();
         }}
         editingTpo={editingTpo}
