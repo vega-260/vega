@@ -16,6 +16,9 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   Search,
   CheckCircle,
   Settings,
@@ -30,6 +33,126 @@ import api from '../../services/api';
 import { toast } from 'react-hot-toast';
 import { CollegeModal } from '../../components/admin/CollegeModal';
 import { TpoModal } from '../../components/admin/TpoModal';
+
+const PaginationControl = ({
+  currentPage,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange
+}: {
+  currentPage: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) => {
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  if (totalItems <= 0) return null;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 text-xs font-semibold text-slate-600">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-slate-500 font-bold">
+          Showing <span className="text-slate-900 font-black">{startItem}</span> to <span className="text-slate-900 font-black">{endItem}</span> of <span className="text-slate-900 font-black">{totalItems}</span> entries
+        </span>
+        <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+          <span className="text-slate-400 font-medium">Rows per page:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+          >
+            <option value={10}>10</option>
+            <option value={15}>15</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+          title="First page"
+        >
+          <ChevronsLeft size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+          title="Previous page"
+        >
+          <ChevronLeft size={14} />
+        </button>
+
+        <div className="flex items-center gap-1 px-1">
+          {getPageNumbers().map((p, idx) => (
+            typeof p === 'number' ? (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onPageChange(p)}
+                className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition-all ${
+                  currentPage === p
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {p}
+              </button>
+            ) : (
+              <span key={idx} className="px-1 text-slate-400 font-extrabold">...</span>
+            )
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+          title="Next page"
+        >
+          <ChevronRight size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+          title="Last page"
+        >
+          <ChevronsRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export default function TPOManagement() {
   // Global View tabs
@@ -55,6 +178,22 @@ export default function TPOManagement() {
   const [expandedColleges, setExpandedColleges] = useState<Record<number, boolean>>({});
   const [expandedBatches, setExpandedBatches] = useState<Record<number, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination state
+  const [pageSize, setPageSize] = useState(10);
+  const [treePage, setTreePage] = useState(1);
+  const [collegesPage, setCollegesPage] = useState(1);
+  const [tposPage, setTposPage] = useState(1);
+  const [batchesPage, setBatchesPage] = useState(1);
+  const [logsPage, setLogsPage] = useState(1);
+
+  useEffect(() => {
+    setTreePage(1);
+    setCollegesPage(1);
+    setTposPage(1);
+    setBatchesPage(1);
+    setLogsPage(1);
+  }, [searchQuery, activeTab, pageSize]);
 
   // Modals visibility
   const [showCollegeModal, setShowCollegeModal] = useState(false);
@@ -474,6 +613,24 @@ export default function TPOManagement() {
     );
   });
 
+  const filteredLogs = auditLogs.filter(log => {
+    if (!searchQuery.trim()) return true;
+    const s = searchQuery.toLowerCase();
+    return (
+      (log.action && log.action.toLowerCase().includes(s)) ||
+      (log.admin_email && log.admin_email.toLowerCase().includes(s)) ||
+      (log.details && log.details.toLowerCase().includes(s)) ||
+      (log.ip_address && log.ip_address.toLowerCase().includes(s))
+    );
+  });
+
+  // Paginated Slices
+  const paginatedTree = filteredTree.slice((treePage - 1) * pageSize, treePage * pageSize);
+  const paginatedColleges = filteredColleges.slice((collegesPage - 1) * pageSize, collegesPage * pageSize);
+  const paginatedTpos = filteredTpos.slice((tposPage - 1) * pageSize, tposPage * pageSize);
+  const paginatedBatches = filteredBatches.slice((batchesPage - 1) * pageSize, batchesPage * pageSize);
+  const paginatedLogs = filteredLogs.slice((logsPage - 1) * pageSize, logsPage * pageSize);
+
   return (
     <div className="w-full max-w-full min-w-0 text-slate-800 font-sans selection:bg-blue-500 selection:text-white">
       {/* Header */}
@@ -668,7 +825,7 @@ export default function TPOManagement() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredTree.map(college => (
+                  {paginatedTree.map(college => (
                     <div key={college.id} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md">
                       
                       {/* College Accordion Header */}
@@ -840,6 +997,15 @@ export default function TPOManagement() {
                       )}
                     </div>
                   ))}
+                  <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+                    <PaginationControl 
+                      currentPage={treePage} 
+                      totalItems={filteredTree.length} 
+                      pageSize={pageSize} 
+                      onPageChange={setTreePage} 
+                      onPageSizeChange={setPageSize} 
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -894,7 +1060,7 @@ export default function TPOManagement() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredColleges.map(college => (
+                        {paginatedColleges.map(college => (
                           <tr key={college.id} className="hover:bg-slate-50/30 transition-all">
                             <td className="p-4">
                               <div className="flex items-center gap-3">
@@ -969,6 +1135,13 @@ export default function TPOManagement() {
                     </table>
                   )}
                 </div>
+                <PaginationControl 
+                  currentPage={collegesPage} 
+                  totalItems={filteredColleges.length} 
+                  pageSize={pageSize} 
+                  onPageChange={setCollegesPage} 
+                  onPageSizeChange={setPageSize} 
+                />
               </div>
             </div>
           )}
@@ -1022,7 +1195,7 @@ export default function TPOManagement() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredTpos.map(tpo => (
+                        {paginatedTpos.map(tpo => (
                           <tr key={tpo.id} className="hover:bg-slate-50/30 transition-all">
                             <td className="p-4">
                               <div className="font-extrabold text-slate-850 text-sm">{tpo.full_name}</div>
@@ -1081,6 +1254,13 @@ export default function TPOManagement() {
                     </table>
                   )}
                 </div>
+                <PaginationControl 
+                  currentPage={tposPage} 
+                  totalItems={filteredTpos.length} 
+                  pageSize={pageSize} 
+                  onPageChange={setTposPage} 
+                  onPageSizeChange={setPageSize} 
+                />
               </div>
             </div>
           )}
@@ -1134,7 +1314,7 @@ export default function TPOManagement() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredBatches.map(batch => (
+                        {paginatedBatches.map(batch => (
                           <tr key={batch.id} className="hover:bg-slate-50/30 transition-all">
                             <td className="p-4">
                               <div className="font-extrabold text-slate-850 text-sm">{batch.batch_name}</div>
@@ -1196,6 +1376,13 @@ export default function TPOManagement() {
                     </table>
                   )}
                 </div>
+                <PaginationControl 
+                  currentPage={batchesPage} 
+                  totalItems={filteredBatches.length} 
+                  pageSize={pageSize} 
+                  onPageChange={setBatchesPage} 
+                  onPageSizeChange={setPageSize} 
+                />
               </div>
             </div>
           )}
@@ -1352,52 +1539,79 @@ export default function TPOManagement() {
 
           {/* TAB 6: AUDIT LOGS */}
           {activeTab === 'logs' && (
-            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <History className="text-blue-600" /> Enterprise Audit Trails & Action Logs
-                </h2>
-                <div className="text-xs text-slate-500 font-bold">
-                  Security Log Limit: 100
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-3.5 text-slate-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search action, admin email, details..." 
+                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                  Logs: Showing {filteredLogs.length} of {auditLogs.length}
                 </div>
               </div>
 
-              {auditLogs.length === 0 ? (
-                <div className="text-center py-20 text-slate-400 text-sm">
-                  No system logs available
+              <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-200/80 flex justify-between items-center bg-slate-50/50">
+                  <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <History className="text-blue-600" /> Enterprise Audit Trails & Action Logs
+                  </h2>
+                  <div className="text-xs text-slate-500 font-bold">
+                    Total Logs: {filteredLogs.length}
+                  </div>
                 </div>
-              ) : (
-                <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto font-mono text-xs">
-                  {auditLogs.map(log => (
-                    <div key={log.id} className="p-4 hover:bg-slate-50/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 text-slate-650">
-                      <div className="flex items-start gap-3">
-                        <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-500 rounded text-[10px] font-bold block shrink-0 mt-0.5">
-                          #{log.id}
-                        </span>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-blue-600 text-xs uppercase bg-blue-50 border border-blue-100 px-1.5 rounded">
-                              {log.action}
+
+                {filteredLogs.length === 0 ? (
+                  <div className="text-center py-20 text-slate-400 text-sm">
+                    No system logs matching search query
+                  </div>
+                ) : (
+                  <>
+                    <div className="divide-y divide-slate-100 font-mono text-xs">
+                      {paginatedLogs.map(log => (
+                        <div key={log.id} className="p-4 hover:bg-slate-50/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 text-slate-650">
+                          <div className="flex items-start gap-3">
+                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-500 rounded text-[10px] font-bold block shrink-0 mt-0.5">
+                              #{log.id}
                             </span>
-                            <span className="text-slate-400 text-[10px]">{log.admin_email}</span>
-                          </div>
-                          <div className="text-slate-500 text-[11px] mt-1 break-all">
-                            Payload: {log.details || '{}'}
-                          </div>
-                          {log.ip_address && (
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              IP: {log.ip_address} &bull; Browser: {log.user_agent}
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-blue-600 text-xs uppercase bg-blue-50 border border-blue-100 px-1.5 rounded">
+                                  {log.action}
+                                </span>
+                                <span className="text-slate-400 text-[10px]">{log.admin_email}</span>
+                              </div>
+                              <div className="text-slate-500 text-[11px] mt-1 break-all">
+                                Payload: {log.details || '{}'}
+                              </div>
+                              {log.ip_address && (
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  IP: {log.ip_address} &bull; Browser: {log.user_agent}
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
+                          <div className="text-right text-slate-400 text-[10px] shrink-0 font-bold">
+                            {new Date(log.created_at).toLocaleString()}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right text-slate-400 text-[10px] shrink-0 font-bold">
-                        {new Date(log.created_at).toLocaleString()}
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                    <PaginationControl 
+                      currentPage={logsPage} 
+                      totalItems={filteredLogs.length} 
+                      pageSize={pageSize} 
+                      onPageChange={setLogsPage} 
+                      onPageSizeChange={setPageSize} 
+                    />
+                  </>
+                )}
+              </div>
             </div>
           )}
 
