@@ -150,8 +150,12 @@ export const TpoModal: React.FC<TpoModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  const isSubmittingRef = useRef(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting || isSubmittingRef.current) return;
 
     if (!validateForm()) {
       if (errors.email || !isValidEmail(formData.email)) {
@@ -163,13 +167,13 @@ export const TpoModal: React.FC<TpoModalProps> = ({
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       if (editingTpo && editingTpo.id) {
         const res = await api.put(`/admin/tpos/${editingTpo.id}`, formData);
         if (res.data.success) {
-          toast.success(res.data.message || 'TPO Profile updated successfully');
-          onSuccess(res.data.message);
+          onSuccess(res.data.message || 'TPO Profile updated successfully');
           onClose();
         } else {
           toast.error(res.data.message || 'Failed to update TPO Profile');
@@ -177,8 +181,7 @@ export const TpoModal: React.FC<TpoModalProps> = ({
       } else {
         const res = await api.post('/admin/tpos', formData);
         if (res.data.success) {
-          toast.success(res.data.message || 'TPO registered and credentials dispatched');
-          onSuccess(res.data.message);
+          onSuccess(res.data.message || 'TPO registered successfully');
           onClose();
         } else {
           toast.error(res.data.message || 'Failed to register TPO');
@@ -187,6 +190,7 @@ export const TpoModal: React.FC<TpoModalProps> = ({
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Error saving TPO profile');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };

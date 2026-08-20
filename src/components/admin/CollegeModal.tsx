@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
-import { isValidEmail, isValidPhone, isValidUrl, isValidCollegeCode } from '../../utils/validators';
+import { isValidEmail, isValidPhone, isValidUrl, isValidCollegeCode, isValidText, isValidName, isValidLocation } from '../../utils/validators';
 
 export interface CollegeFormData {
   id?: number;
@@ -113,12 +113,51 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
       case 'college_name':
         if (!val) return 'College or Institute name is required.';
         if (val.length < 2) return 'College name must be at least 2 characters.';
+        if (!isValidText(val)) {
+          return 'College name contains invalid special characters.';
+        }
         return '';
 
       case 'college_code':
         if (!val) return 'Unique college code is required.';
         if (!isValidCollegeCode(val)) {
-          return 'Code must be alphanumeric with dashes (e.g. WIT-SOLAPUR).';
+          return 'Code must be alphanumeric with dashes or underscores (e.g. WIT-SOLAPUR).';
+        }
+        return '';
+
+      case 'university':
+        if (val.length > 0 && !isValidText(val)) {
+          return 'Affiliated University contains invalid special characters.';
+        }
+        return '';
+
+      case 'district':
+        if (val.length > 0 && !isValidLocation(val)) {
+          return 'District contains invalid special characters.';
+        }
+        return '';
+
+      case 'state':
+        if (val.length > 0 && !isValidLocation(val)) {
+          return 'State contains invalid special characters.';
+        }
+        return '';
+
+      case 'country':
+        if (val.length > 0 && !isValidLocation(val)) {
+          return 'Country contains invalid special characters.';
+        }
+        return '';
+
+      case 'principal_name':
+        if (val.length > 0 && !isValidName(val)) {
+          return 'Principal/Director name contains invalid special characters.';
+        }
+        return '';
+
+      case 'placement_head':
+        if (val.length > 0 && !isValidName(val)) {
+          return 'TPO Head name contains invalid special characters.';
         }
         return '';
 
@@ -276,32 +315,26 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
   // Validate entire form before submission
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    const allTouched: Record<string, boolean> = {
-      college_name: true,
-      college_code: true,
-      official_email: true,
-      contact_number: true,
-      website: true,
-      university: true,
-      district: true,
-      state: true,
-      country: true,
-    };
+    const fieldsToValidate: (keyof CollegeFormData)[] = [
+      'college_name',
+      'college_code',
+      'university',
+      'district',
+      'state',
+      'country',
+      'principal_name',
+      'placement_head',
+      'official_email',
+      'contact_number',
+      'website',
+    ];
 
-    const nameErr = validateField('college_name', formData.college_name);
-    if (nameErr) newErrors.college_name = nameErr;
-
-    const codeErr = validateField('college_code', formData.college_code);
-    if (codeErr) newErrors.college_code = codeErr;
-
-    const emailErr = validateField('official_email', formData.official_email);
-    if (emailErr) newErrors.official_email = emailErr;
-
-    const phoneErr = validateField('contact_number', formData.contact_number);
-    if (phoneErr) newErrors.contact_number = phoneErr;
-
-    const webErr = validateField('website', formData.website);
-    if (webErr) newErrors.website = webErr;
+    const allTouched: Record<string, boolean> = {};
+    fieldsToValidate.forEach((field) => {
+      allTouched[field] = true;
+      const err = validateField(field, String(formData[field] || ''));
+      if (err) newErrors[field] = err;
+    });
 
     setErrors(newErrors);
     setTouched(allTouched);
@@ -309,9 +342,13 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  const isSubmittingRef = useRef(false);
+
   // Form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting || isSubmittingRef.current) return;
 
     if (!validateForm()) {
       if (errors.official_email || !isValidEmail(formData.official_email) && formData.official_email) {
@@ -323,13 +360,13 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       if (editingCollege && editingCollege.id) {
         const res = await api.put(`/admin/colleges/${editingCollege.id}`, formData);
         if (res.data.success) {
-          toast.success(res.data.message || 'College updated successfully');
-          onSuccess(res.data.message);
+          onSuccess(res.data.message || 'College updated successfully');
           onClose();
         } else {
           toast.error(res.data.message || 'Failed to update college');
@@ -337,8 +374,7 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
       } else {
         const res = await api.post('/admin/colleges', formData);
         if (res.data.success) {
-          toast.success(res.data.message || 'College registered successfully');
-          onSuccess(res.data.message);
+          onSuccess(res.data.message || 'College registered successfully');
           onClose();
         } else {
           toast.error(res.data.message || 'Failed to register college');
@@ -348,6 +384,7 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
       const msg = err.response?.data?.message || 'Error saving college details';
       toast.error(msg);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -359,8 +396,14 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
 
   const hasPhoneError = Boolean(errors.contact_number && (touched.contact_number || formData.contact_number.length > 0));
   const hasWebError = Boolean(errors.website && (touched.website || formData.website.length > 0));
-  const hasNameError = Boolean(errors.college_name && touched.college_name);
-  const hasCodeError = Boolean(errors.college_code && touched.college_code);
+  const hasNameError = Boolean(errors.college_name && (touched.college_name || formData.college_name.length > 0));
+  const hasCodeError = Boolean(errors.college_code && (touched.college_code || formData.college_code.length > 0));
+  const hasUniversityError = Boolean(errors.university && (touched.university || formData.university.length > 0));
+  const hasDistrictError = Boolean(errors.district && (touched.district || formData.district.length > 0));
+  const hasStateError = Boolean(errors.state && (touched.state || formData.state.length > 0));
+  const hasCountryError = Boolean(errors.country && (touched.country || formData.country.length > 0));
+  const hasPrincipalError = Boolean(errors.principal_name && (touched.principal_name || formData.principal_name.length > 0));
+  const hasPlacementHeadError = Boolean(errors.placement_head && (touched.placement_head || formData.placement_head.length > 0));
 
   return (
     <div id="college-modal-overlay" className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -493,11 +536,21 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
                 id="university_input"
                 type="text" 
                 placeholder="e.g. Solapur University" 
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white" 
+                className={`w-full p-3 bg-slate-50 rounded-xl border text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 ${
+                  hasUniversityError 
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' 
+                    : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 focus:bg-white'
+                }`} 
                 value={formData.university} 
                 onChange={e => handleChange('university', e.target.value)} 
                 onBlur={() => handleBlur('university')}
               />
+              {hasUniversityError && (
+                <p id="university_error" role="alert" aria-live="polite" className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.university}
+                </p>
+              )}
             </div>
           </div>
 
@@ -511,11 +564,21 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
                 id="district_input"
                 type="text" 
                 placeholder="e.g. Solapur" 
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white" 
+                className={`w-full p-3 bg-slate-50 rounded-xl border text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 ${
+                  hasDistrictError 
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' 
+                    : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 focus:bg-white'
+                }`} 
                 value={formData.district} 
                 onChange={e => handleChange('district', e.target.value)} 
                 onBlur={() => handleBlur('district')}
               />
+              {hasDistrictError && (
+                <p id="district_error" role="alert" aria-live="polite" className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.district}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -524,11 +587,21 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
                 id="state_input"
                 type="text" 
                 placeholder="e.g. Maharashtra" 
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white" 
+                className={`w-full p-3 bg-slate-50 rounded-xl border text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 ${
+                  hasStateError 
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' 
+                    : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 focus:bg-white'
+                }`} 
                 value={formData.state} 
                 onChange={e => handleChange('state', e.target.value)} 
                 onBlur={() => handleBlur('state')}
               />
+              {hasStateError && (
+                <p id="state_error" role="alert" aria-live="polite" className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.state}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -537,11 +610,21 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
                 id="country_input"
                 type="text" 
                 placeholder="e.g. India" 
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white" 
+                className={`w-full p-3 bg-slate-50 rounded-xl border text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 ${
+                  hasCountryError 
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' 
+                    : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 focus:bg-white'
+                }`} 
                 value={formData.country} 
                 onChange={e => handleChange('country', e.target.value)} 
                 onBlur={() => handleBlur('country')}
               />
+              {hasCountryError && (
+                <p id="country_error" role="alert" aria-live="polite" className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.country}
+                </p>
+              )}
             </div>
           </div>
 
@@ -556,11 +639,21 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
                 id="principal_name_input"
                 type="text" 
                 placeholder="Dr. Principal's Full Name" 
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white" 
+                className={`w-full p-3 bg-slate-50 rounded-xl border text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 ${
+                  hasPrincipalError 
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' 
+                    : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 focus:bg-white'
+                }`} 
                 value={formData.principal_name} 
                 onChange={e => handleChange('principal_name', e.target.value)} 
                 onBlur={() => handleBlur('principal_name')}
               />
+              {hasPrincipalError && (
+                <p id="principal_name_error" role="alert" aria-live="polite" className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.principal_name}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -572,11 +665,21 @@ export const CollegeModal: React.FC<CollegeModalProps> = ({
                 id="placement_head_input"
                 type="text" 
                 placeholder="Training & Placement Head" 
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white" 
+                className={`w-full p-3 bg-slate-50 rounded-xl border text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 ${
+                  hasPlacementHeadError 
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' 
+                    : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 focus:bg-white'
+                }`} 
                 value={formData.placement_head} 
                 onChange={e => handleChange('placement_head', e.target.value)} 
                 onBlur={() => handleBlur('placement_head')}
               />
+              {hasPlacementHeadError && (
+                <p id="placement_head_error" role="alert" aria-live="polite" className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {errors.placement_head}
+                </p>
+              )}
             </div>
           </div>
 

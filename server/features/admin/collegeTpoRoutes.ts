@@ -11,6 +11,9 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z
 const PHONE_REGEX = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,15}$/;
 const URL_REGEX = /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/i;
 const COLLEGE_CODE_REGEX = /^[A-Z0-9_-]{2,30}$/;
+const TEXT_SAFE_REGEX = /^[a-zA-Z0-9\s.,'()&/-]+$/;
+const NAME_SAFE_REGEX = /^[a-zA-Z0-9\s.,'()&/-]+$/;
+const LOCATION_SAFE_REGEX = /^[a-zA-Z0-9\s.,'-]+$/;
 
 router.post("/colleges", async (req, res) => {
   try {
@@ -24,10 +27,13 @@ router.post("/colleges", async (req, res) => {
     if (!trimmedName) {
       return res.status(400).json({ success: false, message: "College/Institute name is required." });
     }
+    if (!TEXT_SAFE_REGEX.test(trimmedName)) {
+      return res.status(400).json({ success: false, message: "College/Institute name contains invalid special characters." });
+    }
 
     let finalCode = typeof college_code === "string" ? college_code.trim().toUpperCase() : "";
     if (finalCode && !COLLEGE_CODE_REGEX.test(finalCode)) {
-      return res.status(400).json({ success: false, message: "College code must be 2-30 alphanumeric characters." });
+      return res.status(400).json({ success: false, message: "College code must be 2-30 alphanumeric characters with hyphens or underscores." });
     }
 
     if (!finalCode) {
@@ -40,6 +46,36 @@ router.post("/colleges", async (req, res) => {
         .toUpperCase();
       const suffix = Math.floor(1000 + Math.random() * 9000);
       finalCode = `${acronym || "COL"}-${suffix}`;
+    }
+
+    const cleanUniversity = typeof university === "string" && university.trim() ? university.trim() : null;
+    if (cleanUniversity && !TEXT_SAFE_REGEX.test(cleanUniversity)) {
+      return res.status(400).json({ success: false, message: "Affiliated University contains invalid special characters." });
+    }
+
+    const cleanDistrict = typeof district === "string" && district.trim() ? district.trim() : null;
+    if (cleanDistrict && !LOCATION_SAFE_REGEX.test(cleanDistrict)) {
+      return res.status(400).json({ success: false, message: "District contains invalid special characters." });
+    }
+
+    const cleanState = typeof state === "string" && state.trim() ? state.trim() : null;
+    if (cleanState && !LOCATION_SAFE_REGEX.test(cleanState)) {
+      return res.status(400).json({ success: false, message: "State contains invalid special characters." });
+    }
+
+    const cleanCountry = typeof country === "string" && country.trim() ? country.trim() : "India";
+    if (cleanCountry && !LOCATION_SAFE_REGEX.test(cleanCountry)) {
+      return res.status(400).json({ success: false, message: "Country contains invalid special characters." });
+    }
+
+    const cleanPrincipal = typeof principal_name === "string" && principal_name.trim() ? principal_name.trim() : null;
+    if (cleanPrincipal && !NAME_SAFE_REGEX.test(cleanPrincipal)) {
+      return res.status(400).json({ success: false, message: "Principal/Director name contains invalid special characters." });
+    }
+
+    const cleanHead = typeof placement_head === "string" && placement_head.trim() ? placement_head.trim() : null;
+    if (cleanHead && !NAME_SAFE_REGEX.test(cleanHead)) {
+      return res.status(400).json({ success: false, message: "TPO Head name contains invalid special characters." });
     }
 
     let cleanEmail: string | null = null;
@@ -123,10 +159,46 @@ router.put("/colleges/:id", async (req, res) => {
     if (!trimmedName) {
       return res.status(400).json({ success: false, message: "College/Institute name is required." });
     }
+    if (!TEXT_SAFE_REGEX.test(trimmedName)) {
+      return res.status(400).json({ success: false, message: "College/Institute name contains invalid special characters." });
+    }
 
     const finalCode = typeof college_code === "string" ? college_code.trim().toUpperCase() : "";
     if (!finalCode) {
       return res.status(400).json({ success: false, message: "Unique college code is required." });
+    }
+    if (!COLLEGE_CODE_REGEX.test(finalCode)) {
+      return res.status(400).json({ success: false, message: "College code must be 2-30 alphanumeric characters with hyphens or underscores." });
+    }
+
+    const cleanUniversity = typeof university === "string" && university.trim() ? university.trim() : null;
+    if (cleanUniversity && !TEXT_SAFE_REGEX.test(cleanUniversity)) {
+      return res.status(400).json({ success: false, message: "Affiliated University contains invalid special characters." });
+    }
+
+    const cleanDistrict = typeof district === "string" && district.trim() ? district.trim() : null;
+    if (cleanDistrict && !LOCATION_SAFE_REGEX.test(cleanDistrict)) {
+      return res.status(400).json({ success: false, message: "District contains invalid special characters." });
+    }
+
+    const cleanState = typeof state === "string" && state.trim() ? state.trim() : null;
+    if (cleanState && !LOCATION_SAFE_REGEX.test(cleanState)) {
+      return res.status(400).json({ success: false, message: "State contains invalid special characters." });
+    }
+
+    const cleanCountry = typeof country === "string" && country.trim() ? country.trim() : "India";
+    if (cleanCountry && !LOCATION_SAFE_REGEX.test(cleanCountry)) {
+      return res.status(400).json({ success: false, message: "Country contains invalid special characters." });
+    }
+
+    const cleanPrincipal = typeof principal_name === "string" && principal_name.trim() ? principal_name.trim() : null;
+    if (cleanPrincipal && !NAME_SAFE_REGEX.test(cleanPrincipal)) {
+      return res.status(400).json({ success: false, message: "Principal/Director name contains invalid special characters." });
+    }
+
+    const cleanHead = typeof placement_head === "string" && placement_head.trim() ? placement_head.trim() : null;
+    if (cleanHead && !NAME_SAFE_REGEX.test(cleanHead)) {
+      return res.status(400).json({ success: false, message: "TPO Head name contains invalid special characters." });
     }
 
     let cleanEmail: string | null = null;
@@ -268,14 +340,29 @@ router.post("/tpos", async (req, res) => {
     // Check if user already exists
     const [existingUsers]: any = await db.query("SELECT id, role FROM users WHERE LOWER(TRIM(email)) = LOWER(?)", [cleanEmail]);
     if (existingUsers.length > 0) {
-      const existingUser = existingUsers[0];
-      // Check if this is an orphaned user record from an interrupted attempt
-      const [profiles]: any = await db.query("SELECT id FROM tpo_profiles WHERE user_id = ?", [existingUser.id]);
-      if (profiles.length === 0 && existingUser.role === 'TPO') {
-        // Clean up orphaned user record from previous failed creation attempt
-        await db.query("DELETE FROM users WHERE id = ?", [existingUser.id]);
-      } else {
+      let hasActiveProfile = false;
+      const userIdsToDelete: number[] = [];
+
+      for (const u of existingUsers) {
+        const [tpoProfs]: any = await db.query("SELECT id FROM tpo_profiles WHERE user_id = ?", [u.id]);
+        const [studentProfs]: any = await db.query("SELECT id FROM student_profiles WHERE user_id = ?", [u.id]);
+        const [companyProfs]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [u.id]);
+
+        if (tpoProfs.length > 0 || studentProfs.length > 0 || companyProfs.length > 0) {
+          hasActiveProfile = true;
+          break;
+        } else {
+          userIdsToDelete.push(u.id);
+        }
+      }
+
+      if (hasActiveProfile) {
         return res.status(400).json({ success: false, message: "Email already exists" });
+      }
+
+      // Clean up orphaned user records from previous interrupted registration attempts
+      for (const uId of userIdsToDelete) {
+        await db.query("DELETE FROM users WHERE id = ?", [uId]);
       }
     }
 
@@ -333,6 +420,10 @@ router.post("/tpos", async (req, res) => {
       } catch (cleanupErr) {
         console.error("Cleanup error during rollback:", cleanupErr);
       }
+    }
+    const errMsg = String(error.message || '');
+    if (error.code === 'ER_DUP_ENTRY' || errMsg.includes("UNIQUE constraint failed: users.email") || errMsg.includes("Duplicate entry")) {
+      return res.status(400).json({ success: false, message: "Email already exists" });
     }
     res.status(500).json({ success: false, message: error.message || "Error creating TPO account" });
   }
