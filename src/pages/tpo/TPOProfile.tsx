@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   User, 
   UserCheck, 
-  Building2, 
+  Building2,
   Mail, 
   Phone, 
   MapPin, 
@@ -10,7 +10,6 @@ import {
   Briefcase, 
   GraduationCap, 
   Linkedin, 
-  Globe, 
   Lock, 
   ShieldCheck, 
   CheckCircle2, 
@@ -21,12 +20,7 @@ import {
   ExternalLink, 
   Camera, 
   Info, 
-  Sparkles, 
-  Calendar, 
-  Users, 
-  Award,
-  Layers,
-  FileText
+  Calendar
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
@@ -102,7 +96,7 @@ export default function TPOProfile() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'personal' | 'office' | 'college' | 'stats'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'office'>('personal');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
@@ -438,32 +432,6 @@ export default function TPOProfile() {
           >
             <Clock className="w-4 h-4" />
             Office & Availability
-          </button>
-          <button
-            type="button"
-            id="tab-institutional-record"
-            onClick={() => setActiveTab('college')}
-            className={`py-3.5 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 transition-all whitespace-nowrap ${
-              activeTab === 'college'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            Institutional Master Record
-          </button>
-          <button
-            type="button"
-            id="tab-placement-stats"
-            onClick={() => setActiveTab('stats')}
-            className={`py-3.5 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 transition-all whitespace-nowrap ${
-              activeTab === 'stats'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Award className="w-4 h-4" />
-            Placement Authority & Security
           </button>
         </div>
       </div>
@@ -867,251 +835,6 @@ export default function TPOProfile() {
               <p className="text-blue-800/90 leading-relaxed">
                 Visiting company executives and HR panels report directly to the Placement Cell conference lounge located at your specified cabin address. Keep this location and working hours accurate.
               </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB CONTENT 3: INSTITUTIONAL MASTER RECORD */}
-      {activeTab === 'college' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-purple-600" />
-                Institutional Affiliation Record (Non-Editable)
-              </h2>
-              <p className="text-xs text-slate-500">
-                Official institutional master details assigned to your officer account by University Administration.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold rounded-md flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-slate-400" />
-              Institutional Master Record
-            </span>
-          </div>
-
-          {primaryCollege ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* College Name */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600">
-                    College / Institute Name
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-semibold flex-1 truncate">
-                      {primaryCollege.college_name}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-
-                {/* College Code */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-semibold text-slate-600">
-                      College Code / AISHE Code
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyText(primaryCollege.college_code, 'College Code')}
-                      className="text-[11px] text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                    >
-                      <Copy className="w-3 h-3" />
-                      Copy
-                    </button>
-                  </div>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-mono font-medium flex-1">
-                      {primaryCollege.college_code}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-
-                {/* Affiliated University */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600">
-                    Affiliated University / Board
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-medium flex-1">
-                      {primaryCollege.university || 'State Technical University'}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-
-                {/* Campus Principal */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600">
-                    Principal / Institutional Director
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-medium flex-1">
-                      {primaryCollege.principal_name || 'Dr. Academic Director'}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-
-                {/* Campus Address & Geography */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    Campus Address & City
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-medium flex-1 truncate">
-                      {primaryCollege.address ? `${primaryCollege.address}, ${primaryCollege.district || ''}` : 'Main Campus Location'}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-
-                {/* State & Country */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600">
-                    State & Country
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-medium flex-1">
-                      {primaryCollege.state ? `${primaryCollege.state}, ${primaryCollege.country || 'India'}` : 'Maharashtra, India'}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-
-                {/* Official College Website */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5 text-slate-400" />
-                    Official College Website
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-medium flex-1 truncate">
-                      {primaryCollege.website || 'https://institution.edu.in'}
-                    </span>
-                    {primaryCollege.website && (
-                      <a
-                        href={primaryCollege.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-700 p-1"
-                        title="Visit Website"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                {/* Official Campus Email */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    Official Institutional Email
-                  </label>
-                  <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 cursor-not-allowed">
-                    <span className="text-sm font-mono font-medium flex-1 truncate">
-                      {primaryCollege.official_email || 'info@institution.edu.in'}
-                    </span>
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </div>
-              </div>
-
-              {/* System Note */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-start gap-3">
-                <Info className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  Institutional changes (such as college affiliation codes, university accreditation, or campus address) are synchronized from the state higher education registry. If any college details are outdated, please raise an inquiry with the System Administrator.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500 text-sm">
-              <Building2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              No specific college master record linked directly to this account yet. System default parameters are in effect.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB CONTENT 4: PLACEMENT AUTHORITY & SECURITY */}
-      {activeTab === 'stats' && (
-        <div className="space-y-6">
-          {/* Security & Access Overview */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                  Placement Authority & Security Clearance
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Cryptographic verification status and institutional placement permissions.
-                </p>
-              </div>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
-                ACTIVE & COMPLIANT
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Officer Verification</span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                </div>
-                <p className="text-base font-bold text-slate-900">Verified Placement Head</p>
-                <p className="text-[11px] text-slate-500">Compliant with State TPO guidelines</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Assessment Engine</span>
-                  <Award className="w-4 h-4 text-purple-600" />
-                </div>
-                <p className="text-base font-bold text-slate-900">Full Proctoring Rights</p>
-                <p className="text-[11px] text-slate-500">Authorized to create & conduct tests</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Campus Drives</span>
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                </div>
-                <p className="text-base font-bold text-slate-900">Corporate Drive Host</p>
-                <p className="text-[11px] text-slate-500">Authorized to invite recruitment partners</p>
-              </div>
-            </div>
-
-            {/* Scope Summary Box */}
-            <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/70 space-y-3">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-slate-700" />
-                Assigned Jurisdiction & Student Scope
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-                <div>
-                  <p className="text-xs text-slate-500">Total Enrolled</p>
-                  <p className="text-lg font-bold text-slate-800">{stats.totalStudents} Candidates</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Total Placed</p>
-                  <p className="text-lg font-bold text-emerald-600">{stats.placedStudents} Offers</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Assigned Batches</p>
-                  <p className="text-lg font-bold text-slate-800">{stats.assignedBatches} Active</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Drives Conducted</p>
-                  <p className="text-lg font-bold text-blue-600">{stats.activeDrives} Drives</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
