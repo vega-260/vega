@@ -207,9 +207,11 @@ router.get("/colleges", async (req, res) => {
 router.delete("/colleges/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    await db.query("UPDATE college_master SET status = 'INACTIVE' WHERE id = ?", [id]);
-    await logAdminAction((req as any).user.userId, "DELETE_COLLEGE", { collegeId: id, mode: "SOFT_DELETE" }, req);
-    res.json({ success: true, message: "College marked as INACTIVE successfully" });
+    await db.query("DELETE FROM tpo_colleges WHERE college_id = ?", [id]);
+    await db.query("DELETE FROM academic_batches WHERE college_id = ?", [id]);
+    await db.query("DELETE FROM college_master WHERE id = ?", [id]);
+    await logAdminAction((req as any).user.userId, "DELETE_COLLEGE", { collegeId: id }, req);
+    res.json({ success: true, message: "College deleted successfully" });
   } catch (error) {
     console.error("Delete College Error:", error);
     res.status(500).json({ success: false, message: "Error deleting college." });
