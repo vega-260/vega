@@ -1048,10 +1048,11 @@ export default function TPOManagement() {
                       <p className="text-xs text-slate-400 mt-1">Try another search keyword</p>
                     </div>
                   ) : (
-                    <table className="w-full min-w-[720px] text-left text-sm border-collapse">
+                    <table className="w-full min-w-[800px] text-left text-sm border-collapse">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
                           <th className="p-4">College details</th>
+                          <th className="p-4">College Code</th>
                           <th className="p-4">Location</th>
                           <th className="p-4">Primary Contact</th>
                           <th className="p-4">Authorities</th>
@@ -1063,20 +1064,20 @@ export default function TPOManagement() {
                         {paginatedColleges.map(college => (
                           <tr key={college.id} className="hover:bg-slate-50/30 transition-all">
                             <td className="p-4">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-slate-100 text-slate-600 rounded-lg font-black border border-slate-200/60">
-                                  {college.college_code}
-                                </div>
-                                <div>
-                                  <div className="font-extrabold text-slate-850 text-sm">{college.college_name}</div>
-                                  <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{college.university}</div>
-                                  {college.website && (
-                                    <a href={college.website} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1">
-                                      {college.website} <ExternalLink size={10} />
-                                    </a>
-                                  )}
-                                </div>
+                              <div>
+                                <div className="font-extrabold text-slate-850 text-sm">{college.college_name}</div>
+                                <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{college.university}</div>
+                                {college.website && (
+                                  <a href={college.website} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1">
+                                    {college.website} <ExternalLink size={10} />
+                                  </a>
+                                )}
                               </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2.5 py-1.5 bg-slate-100 text-slate-700 rounded-lg font-black text-xs border border-slate-200/80 uppercase tracking-wider inline-block">
+                                {college.college_code}
+                              </span>
                             </td>
                             <td className="p-4">
                               <div className="text-slate-800 font-bold text-xs">{college.district || 'Not specified'}</div>
