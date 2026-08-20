@@ -5,7 +5,12 @@ const router = express.Router();
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendTPOCredentials } from "../../services/emailService.ts";
-// --- COLLEGE MANAGEMENT ---
+// --- COLLEGE & TPO MANAGEMENT ---
+
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+const PHONE_REGEX = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,15}$/;
+const URL_REGEX = /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/i;
+const COLLEGE_CODE_REGEX = /^[A-Z0-9_-]{2,30}$/;
 
 router.post("/colleges", async (req, res) => {
   try {
@@ -15,16 +20,54 @@ router.post("/colleges", async (req, res) => {
       placement_head, college_logo, status 
     } = req.body;
     
-    if (!college_name || !college_code) {
-      return res.status(400).json({ success: false, message: "College name and code are required." });
+    const trimmedName = typeof college_name === "string" ? college_name.trim() : "";
+    if (!trimmedName) {
+      return res.status(400).json({ success: false, message: "College/Institute name is required." });
     }
 
-    if (contact_number) {
-      const cleanContact = String(contact_number).replace(/\D/g, "");
-      if (cleanContact.length < 10 || cleanContact.length > 15) {
-        return res.status(400).json({ success: false, message: "Contact number must be between 10 and 15 digits." });
+    let finalCode = typeof college_code === "string" ? college_code.trim().toUpperCase() : "";
+    if (finalCode && !COLLEGE_CODE_REGEX.test(finalCode)) {
+      return res.status(400).json({ success: false, message: "College code must be 2-30 alphanumeric characters." });
+    }
+
+    if (!finalCode) {
+      const acronym = trimmedName
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .trim()
+        .split(/\s+/)
+        .map((w: string) => w[0])
+        .join("")
+        .toUpperCase();
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      finalCode = `${acronym || "COL"}-${suffix}`;
+    }
+
+    let cleanEmail: string | null = null;
+    if (official_email && typeof official_email === "string" && official_email.trim()) {
+      cleanEmail = official_email.trim();
+      if (!EMAIL_REGEX.test(cleanEmail)) {
+        return res.status(400).json({ success: false, message: "Please enter a valid official email address (e.g. info@college.edu)." });
       }
     }
+
+    let cleanContact: string | null = null;
+    if (contact_number && typeof contact_number === "string" && contact_number.trim()) {
+      cleanContact = contact_number.trim();
+      if (!PHONE_REGEX.test(cleanContact)) {
+        return res.status(400).json({ success: false, message: "Contact number must be a valid telephone number." });
+      }
+    }
+
+    let cleanWebsite: string | null = null;
+    if (website && typeof website === "string" && website.trim()) {
+      const trimmedUrl = website.trim();
+      if (!URL_REGEX.test(trimmedUrl)) {
+        return res.status(400).json({ success: false, message: "Please enter a valid website URL (e.g. https://college.edu)." });
+      }
+      cleanWebsite = trimmedUrl;
+    }
+
+    const normalizedStatus = (status || "ACTIVE").toString().toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 
     const [result]: any = await db.query(`
       INSERT INTO college_master (
@@ -34,21 +77,36 @@ router.post("/colleges", async (req, res) => {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      college_name, college_code, university || null, address || null, 
-      district || null, state || null, country || "India", website || null, 
-      contact_number || null, official_email || null, principal_name || null, 
-      placement_head || null, college_logo || null, status || "ACTIVE"
+      trimmedName,
+      finalCode,
+      typeof university === "string" && university.trim() ? university.trim() : null,
+      typeof address === "string" && address.trim() ? address.trim() : null, 
+      typeof district === "string" && district.trim() ? district.trim() : null,
+      typeof state === "string" && state.trim() ? state.trim() : null,
+      typeof country === "string" && country.trim() ? country.trim() : "India",
+      cleanWebsite, 
+      cleanContact,
+      cleanEmail,
+      typeof principal_name === "string" && principal_name.trim() ? principal_name.trim() : null, 
+      typeof placement_head === "string" && placement_head.trim() ? placement_head.trim() : null,
+      college_logo || null,
+      normalizedStatus
     ]);
 
-    await logAdminAction((req as any).user.userId, "CREATE_COLLEGE", { college_name, college_code }, req);
+    const adminId = (req as any).user?.userId || (req as any).user?.id || 1;
+    await logAdminAction(adminId, "CREATE_COLLEGE", { college_name: trimmedName, college_code: finalCode }, req);
 
-    res.json({ success: true, message: "College created successfully", collegeId: result.insertId });
+    res.status(201).json({ 
+      success: true, 
+      message: "College registered successfully", 
+      collegeId: result?.insertId || result?.id 
+    });
   } catch (error: any) {
-    if (error.code === 'ER_DUP_ENTRY' || String(error.message).includes("UNIQUE")) {
-      return res.status(400).json({ success: false, message: "College code already exists" });
+    if (error.code === 'ER_DUP_ENTRY' || String(error.message).includes("UNIQUE") || String(error.message).includes("college_code")) {
+      return res.status(400).json({ success: false, message: "A college with this unique code already exists. Please choose a different code." });
     }
     console.error("Create College Error:", error);
-    res.status(500).json({ success: false, message: "Error creating college" });
+    res.status(500).json({ success: false, message: error.message || "Error creating college" });
   }
 });
 
@@ -61,6 +119,44 @@ router.put("/colleges/:id", async (req, res) => {
       placement_head, college_logo, status 
     } = req.body;
 
+    const trimmedName = typeof college_name === "string" ? college_name.trim() : "";
+    if (!trimmedName) {
+      return res.status(400).json({ success: false, message: "College/Institute name is required." });
+    }
+
+    const finalCode = typeof college_code === "string" ? college_code.trim().toUpperCase() : "";
+    if (!finalCode) {
+      return res.status(400).json({ success: false, message: "Unique college code is required." });
+    }
+
+    let cleanEmail: string | null = null;
+    if (official_email && typeof official_email === "string" && official_email.trim()) {
+      cleanEmail = official_email.trim();
+      if (!EMAIL_REGEX.test(cleanEmail)) {
+        return res.status(400).json({ success: false, message: "Please enter a valid official email address (e.g. info@college.edu)." });
+      }
+    }
+
+    let cleanContact: string | null = null;
+    if (contact_number && typeof contact_number === "string" && contact_number.trim()) {
+      const digits = contact_number.replace(/\D/g, "");
+      if (digits.length < 7 || digits.length > 15) {
+        return res.status(400).json({ success: false, message: "Contact number must be between 7 and 15 digits." });
+      }
+      cleanContact = contact_number.trim();
+    }
+
+    let cleanWebsite: string | null = null;
+    if (website && typeof website === "string" && website.trim()) {
+      const trimmedUrl = website.trim();
+      if (!URL_REGEX.test(trimmedUrl)) {
+        return res.status(400).json({ success: false, message: "Please enter a valid website URL (e.g. https://college.edu)." });
+      }
+      cleanWebsite = trimmedUrl;
+    }
+
+    const normalizedStatus = (status || "ACTIVE").toString().toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+
     await db.query(`
       UPDATE college_master SET
         college_name = ?, college_code = ?, university = ?, address = ?, 
@@ -69,19 +165,33 @@ router.put("/colleges/:id", async (req, res) => {
         college_logo = ?, status = ?
       WHERE id = ?
     `, [
-      college_name, college_code, university || null, address || null, 
-      district || null, state || null, country || "India", website || null, 
-      contact_number || null, official_email || null, principal_name || null, 
-      placement_head || null, college_logo || null, status || "ACTIVE",
+      trimmedName,
+      finalCode,
+      typeof university === "string" && university.trim() ? university.trim() : null,
+      typeof address === "string" && address.trim() ? address.trim() : null, 
+      typeof district === "string" && district.trim() ? district.trim() : null,
+      typeof state === "string" && state.trim() ? state.trim() : null,
+      typeof country === "string" && country.trim() ? country.trim() : "India",
+      cleanWebsite, 
+      cleanContact, 
+      cleanEmail, 
+      typeof principal_name === "string" && principal_name.trim() ? principal_name.trim() : null, 
+      typeof placement_head === "string" && placement_head.trim() ? placement_head.trim() : null, 
+      college_logo || null,
+      normalizedStatus,
       id
     ]);
 
-    await logAdminAction((req as any).user.userId, "UPDATE_COLLEGE", { collegeId: id, college_name }, req);
+    const adminId = (req as any).user?.userId || (req as any).user?.id || 1;
+    await logAdminAction(adminId, "UPDATE_COLLEGE", { collegeId: id, college_name: trimmedName }, req);
 
     res.json({ success: true, message: "College updated successfully" });
   } catch (error: any) {
+    if (error.code === 'ER_DUP_ENTRY' || String(error.message).includes("UNIQUE") || String(error.message).includes("college_code")) {
+      return res.status(400).json({ success: false, message: "A college with this unique code already exists." });
+    }
     console.error("Update College Error:", error);
-    res.status(500).json({ success: false, message: "Error updating college" });
+    res.status(500).json({ success: false, message: error.message || "Error updating college" });
   }
 });
 
@@ -116,8 +226,15 @@ router.post("/tpos", async (req, res) => {
       return res.status(400).json({ success: false, message: "Email and full name are required." });
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const cleanEmail = String(email).trim();
+    if (!EMAIL_REGEX.test(cleanEmail)) {
       return res.status(400).json({ success: false, message: "Please enter a valid email address." });
+    }
+
+    if (contact_number && typeof contact_number === "string" && contact_number.trim()) {
+      if (!PHONE_REGEX.test(contact_number.trim())) {
+        return res.status(400).json({ success: false, message: "Contact number must be a valid telephone number." });
+      }
     }
 
     // Check if user already exists

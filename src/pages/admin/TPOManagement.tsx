@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
+import { CollegeModal } from '../../components/admin/CollegeModal';
+import { TpoModal } from '../../components/admin/TpoModal';
 
 export default function TPOManagement() {
   // Global View tabs
@@ -64,33 +66,6 @@ export default function TPOManagement() {
   const [editingTpo, setEditingTpo] = useState<any | null>(null);
   const [editingBatch, setEditingBatch] = useState<any | null>(null);
 
-  // Forms state
-  const [collegeForm, setCollegeForm] = useState({
-    college_name: '',
-    college_code: '',
-    university: '',
-    address: '',
-    district: '',
-    state: '',
-    country: 'India',
-    website: '',
-    contact_number: '',
-    official_email: '',
-    principal_name: '',
-    placement_head: '',
-    status: 'ACTIVE'
-  });
-
-  const [tpoForm, setTpoForm] = useState({
-    email: '',
-    full_name: '',
-    contact_number: '',
-    designation: '',
-    employee_id: '',
-    college_ids: [] as number[],
-    status: 'ACTIVE'
-  });
-
   const [batchForm, setBatchForm] = useState({
     college_id: '',
     batch_name: '',
@@ -108,10 +83,6 @@ export default function TPOManagement() {
   const [studentsText, setStudentsText] = useState('');
   const [parsedStudents, setParsedStudents] = useState<{ name: string; email: string; department?: string }[]>([]);
   const [onboardingInProgress, setOnboardingInProgress] = useState(false);
-
-  // Suggestions state (fuzzy institutional parser)
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Selected batch for students view / manual additions
   const [selectedBatchForStudents, setSelectedBatchForStudents] = useState<any | null>(null);
@@ -202,128 +173,8 @@ export default function TPOManagement() {
     reader.readAsText(file);
   };
 
-  // Fuzzy Institution Auto-Parser Suggestions
-  const handleCollegeNameChange = (val: string) => {
-    setCollegeForm({ ...collegeForm, college_name: val });
-    if (!val) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    const keywords = ['wit', 'orchid', 'bmit', 'iit', 'nit', 'vit', 'coep', 'walchand', 'mit'];
-    const matches = keywords.filter(k => k.includes(val.toLowerCase()));
-    
-    const suggestedNames: string[] = [];
-    if (val.toLowerCase().includes('wit') || val.toLowerCase().includes('walchand')) {
-      suggestedNames.push('WIT Solapur (Walchand Institute of Technology)');
-    }
-    if (val.toLowerCase().includes('orchid')) {
-      suggestedNames.push('Orchid College of Engineering & Technology, Solapur');
-    }
-    if (val.toLowerCase().includes('bmit')) {
-      suggestedNames.push('BMIT (Brahmdevdada Mane Institute of Technology), Solapur');
-    }
-    if (val.toLowerCase().includes('coep')) {
-      suggestedNames.push('COEP Technological University, Pune');
-    }
-    if (val.toLowerCase().includes('vit') || val.toLowerCase().includes('vellore')) {
-      suggestedNames.push('VIT University, Vellore');
-    }
-
-    setSuggestions(suggestedNames);
-    setShowSuggestions(suggestedNames.length > 0);
-  };
-
-  const selectCollegeSuggestion = (name: string) => {
-    // Automatically generate clean codes and regional details based on selected name
-    const upper = name.toUpperCase();
-    let district = 'Mumbai';
-    let state = 'Maharashtra';
-    let university = 'University of Mumbai';
-    let code = 'COL';
-
-    if (upper.includes('WIT') || upper.includes('WALCHAND')) {
-      district = 'Solapur';
-      state = 'Maharashtra';
-      university = 'Punyashlok Ahilyadevi Holkar Solapur University';
-      code = 'WIT-SOLAPUR';
-    } else if (upper.includes('ORCHID')) {
-      district = 'Solapur';
-      state = 'Maharashtra';
-      university = 'Punyashlok Ahilyadevi Holkar Solapur University';
-      code = 'ORCHID-SOL';
-    } else if (upper.includes('BMIT')) {
-      district = 'Solapur';
-      state = 'Maharashtra';
-      university = 'Punyashlok Ahilyadevi Holkar Solapur University';
-      code = 'BMIT-SOL';
-    } else if (upper.includes('COEP')) {
-      district = 'Pune';
-      state = 'Maharashtra';
-      university = 'Savitribai Phule Pune University';
-      code = 'COEP-PUNE';
-    } else if (upper.includes('VIT') || upper.includes('VELLORE')) {
-      district = 'Vellore';
-      state = 'Tamil Nadu';
-      university = 'VIT University';
-      code = 'VIT-VELLORE';
-    }
-
-    setCollegeForm({
-      ...collegeForm,
-      college_name: name,
-      college_code: code,
-      university,
-      district,
-      state,
-      country: 'India'
-    });
-    setSuggestions([]);
-    setShowSuggestions(false);
-  };
-
-  // CRUD handlers - Colleges
-  const handleSaveCollege = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingCollege) {
-        const res = await api.put(`/admin/colleges/${editingCollege.id}`, collegeForm);
-        if (res.data.success) {
-          toast.success('College updated successfully');
-          setShowCollegeModal(false);
-          fetchInitialData();
-        }
-      } else {
-        const res = await api.post('/admin/colleges', collegeForm);
-        if (res.data.success) {
-          toast.success('College registered successfully');
-          setShowCollegeModal(false);
-          fetchInitialData();
-        }
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Error saving college details');
-    }
-  };
-
   const handleEditCollegeClick = (col: any) => {
     setEditingCollege(col);
-    setCollegeForm({
-      college_name: col.college_name || '',
-      college_code: col.college_code || '',
-      university: col.university || '',
-      address: col.address || '',
-      district: col.district || '',
-      state: col.state || '',
-      country: col.country || 'India',
-      website: col.website || '',
-      contact_number: col.contact_number || '',
-      official_email: col.official_email || '',
-      principal_name: col.principal_name || '',
-      placement_head: col.placement_head || '',
-      status: col.status || 'ACTIVE'
-    });
     setShowCollegeModal(true);
   };
 
@@ -341,40 +192,11 @@ export default function TPOManagement() {
   };
 
   // CRUD handlers - TPOs
-  const handleSaveTpo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingTpo) {
-        const res = await api.put(`/admin/tpos/${editingTpo.id}`, tpoForm);
-        if (res.data.success) {
-          toast.success('TPO profile updated successfully');
-          setShowTpoModal(false);
-          fetchInitialData();
-        }
-      } else {
-        const res = await api.post('/admin/tpos', tpoForm);
-        if (res.data.success) {
-          toast.success('TPO registered and credentials dispatched via official SMTP');
-          setShowTpoModal(false);
-          fetchInitialData();
-        }
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Error saving TPO profile');
-    }
-  };
-
   const handleEditTpoClick = (tpo: any) => {
-    setEditingTpo(tpo);
     const assignedIds = tpo.assigned_college_ids ? String(tpo.assigned_college_ids).split(',').map(Number) : [];
-    setTpoForm({
-      email: tpo.email || '',
-      full_name: tpo.full_name || '',
-      contact_number: tpo.contact_number || '',
-      designation: tpo.designation || '',
-      employee_id: tpo.employee_id || '',
-      college_ids: assignedIds,
-      status: tpo.status || 'ACTIVE'
+    setEditingTpo({
+      ...tpo,
+      college_ids: assignedIds
     });
     setShowTpoModal(true);
   };
@@ -571,27 +393,20 @@ export default function TPOManagement() {
 
         <div className="flex flex-wrap items-center gap-4">
           <button 
+            id="register-new-college-btn"
             onClick={() => {
               setEditingCollege(null);
-              setCollegeForm({
-                college_name: '', college_code: '', university: '', address: '',
-                district: '', state: '', country: 'India', website: '', contact_number: '',
-                official_email: '', principal_name: '', placement_head: '', status: 'ACTIVE'
-              });
               setShowCollegeModal(true);
             }} 
             className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-600/15"
           >
-            <Building2 size={16} /> Add College
+            <Building2 size={16} /> Register New College
           </button>
 
           <button 
+            id="register-new-tpo-btn"
             onClick={() => {
               setEditingTpo(null);
-              setTpoForm({
-                email: '', full_name: '', contact_number: '', designation: '',
-                employee_id: '', college_ids: [], status: 'ACTIVE'
-              });
               setShowTpoModal(true);
             }} 
             className="px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
@@ -600,6 +415,7 @@ export default function TPOManagement() {
           </button>
 
           <button 
+            id="create-new-batch-btn"
             onClick={() => {
               setEditingBatch(null);
               setBatchForm({
@@ -1409,314 +1225,31 @@ export default function TPOManagement() {
       )}
 
       {/* COLLEGE MODAL */}
-      {showCollegeModal && (
-        <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h2 className="text-lg font-black text-slate-950 uppercase tracking-wider flex items-center gap-2">
-                <Building2 className="text-blue-600" />
-                {editingCollege ? 'Update College Node' : 'Register New College'}
-              </h2>
-              <button onClick={() => setShowCollegeModal(false)} className="text-slate-400 hover:text-slate-600 font-extrabold text-sm">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveCollege} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-sm">
-              <div className="space-y-2 relative">
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">College/Institute Name</label>
-                <input 
-                  required 
-                  type="text" 
-                  placeholder="e.g. WIT Solapur" 
-                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                  value={collegeForm.college_name} 
-                  onChange={e => handleCollegeNameChange(e.target.value)} 
-                />
-                
-                {/* Autocomplete parser list */}
-                {showSuggestions && (
-                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl overflow-hidden z-10 shadow-xl max-h-48 overflow-y-auto">
-                    {suggestions.map((name, i) => (
-                      <div 
-                        key={i} 
-                        onClick={() => selectCollegeSuggestion(name)}
-                        className="p-3 hover:bg-slate-50 cursor-pointer text-xs font-semibold text-slate-700 hover:text-slate-950 transition-all border-b border-slate-100 last:border-0"
-                      >
-                        {name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Unique College Code</label>
-                  <input 
-                    required 
-                    type="text" 
-                    placeholder="e.g. WIT-SOLAPUR" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.college_code} 
-                    onChange={e => setCollegeForm({...collegeForm, college_code: e.target.value.toUpperCase()})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Affiliated University</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Solapur University" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.university} 
-                    onChange={e => setCollegeForm({...collegeForm, university: e.target.value})} 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">District</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Solapur" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.district} 
-                    onChange={e => setCollegeForm({...collegeForm, district: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">State</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Maharashtra" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.state} 
-                    onChange={e => setCollegeForm({...collegeForm, state: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Country</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. India" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.country} 
-                    onChange={e => setCollegeForm({...collegeForm, country: e.target.value})} 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Principal / Director Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="Principal's Name" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.principal_name} 
-                    onChange={e => setCollegeForm({...collegeForm, principal_name: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">TPO Head Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="Placement Head" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.placement_head} 
-                    onChange={e => setCollegeForm({...collegeForm, placement_head: e.target.value})} 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Official Email Contact</label>
-                  <input 
-                    type="email" 
-                    placeholder="e.g. info@college.edu" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.official_email} 
-                    onChange={e => setCollegeForm({...collegeForm, official_email: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Primary Telephone</label>
-                  <input 
-                    type="text" 
-                    placeholder="Phone number" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.contact_number} 
-                    onChange={e => setCollegeForm({...collegeForm, contact_number: e.target.value})} 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Official Web Portal</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. https://college.edu" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={collegeForm.website} 
-                    onChange={e => setCollegeForm({...collegeForm, website: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Status Node</label>
-                  <select 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={collegeForm.status}
-                    onChange={e => setCollegeForm({...collegeForm, status: e.target.value})}
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setShowCollegeModal(false)} className="px-5 py-2.5 font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/10">Save Node</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CollegeModal
+        isOpen={showCollegeModal}
+        onClose={() => {
+          setShowCollegeModal(false);
+          setEditingCollege(null);
+        }}
+        onSuccess={() => {
+          fetchInitialData();
+        }}
+        editingCollege={editingCollege}
+      />
 
       {/* TPO REGISTER / EDIT MODAL */}
-      {showTpoModal && (
-        <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h2 className="text-lg font-black text-slate-950 uppercase tracking-wider flex items-center gap-2">
-                <Users className="text-blue-600" />
-                {editingTpo ? 'Update TPO Profile' : 'Register New TPO User'}
-              </h2>
-              <button onClick={() => setShowTpoModal(false)} className="text-slate-400 hover:text-slate-600 font-extrabold text-sm">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveTpo} className="p-6 space-y-4 text-sm">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Full Name</label>
-                  <input 
-                    required 
-                    type="text" 
-                    placeholder="Officer Full Name" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={tpoForm.full_name} 
-                    onChange={e => setTpoForm({...tpoForm, full_name: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Official Email ID</label>
-                  <input 
-                    required 
-                    disabled={!!editingTpo}
-                    type="email" 
-                    placeholder="tpo@college.edu" 
-                    className="w-full p-3 bg-slate-50 disabled:opacity-50 rounded-xl border border-slate-200 text-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={tpoForm.email} 
-                    onChange={e => setTpoForm({...tpoForm, email: e.target.value})} 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Designation</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Training & Placement Head" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={tpoForm.designation} 
-                    onChange={e => setTpoForm({...tpoForm, designation: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Employee ID</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. WIT-TPO-01" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={tpoForm.employee_id} 
-                    onChange={e => setTpoForm({...tpoForm, employee_id: e.target.value})} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Contact Phone</label>
-                  <input 
-                    type="text" 
-                    placeholder="Primary contact" 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={tpoForm.contact_number} 
-                    onChange={e => setTpoForm({...tpoForm, contact_number: e.target.value})} 
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Allocated Colleges / Institutes (Multiple Selection)</label>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl max-h-40 overflow-y-auto space-y-2">
-                  {colleges.map(c => (
-                    <label key={c.id} className="flex items-center gap-2.5 text-slate-700 font-semibold cursor-pointer hover:text-slate-900">
-                      <input 
-                        type="checkbox" 
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 bg-white" 
-                        checked={tpoForm.college_ids.includes(c.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setTpoForm({ ...tpoForm, college_ids: [...tpoForm.college_ids, c.id] });
-                          } else {
-                            setTpoForm({ ...tpoForm, college_ids: tpoForm.college_ids.filter(id => id !== c.id) });
-                          }
-                        }}
-                      />
-                      <span>{c.college_name} <span className="text-slate-400 font-mono text-[10px]">({c.college_code})</span></span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {editingTpo && (
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Account Status</label>
-                  <select 
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={tpoForm.status}
-                    onChange={e => setTpoForm({...tpoForm, status: e.target.value})}
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
-                </div>
-              )}
-
-              <div className="bg-blue-50/40 p-4 border border-blue-100 rounded-xl flex items-start gap-3 mt-4">
-                <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={16} />
-                <p className="text-[11px] text-slate-500 leading-normal font-semibold">
-                  Upon registration, TPO login credentials are generated securely. A secure email containing their username, temporary password, and system login portal address is immediately dispatched.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setShowTpoModal(false)} className="px-5 py-2.5 font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/10">Save TPO</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <TpoModal
+        isOpen={showTpoModal}
+        onClose={() => {
+          setShowTpoModal(false);
+          setEditingTpo(null);
+        }}
+        onSuccess={() => {
+          fetchInitialData();
+        }}
+        editingTpo={editingTpo}
+        colleges={colleges}
+      />
 
       {/* BATCH MODAL */}
       {showBatchModal && (
