@@ -1515,6 +1515,20 @@ export async function runSqliteInit(sqliteDb: any) {
     try {
       sqliteDb.exec("DELETE FROM assessment_batches WHERE batch_name IN ('CS-2024', 'IT-2024', 'ECE-2024')");
     } catch (e) {}
+
+    // Ensure tpo_profiles has rich profile columns
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN alternate_contact TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN department TEXT DEFAULT 'Training & Placement Cell'"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN office_location TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN office_hours TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN bio TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN linkedin_url TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN profile_photo_url TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN secondary_email TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN experience_years TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN qualification TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN employee_id TEXT DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e) {}
   } catch (e) { 
     console.error("SQLite migration error:", e);
   }

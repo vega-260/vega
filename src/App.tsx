@@ -70,6 +70,7 @@ const TPOSkillGap = lazy(() => import("./pages/tpo/TPOSkillGap.tsx"));
 const TPOVerification = lazy(() => import("./pages/tpo/TPOVerification.tsx"));
 const TPOReports = lazy(() => import("./pages/tpo/TPOReports.tsx"));
 const TPONotifications = lazy(() => import("./pages/tpo/TPONotifications.tsx"));
+const TPOProfile = lazy(() => import("./pages/tpo/TPOProfile.tsx"));
 
 const XPStore = lazy(() => import("./pages/XPStore.tsx").then(module => ({ default: module.XPStore })));
 const XPWallet = lazy(() => import("./pages/student/XPWallet.tsx").then(module => ({ default: module.XPWallet })));
@@ -290,6 +291,7 @@ export default function App() {
                 <Route path="verification" element={<TPOVerification />} />
                 <Route path="reports" element={<TPOReports />} />
                 <Route path="notifications" element={<TPONotifications />} />
+                <Route path="profile" element={<TPOProfile />} />
               </Route>
             
             <Route path="/admin" element={<AdminLayout />}>
