@@ -1036,7 +1036,7 @@ export default function TPOManagement() {
                     <Building2 className="text-blue-600" /> College Directory Database
                   </h2>
                   <div className="text-xs text-slate-500 font-bold">
-                    Total Records: {filteredColleges.length}
+                    Total College Records: {filteredColleges.length}
                   </div>
                 </div>
 
