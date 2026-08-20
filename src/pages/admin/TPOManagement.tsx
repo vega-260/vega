@@ -434,9 +434,9 @@ export default function TPOManagement() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50/50 text-slate-800 p-6 md:p-10 font-sans selection:bg-blue-500 selection:text-white">
+    <div className="w-full max-w-full min-w-0 text-slate-800 font-sans selection:bg-blue-500 selection:text-white">
       {/* Header */}
-      <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200/80 pb-8">
+      <header className="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-slate-200/80 pb-6 w-full min-w-0">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <span className="px-3 py-1 text-xs font-black bg-blue-50 text-blue-600 rounded-full border border-blue-100 uppercase tracking-widest">
@@ -444,7 +444,7 @@ export default function TPOManagement() {
             </span>
             <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
             VEGA College Management System
           </h1>
           <p className="text-slate-500 text-sm mt-1">
@@ -452,14 +452,14 @@ export default function TPOManagement() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <button 
             id="register-new-college-btn"
             onClick={() => {
               setEditingCollege(null);
               setShowCollegeModal(true);
             }} 
-            className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-600/15"
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-600/15"
           >
             <Building2 size={16} /> Register New College
           </button>
@@ -470,7 +470,7 @@ export default function TPOManagement() {
               setEditingTpo(null);
               setShowTpoModal(true);
             }} 
-            className="px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
           >
             <Users size={16} /> Register TPO
           </button>
@@ -485,7 +485,7 @@ export default function TPOManagement() {
               });
               setShowBatchModal(true);
             }} 
-            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/15"
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/15"
           >
             <Layers size={16} /> Create Batch
           </button>
@@ -493,60 +493,60 @@ export default function TPOManagement() {
       </header>
 
       {/* Analytics Bento Grid */}
-      <section className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
-        <div className="bg-white border border-slate-200/65 shadow-sm p-5 rounded-2xl flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
-            <Building2 size={22} />
+      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-8 w-full min-w-0">
+        <div className="bg-white border border-slate-200/65 shadow-sm p-4 rounded-2xl flex items-center gap-3.5 transition-all hover:shadow-md">
+          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shrink-0">
+            <Building2 size={20} />
           </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Colleges</span>
-            <span className="text-2xl font-black text-slate-900">{analytics.totalColleges}</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/65 shadow-sm p-5 rounded-2xl flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
-            <UserCheck size={22} />
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Active TPOs</span>
-            <span className="text-2xl font-black text-slate-900">{analytics.totalTPOs}</span>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block truncate">Colleges</span>
+            <span className="text-xl lg:text-2xl font-black text-slate-900">{analytics.totalColleges}</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/65 shadow-sm p-5 rounded-2xl flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
-            <Layers size={22} />
+        <div className="bg-white border border-slate-200/65 shadow-sm p-4 rounded-2xl flex items-center gap-3.5 transition-all hover:shadow-md">
+          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shrink-0">
+            <UserCheck size={20} />
           </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Batches</span>
-            <span className="text-2xl font-black text-slate-900">{analytics.totalBatches}</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/65 shadow-sm p-5 rounded-2xl flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="p-3 bg-sky-50 text-sky-600 rounded-xl border border-sky-100">
-            <GraduationCap size={22} />
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Students</span>
-            <span className="text-2xl font-black text-slate-900">{analytics.totalStudents}</span>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block truncate">Active TPOs</span>
+            <span className="text-xl lg:text-2xl font-black text-slate-900">{analytics.totalTPOs}</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/65 shadow-sm p-5 rounded-2xl col-span-2 lg:col-span-1 flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
-            <Activity size={22} />
+        <div className="bg-white border border-slate-200/65 shadow-sm p-4 rounded-2xl flex items-center gap-3.5 transition-all hover:shadow-md">
+          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 shrink-0">
+            <Layers size={20} />
           </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Placement Rate</span>
-            <span className="text-2xl font-black text-slate-900">{analytics.overallPlacementRate}%</span>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block truncate">Batches</span>
+            <span className="text-xl lg:text-2xl font-black text-slate-900">{analytics.totalBatches}</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/65 shadow-sm p-4 rounded-2xl flex items-center gap-3.5 transition-all hover:shadow-md">
+          <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl border border-sky-100 shrink-0">
+            <GraduationCap size={20} />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block truncate">Students</span>
+            <span className="text-xl lg:text-2xl font-black text-slate-900">{analytics.totalStudents}</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/65 shadow-sm p-4 rounded-2xl col-span-2 sm:col-span-1 flex items-center gap-3.5 transition-all hover:shadow-md">
+          <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 shrink-0">
+            <Activity size={20} />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block truncate">Placement Rate</span>
+            <span className="text-xl lg:text-2xl font-black text-slate-900">{analytics.overallPlacementRate}%</span>
           </div>
         </div>
       </section>
 
       {/* Main Panel Tabs */}
-      <div className="flex border-b border-slate-200 mb-8 overflow-x-auto gap-2 scrollbar-none">
+      <div className="flex border-b border-slate-200 mb-8 overflow-x-auto gap-2 scrollbar-none w-full min-w-0 max-w-full">
         <button 
           onClick={() => setActiveTab('tree')}
           className={`px-5 py-4 font-bold text-sm flex items-center gap-2 transition-all border-b-2 whitespace-nowrap ${activeTab === 'tree' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
@@ -816,8 +816,8 @@ export default function TPOManagement() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
+              <div className="overflow-x-auto w-full max-w-full min-w-0">
+                <table className="w-full min-w-[720px] text-left text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
                       <th className="p-4">College details</th>
@@ -918,8 +918,8 @@ export default function TPOManagement() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
+              <div className="overflow-x-auto w-full max-w-full min-w-0">
+                <table className="w-full min-w-[720px] text-left text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
                       <th className="p-4">Officer profile</th>
@@ -1004,8 +1004,8 @@ export default function TPOManagement() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
+              <div className="overflow-x-auto w-full max-w-full min-w-0">
+                <table className="w-full min-w-[720px] text-left text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold text-xs uppercase tracking-wider">
                       <th className="p-4">Batch details</th>

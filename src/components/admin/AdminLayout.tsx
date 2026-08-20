@@ -28,9 +28,9 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="flex bg-slate-50 min-h-screen">
+    <div className="flex bg-slate-50 min-h-screen w-full max-w-full overflow-x-hidden">
       <AdminSidebar />
-      <main className="flex-1 ml-64 p-8">
+      <main className="flex-1 ml-64 min-w-0 max-w-[calc(100vw-16rem)] p-6 md:p-8 overflow-x-hidden">
         <Outlet />
       </main>
     </div>
