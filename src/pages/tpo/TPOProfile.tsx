@@ -372,12 +372,15 @@ export default function TPOProfile() {
         </div>
 
         {/* Profile Avatar & Primary Info */}
-        <div className="px-8 pb-6 pt-0 relative">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-16 mb-6">
-            <div className="flex items-end gap-5">
+        <div className="px-6 sm:px-8 pb-6 relative">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-5">
               {/* Avatar Box with Change trigger */}
-              <div className="relative group cursor-pointer" onClick={handleOpenAvatarModal}>
-                <div className="w-28 h-28 rounded-2xl bg-white p-1 shadow-md border border-slate-200 overflow-hidden relative">
+              <div 
+                className="-mt-14 relative group cursor-pointer shrink-0" 
+                onClick={handleOpenAvatarModal}
+              >
+                <div className="w-28 h-28 rounded-2xl bg-white p-1.5 shadow-lg border-4 border-white overflow-hidden relative">
                   {formData.profile_photo_url ? (
                     <img 
                       src={formData.profile_photo_url} 
@@ -410,9 +413,9 @@ export default function TPOProfile() {
                 </button>
               </div>
 
-              {/* Title & Organization Info */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
+              {/* Title & Organization Info (firmly placed on white card background) */}
+              <div className="pt-2 sm:pt-3 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
                     {formData.full_name || 'Placement Officer'}
                   </h1>
@@ -433,7 +436,7 @@ export default function TPOProfile() {
             </div>
 
             {/* Top Action Buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-2 md:pt-0">
               {hasUnsavedChanges && (
                 <button
                   type="button"
