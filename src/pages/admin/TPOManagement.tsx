@@ -27,7 +27,8 @@ import {
   Activity,
   UserCheck,
   Edit2,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
@@ -227,6 +228,28 @@ export default function TPOManagement() {
   const [studentsText, setStudentsText] = useState('');
   const [parsedStudents, setParsedStudents] = useState<{ name: string; email: string; department?: string }[]>([]);
   const [onboardingInProgress, setOnboardingInProgress] = useState(false);
+  const [processedRosterFiles, setProcessedRosterFiles] = useState<{
+    fileName: string;
+    fileSize: number;
+    contentSignature: string;
+    batchId?: string;
+    collegeId?: string;
+    timestamp: number;
+  }[]>(() => {
+    try {
+      const saved = localStorage.getItem('vega_processed_roster_files');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [currentUploadedFile, setCurrentUploadedFile] = useState<{
+    fileName: string;
+    fileSize: number;
+    contentSignature?: string;
+    batchId?: string;
+    collegeId?: string;
+  } | null>(null);
 
   // Selected batch for students view / manual additions
   const [selectedBatchForStudents, setSelectedBatchForStudents] = useState<any | null>(null);
@@ -282,14 +305,14 @@ export default function TPOManagement() {
   const parseStudentsFromRawText = (text: string) => {
     if (!text || typeof text !== 'string') return [];
     
-    // Quick binary / replacement character check - reject string if it contains null bytes, binary control characters, or Unicode replacement characters (\uFFFD / )
-    if (text.includes('\uFFFD') || text.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(text.slice(0, 5000))) {
+    // Quick binary / replacement character check - reject string if it contains null bytes, binary control characters, or Unicode replacement characters (\uFFFD)
+    if (text.includes('\uFFFD') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(text.slice(0, 5000))) {
       return [];
     }
 
-    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    // Valid student name regex: letters, numbers, spaces, dots, hyphens, apostrophes, ampersands, and parentheses
-    const VALID_NAME_REGEX = /^[a-zA-Z0-9\s.,'()&/-]{2,100}$/;
+    const EMAIL_REGEX = /^[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+    // Valid student name regex: letters, spaces, dots, hyphens, and apostrophes
+    const VALID_NAME_REGEX = /^[a-zA-Z][a-zA-Z\s.,'-]{1,99}$/;
 
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const list: { name: string; email: string; department?: string }[] = [];
@@ -298,14 +321,20 @@ export default function TPOManagement() {
       if (line.toLowerCase().includes('email') && line.toLowerCase().includes('name')) continue;
       
       // Skip lines with unprintable binary characters or XML/zip garbage
-      if (line.includes('\uFFFD') || line.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(line)) continue;
-      if (line.includes('xmlns:') || line.includes('http://') || line.includes('https://') || line.includes('<') || line.includes('>')) continue;
+      if (line.includes('\uFFFD') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(line)) continue;
+      if (line.includes('xmlns:') || line.includes('http://') || line.includes('https://')) continue;
 
-      const parts = line.split(/,|\t|;/).map(p => p.trim());
+      // Normalize line by replacing angle brackets around emails if present (e.g. <john@college.edu>)
+      const cleanLine = line.replace(/[<>]/g, ' ').trim();
+
+      // Split line using common delimiters: comma, tab, semicolon, pipe, colon
+      const parts = cleanLine.split(/,|\t|;|\||:/).map(p => p.trim()).filter(Boolean);
+      let matched = false;
+
       if (parts.length >= 2) {
         const emailIndex = parts.findIndex(part => EMAIL_REGEX.test(part.trim()));
         if (emailIndex !== -1) {
-          const email = parts[emailIndex].trim();
+          const email = parts[emailIndex].trim().toLowerCase();
           const nonEmailParts = parts.filter((_, idx) => idx !== emailIndex);
           const rawName = nonEmailParts[0]?.replace(/["']/g, '').trim() || '';
           const rawDept = nonEmailParts[1]?.replace(/["']/g, '').trim() || '';
@@ -313,28 +342,70 @@ export default function TPOManagement() {
           const dept = rawDept.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
           if (name && email && VALID_NAME_REGEX.test(name)) {
             list.push({ name, email, department: dept || undefined });
+            matched = true;
           }
         }
-      } else if (parts.length === 1 && EMAIL_REGEX.test(parts[0].trim())) {
-        const email = parts[0].trim();
-        const deducedName = email.split('@')[0].split(/[._+-]+/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-        if (VALID_NAME_REGEX.test(deducedName)) {
-          list.push({ name: deducedName, email });
+      }
+
+      if (!matched) {
+        // Fallback: search for email in cleanLine using regex if standard delimiters didn't match
+        const EMAIL_SEARCH_REGEX = /[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}/;
+        const match = cleanLine.match(EMAIL_SEARCH_REGEX);
+        if (match) {
+          const email = match[0].trim().toLowerCase();
+          if (EMAIL_REGEX.test(email)) {
+            // Remove email from cleanLine
+            const remainder = cleanLine.replace(match[0], '').replace(/["'()\[\]{}:;,\-|]/g, ' ').trim();
+            const tokens = remainder.split(/\s+/).filter(Boolean);
+            if (tokens.length >= 1) {
+              let name = '';
+              let dept = '';
+              if (tokens.length >= 2 && tokens[tokens.length - 1].length <= 15 && tokens[tokens.length - 1].toUpperCase() === tokens[tokens.length - 1]) {
+                dept = tokens.pop() || '';
+              }
+              name = tokens.join(' ').trim();
+              if (name && VALID_NAME_REGEX.test(name)) {
+                list.push({ name, email, department: dept || undefined });
+                matched = true;
+              }
+            } else {
+              // Deduce name from email local-part
+              const deducedName = email.split('@')[0].split(/[._+-]+/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+              if (VALID_NAME_REGEX.test(deducedName)) {
+                list.push({ name: deducedName, email });
+                matched = true;
+              }
+            }
+          }
         }
       }
     }
-    return list;
+
+    // Deduplicate entries by lowercased email
+    const seenEmails = new Set<string>();
+    const uniqueList: typeof list = [];
+    for (const item of list) {
+      const lowerEmail = item.email.toLowerCase();
+      if (!seenEmails.has(lowerEmail)) {
+        seenEmails.add(lowerEmail);
+        uniqueList.push(item);
+      }
+    }
+
+    return uniqueList;
   };
 
   const handleStudentsTextChange = (text: string) => {
     // Sanitize binary control characters and replacement characters if pasted directly
-    if (text.includes('\uFFFD') || text.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 2000))) {
+    if (text.includes('\uFFFD') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 2000))) {
       toast.error('Invalid text format. Binary or unsupported characters detected.');
       setStudentsText('');
       setParsedStudents([]);
+      setCurrentUploadedFile(null);
       return;
     }
     setStudentsText(text);
+    setCurrentUploadedFile(null);
     const parsed = parseStudentsFromRawText(text);
     setParsedStudents(parsed);
   };
@@ -343,9 +414,28 @@ export default function TPOManagement() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const fileName = (file.name || '').toLowerCase();
+    const rawFileName = file.name || '';
+    const fileName = rawFileName.toLowerCase();
+    const fileSize = file.size;
     const fileExt = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
     const allowedExtensions = ['csv', 'txt'];
+
+    // Duplicate file check: check if the exact same file is actively loaded in the form
+    if (currentUploadedFile && currentUploadedFile.fileName.toLowerCase() === fileName && currentUploadedFile.fileSize === fileSize) {
+      toast.error('This file has already been uploaded/processed.');
+      e.target.value = '';
+      return;
+    }
+
+    // Duplicate file check: check if this file was already processed previously
+    const isFileAlreadyProcessed = processedRosterFiles.some(
+      item => item.fileName.toLowerCase() === fileName && item.fileSize === fileSize && (!bulkBatchId || !item.batchId || item.batchId === bulkBatchId)
+    );
+    if (isFileAlreadyProcessed) {
+      toast.error('This file has already been uploaded/processed.');
+      e.target.value = '';
+      return;
+    }
 
     const unsupportedExts = ['doc', 'docx', 'pdf', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'exe', 'rtf', 'odt', 'pages'];
     const isUnsupportedDoc = unsupportedExts.includes(fileExt) || 
@@ -366,11 +456,12 @@ export default function TPOManagement() {
     reader.onload = (event) => {
       const text = event.target?.result as string;
 
-      // Binary / Word document content check: test for null bytes, control characters, or Unicode Replacement Characters (\uFFFD / )
-      if (!text || text.includes('\uFFFD') || text.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(text.slice(0, 5000))) {
+      // Binary / Word document content check: test for null bytes, control characters, or Unicode Replacement Characters (\uFFFD)
+      if (!text || text.includes('\uFFFD') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(text.slice(0, 5000))) {
         toast.error('Invalid file format. Only .csv and .txt files are supported.');
         setStudentsText('');
         setParsedStudents([]);
+        setCurrentUploadedFile(null);
         e.target.value = '';
         return;
       }
@@ -380,10 +471,28 @@ export default function TPOManagement() {
         toast.error('Invalid file format or no valid student entries found in the file. Only .csv and .txt files are supported.');
         setStudentsText('');
         setParsedStudents([]);
+        setCurrentUploadedFile(null);
         e.target.value = '';
         return;
       }
 
+      const contentSignature = parsed.map(s => s.email.toLowerCase()).sort().join(',');
+      const isSignatureProcessed = processedRosterFiles.some(
+        item => item.contentSignature === contentSignature && (!bulkBatchId || !item.batchId || item.batchId === bulkBatchId)
+      );
+      if (isSignatureProcessed) {
+        toast.error('This file has already been uploaded/processed.');
+        e.target.value = '';
+        return;
+      }
+
+      setCurrentUploadedFile({
+        fileName: rawFileName,
+        fileSize,
+        contentSignature,
+        batchId: bulkBatchId,
+        collegeId: bulkCollegeId
+      });
       setStudentsText(text);
       setParsedStudents(parsed);
       toast.success(`Successfully parsed ${parsed.length} student${parsed.length === 1 ? '' : 's'} from roster file.`);
@@ -396,6 +505,20 @@ export default function TPOManagement() {
     };
 
     reader.readAsText(file);
+  };
+
+  const handleRemoveUploadedFile = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCurrentUploadedFile(null);
+    setStudentsText('');
+    setParsedStudents([]);
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes <= 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleEditCollegeClick = (col: any) => {
@@ -529,6 +652,34 @@ export default function TPOManagement() {
 
       if (res.data.success) {
         toast.success(`Batch successfully onboarded! dispatched credentials via SMTP.`);
+        
+        const newRecord = currentUploadedFile ? {
+          fileName: currentUploadedFile.fileName,
+          fileSize: currentUploadedFile.fileSize,
+          contentSignature: currentUploadedFile.contentSignature || parsedStudents.map(s => s.email.toLowerCase()).sort().join(','),
+          batchId: bulkBatchId,
+          collegeId: bulkCollegeId,
+          timestamp: Date.now()
+        } : {
+          fileName: 'manual_roster.txt',
+          fileSize: studentsText.length,
+          contentSignature: parsedStudents.map(s => s.email.toLowerCase()).sort().join(','),
+          batchId: bulkBatchId,
+          collegeId: bulkCollegeId,
+          timestamp: Date.now()
+        };
+
+        setProcessedRosterFiles(prev => {
+          const next = [newRecord, ...prev.filter(p => p.contentSignature !== newRecord.contentSignature)];
+          try {
+            localStorage.setItem('vega_processed_roster_files', JSON.stringify(next.slice(0, 100)));
+          } catch (e) {
+            console.error(e);
+          }
+          return next;
+        });
+
+        setCurrentUploadedFile(null);
         setStudentsText('');
         setParsedStudents([]);
         setBulkCollegeId('');
@@ -576,18 +727,28 @@ export default function TPOManagement() {
       return;
     }
 
+    if (trimmedName.length > 100) {
+      toast.error('Student Full Name must be 100 characters or fewer');
+      return;
+    }
+
     if (!isValidName(trimmedName)) {
       toast.error('Please enter a valid student name (letters, spaces, dots, hyphens only)');
       return;
     }
 
-    if (!trimmedEmail) {
-      toast.error('Please enter student email address');
+    if (trimmedEmail.length > 100) {
+      toast.error('Email Address must be 100 characters or fewer');
       return;
     }
 
     if (!isValidEmail(trimmedEmail)) {
       toast.error('Please enter a valid official email address (e.g. student@college.edu)');
+      return;
+    }
+
+    if (trimmedDept.length > 100) {
+      toast.error('Department Name must be 100 characters or fewer');
       return;
     }
 
@@ -1533,19 +1694,66 @@ export default function TPOManagement() {
                     <p className="text-[11px] text-slate-500 leading-normal">
                       Select any roster <code className="bg-slate-100 text-slate-700 px-1 py-0.5 rounded font-mono text-[10px]">.csv</code> file with columns: <span className="font-bold text-slate-700">Name, Email, Department</span>.
                     </p>
-                    <div className="relative flex items-center justify-center border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl bg-slate-50 p-8 text-center cursor-pointer transition-all duration-200 hover:bg-emerald-50/10">
-                      <input 
-                        type="file" 
-                        accept=".csv,.txt"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleFileUpload}
-                      />
-                      <div className="space-y-2">
-                        <Upload size={28} className="text-slate-400 mx-auto" />
-                        <p className="text-xs font-bold text-slate-750">Choose Student Roster File</p>
-                        <p className="text-[10px] text-slate-400 font-medium">Supports multi-department CSVs in a single batch</p>
+                    {currentUploadedFile ? (
+                      <div className="relative flex items-center justify-between border-2 border-emerald-500/80 rounded-2xl bg-emerald-50/25 p-5 text-left transition-all duration-200 shadow-sm">
+                        <div className="flex items-center gap-3.5 min-w-0 pr-3">
+                          <div className="w-11 h-11 rounded-xl bg-emerald-100/90 text-emerald-700 flex items-center justify-center shrink-0">
+                            <FileText size={22} className="text-emerald-700" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-slate-900 truncate" title={currentUploadedFile.fileName}>
+                                {currentUploadedFile.fileName}
+                              </p>
+                              <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                                ({formatFileSize(currentUploadedFile.fileSize)})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <CheckCircle size={12} className="text-emerald-600 shrink-0" />
+                              <span className="text-[11px] font-bold text-emerald-700">
+                                Validated • {parsedStudents.length} student{parsedStudents.length === 1 ? '' : 's'} detected
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <label className="cursor-pointer text-[11px] font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs hover:bg-slate-50 transition-all">
+                            Change File
+                            <input 
+                              type="file" 
+                              accept=".csv,.txt"
+                              className="hidden"
+                              onChange={handleFileUpload}
+                              value=""
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleRemoveUploadedFile}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Remove file"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="relative flex items-center justify-center border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl bg-slate-50 p-8 text-center cursor-pointer transition-all duration-200 hover:bg-emerald-50/10 group">
+                        <input 
+                          type="file" 
+                          accept=".csv,.txt"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={handleFileUpload}
+                          value=""
+                        />
+                        <div className="space-y-2">
+                          <Upload size={28} className="text-slate-400 group-hover:text-emerald-600 mx-auto transition-colors" />
+                          <p className="text-xs font-bold text-slate-750 group-hover:text-emerald-700 transition-colors">Choose Student Roster File</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Supports multi-department CSV / TXT in a single batch</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -1877,6 +2085,7 @@ export default function TPOManagement() {
                       <input 
                         required 
                         type="text" 
+                        maxLength={100}
                         placeholder="e.g. Rahul Sharma" 
                         className="w-full p-2.5 bg-white rounded-xl border border-slate-200 text-slate-850 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" 
                         value={manualStudentForm.name} 
@@ -1888,6 +2097,7 @@ export default function TPOManagement() {
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Department Name</label>
                       <input 
                         type="text" 
+                        maxLength={100}
                         placeholder="e.g. Computer Science, Mechanical..." 
                         className="w-full p-2.5 bg-white rounded-xl border border-slate-200 text-slate-850 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" 
                         value={manualStudentForm.department} 
@@ -1900,6 +2110,7 @@ export default function TPOManagement() {
                       <input 
                         required 
                         type="email" 
+                        maxLength={100}
                         placeholder="e.g. rahul@wit.edu" 
                         className="w-full p-2.5 bg-white rounded-xl border border-slate-200 text-slate-850 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" 
                         value={manualStudentForm.email} 

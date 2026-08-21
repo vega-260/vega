@@ -133,11 +133,19 @@ router.post("/batches/:id/students", async (req, res) => {
 
     const cleanName = String(name).trim();
     const cleanEmail = String(email).trim().toLowerCase();
-    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    const NAME_REGEX = /^[a-zA-Z0-9\s.,'()&/-]{2,100}$/;
+    const EMAIL_REGEX = /^[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+    const NAME_REGEX = /^[a-zA-Z][a-zA-Z\s.,'-]{1,99}$/;
+
+    if (cleanName.length > 100) {
+      return res.status(400).json({ success: false, message: "Student Full Name must be 100 characters or fewer." });
+    }
 
     if (!NAME_REGEX.test(cleanName)) {
-      return res.status(400).json({ success: false, message: "Please enter a valid student full name." });
+      return res.status(400).json({ success: false, message: "Please enter a valid student full name (letters, spaces, dots, hyphens only, no numbers or special symbols)." });
+    }
+
+    if (cleanEmail.length > 100) {
+      return res.status(400).json({ success: false, message: "Email address must be 100 characters or fewer." });
     }
 
     if (!EMAIL_REGEX.test(cleanEmail)) {
@@ -323,13 +331,28 @@ router.post("/onboard-batch", async (req, res) => {
       const { name, email, department: studentDept } = student;
       if (!email || !name) continue;
 
+      const cleanName = String(name).trim();
+      const cleanEmail = String(email).trim().toLowerCase();
+      const EMAIL_REGEX = /^[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+      const NAME_REGEX = /^[a-zA-Z][a-zA-Z\s.,'-]{1,99}$/;
+
+      if (cleanName.length > 100 || !NAME_REGEX.test(cleanName)) {
+        results.push({ email: cleanEmail, name: cleanName, status: "SKIPPED", reason: "Invalid or excessively long student name (must be 1-100 characters, no numbers/special symbols)" });
+        continue;
+      }
+
+      if (cleanEmail.length > 100 || !EMAIL_REGEX.test(cleanEmail)) {
+        results.push({ email: cleanEmail, name: cleanName, status: "SKIPPED", reason: "Invalid or excessively long email address (must be valid email under 100 characters)" });
+        continue;
+      }
+
       const finalDepartment = studentDept || department || batchDept || null;
 
       try {
         // Check duplicate user
-        const [existing]: any = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+        const [existing]: any = await db.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))", [cleanEmail]);
         if (existing.length > 0) {
-          results.push({ email, name, status: "SKIPPED", reason: "Email already registered in the ecosystem" });
+          results.push({ email: cleanEmail, name: cleanName, status: "SKIPPED", reason: "Email already registered in the ecosystem" });
           continue;
         }
 
@@ -387,6 +410,17 @@ router.post("/onboard-batch", async (req, res) => {
     await db.query("UPDATE batches SET strength = ? WHERE id = ?", [successCount[0].count, batch_id]);
 
     await logAdminAction((req as any).user.userId, "ONBOARD_BATCH", { college_id, collegeName, batch_id, batchName, total: students.length, results }, req);
+
+    const successCountNew = results.filter(r => r.status === "SUCCESS").length;
+    const alreadyRegisteredCount = results.filter(r => r.status === "SKIPPED" && r.reason?.includes("already registered")).length;
+
+    if (successCountNew === 0 && alreadyRegisteredCount > 0 && alreadyRegisteredCount === students.length) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "This file has already been uploaded/processed. All students in this roster are already registered in the system.", 
+        results 
+      });
+    }
 
     res.json({ 
       success: true, 

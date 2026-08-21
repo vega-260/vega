@@ -2,13 +2,13 @@
  * Enterprise Form Validation Utilities
  */
 
-export const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+export const EMAIL_REGEX = /^[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
 export const PHONE_DIGITS_REGEX = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,15}$/;
 export const URL_REGEX = /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/i;
 
 // Text / Name / Location regexes for input sanitation validation
 export const TEXT_SAFE_REGEX = /^[a-zA-Z0-9\s.,'()&/-]+$/;
-export const NAME_SAFE_REGEX = /^[a-zA-Z0-9\s.,'()&/-]+$/;
+export const NAME_SAFE_REGEX = /^[a-zA-Z][a-zA-Z\s.,'-]{1,99}$/;
 export const LOCATION_SAFE_REGEX = /^[a-zA-Z0-9\s.,'-]+$/;
 export const COLLEGE_CODE_REGEX = /^[A-Za-z0-9_-]{2,30}$/;
 
