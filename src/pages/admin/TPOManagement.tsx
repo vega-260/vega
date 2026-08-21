@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
+import { isValidEmail, isValidName } from '../../utils/validators';
 import { CollegeModal } from '../../components/admin/CollegeModal';
 import { TpoModal } from '../../components/admin/TpoModal';
 
@@ -229,6 +230,10 @@ export default function TPOManagement() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [manualStudentForm, setManualStudentForm] = useState({ name: '', email: '', department: '' });
   const [savingManualStudent, setSavingManualStudent] = useState(false);
+  const [savingBatch, setSavingBatch] = useState(false);
+
+  const savingBatchRef = React.useRef(false);
+  const savingManualStudentRef = React.useRef(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -433,6 +438,19 @@ export default function TPOManagement() {
   // CRUD handlers - Batches
   const handleSaveBatch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingBatch || savingBatchRef.current) return;
+
+    if (!batchForm.college_id) {
+      toast.error('Please select a target college');
+      return;
+    }
+    if (!batchForm.batch_name || !batchForm.batch_name.trim()) {
+      toast.error('Please enter a valid batch name');
+      return;
+    }
+
+    savingBatchRef.current = true;
+    setSavingBatch(true);
     try {
       if (editingBatch) {
         const res = await api.put(`/admin/batches/${editingBatch.id}`, batchForm);
@@ -440,6 +458,8 @@ export default function TPOManagement() {
           toast.success('Academic batch updated');
           setShowBatchModal(false);
           fetchInitialData();
+        } else {
+          toast.error(res.data.message || 'Failed to update academic batch');
         }
       } else {
         const res = await api.post('/admin/batches', batchForm);
@@ -447,10 +467,15 @@ export default function TPOManagement() {
           toast.success('Academic batch created successfully');
           setShowBatchModal(false);
           fetchInitialData();
+        } else {
+          toast.error(res.data.message || 'Failed to create academic batch');
         }
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Error saving academic batch');
+    } finally {
+      savingBatchRef.current = false;
+      setSavingBatch(false);
     }
   };
 
@@ -536,14 +561,40 @@ export default function TPOManagement() {
 
   const handleAddManualStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBatchForStudents) return;
-    if (!manualStudentForm.name || !manualStudentForm.email) {
-      toast.error('Please enter name and email');
+    if (!selectedBatchForStudents || savingManualStudent || savingManualStudentRef.current) return;
+
+    const trimmedName = manualStudentForm.name ? manualStudentForm.name.trim() : '';
+    const trimmedEmail = manualStudentForm.email ? manualStudentForm.email.trim() : '';
+    const trimmedDept = manualStudentForm.department ? manualStudentForm.department.trim() : '';
+
+    if (!trimmedName) {
+      toast.error('Please enter student full name');
       return;
     }
+
+    if (!isValidName(trimmedName)) {
+      toast.error('Please enter a valid student name (letters, spaces, dots, hyphens only)');
+      return;
+    }
+
+    if (!trimmedEmail) {
+      toast.error('Please enter student email address');
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      toast.error('Please enter a valid official email address (e.g. student@college.edu)');
+      return;
+    }
+
+    savingManualStudentRef.current = true;
     setSavingManualStudent(true);
     try {
-      const res = await api.post(`/admin/batches/${selectedBatchForStudents.id}/students`, manualStudentForm);
+      const res = await api.post(`/admin/batches/${selectedBatchForStudents.id}/students`, {
+        name: trimmedName,
+        email: trimmedEmail,
+        department: trimmedDept
+      });
       if (res.data.success) {
         toast.success('Student added successfully to the batch');
         setManualStudentForm({ name: '', email: '', department: selectedBatchForStudents.department || '' });
@@ -564,6 +615,7 @@ export default function TPOManagement() {
       console.error(error);
       toast.error(error.response?.data?.message || 'Error adding student');
     } finally {
+      savingManualStudentRef.current = false;
       setSavingManualStudent(false);
     }
   };
@@ -1768,8 +1820,14 @@ export default function TPOManagement() {
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setShowBatchModal(false)} className="px-5 py-2.5 font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/10">Save Batch</button>
+                <button type="button" onClick={() => setShowBatchModal(false)} className="px-5 py-2.5 font-bold text-slate-500 hover:text-slate-700 font-sans cursor-pointer">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={savingBatch}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 font-sans cursor-pointer transition-all"
+                >
+                  {savingBatch ? 'Saving Batch...' : 'Save Batch'}
+                </button>
               </div>
             </form>
           </div>

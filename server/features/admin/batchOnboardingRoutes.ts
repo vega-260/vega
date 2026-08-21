@@ -36,14 +36,16 @@ router.post("/batches", async (req, res) => {
   try {
     const { college_id, batch_name, department, academic_year, semester, assigned_tpo_id } = req.body;
 
-    if (!college_id || !batch_name) {
+    if (!college_id || !batch_name || !String(batch_name).trim()) {
       return res.status(400).json({ success: false, message: "College ID and Batch Name are required." });
     }
 
-    // Verify uniqueness of batch under the college
+    const cleanBatchName = String(batch_name).trim();
+
+    // Verify uniqueness of batch under the college (case-insensitive)
     const [existing]: any = await db.query(
-      "SELECT id FROM batches WHERE college_id = ? AND batch_name = ?", 
-      [college_id, batch_name]
+      "SELECT id FROM batches WHERE college_id = ? AND LOWER(TRIM(batch_name)) = LOWER(TRIM(?))", 
+      [college_id, cleanBatchName]
     );
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: "A batch with this name already exists under the selected college." });
@@ -52,7 +54,7 @@ router.post("/batches", async (req, res) => {
     const [result]: any = await db.query(`
       INSERT INTO batches (college_id, batch_name, department, academic_year, semester, assigned_tpo_id, status)
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `, [college_id, batch_name, department || null, academic_year || null, semester || null, assigned_tpo_id || null]);
+    `, [college_id, cleanBatchName, department ? String(department).trim() : null, academic_year ? String(academic_year).trim() : null, semester ? String(semester).trim() : null, assigned_tpo_id || null]);
 
     await logAdminAction((req as any).user.userId, "CREATE_BATCH", { college_id, batch_name }, req);
 
@@ -129,8 +131,21 @@ router.post("/batches/:id/students", async (req, res) => {
       return res.status(400).json({ success: false, message: "Name and email are required." });
     }
 
+    const cleanName = String(name).trim();
+    const cleanEmail = String(email).trim().toLowerCase();
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const NAME_REGEX = /^[a-zA-Z0-9\s.,'()&/-]{2,100}$/;
+
+    if (!NAME_REGEX.test(cleanName)) {
+      return res.status(400).json({ success: false, message: "Please enter a valid student full name." });
+    }
+
+    if (!EMAIL_REGEX.test(cleanEmail)) {
+      return res.status(400).json({ success: false, message: "Please enter a valid student email address." });
+    }
+
     // Check duplicate user
-    const [existing]: any = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+    const [existing]: any = await db.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))", [cleanEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: "Email already registered in the ecosystem." });
     }
@@ -148,7 +163,7 @@ router.post("/batches/:id/students", async (req, res) => {
     }
 
     const { batch_name, batch_dept, college_id, college_name } = batches[0];
-    const finalDepartment = department || batch_dept || null;
+    const finalDepartment = (department ? String(department).trim() : null) || batch_dept || null;
 
     // Generate credentials
     const studentPass = crypto.randomBytes(8).toString("hex");
@@ -158,7 +173,7 @@ router.post("/batches/:id/students", async (req, res) => {
     const [userRes]: any = await db.query(`
       INSERT INTO users (email, password_hash, role, status, is_verified, xp_balance)
       VALUES (?, ?, 'STUDENT', 'ACTIVE', 1, 100)
-    `, [email, studentHash]);
+    `, [cleanEmail, studentHash]);
 
     const studentUserId = userRes.insertId;
 
@@ -166,7 +181,7 @@ router.post("/batches/:id/students", async (req, res) => {
     const [profileRes]: any = await db.query(`
       INSERT INTO student_profiles (user_id, college_id, batch_id, full_name, department, batch, onboarding_completed, completeness_score)
       VALUES (?, ?, ?, ?, ?, ?, 1, 40)
-    `, [studentUserId, college_id, id, name, finalDepartment, batch_name]);
+    `, [studentUserId, college_id, id, cleanName, finalDepartment, batch_name]);
 
     const studentProfileId = profileRes.insertId;
 
@@ -180,20 +195,24 @@ router.post("/batches/:id/students", async (req, res) => {
     const [successCount]: any = await db.query("SELECT COUNT(*) as count FROM student_batch WHERE batch_id = ?", [id]);
     await db.query("UPDATE batches SET strength = ? WHERE id = ?", [successCount[0].count, id]);
 
-    // Send Email via SMTP
-    try {
-      const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
-      await sendStudentCredentials(email, name, studentPass, college_name, batch_name, loginUrl);
-      
-      await db.query(`
-        INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
-        VALUES (?, 'STUDENT_CREDENTIALS', ?, 'Welcome to VEGA - Student Credentials', 'SENT')
-      `, [studentUserId, email]);
-    } catch (emailErr) {
-      console.error(`Email dispatch failed for manual student ${email}:`, emailErr);
-    }
+    // Send Email via SMTP in background (non-blocking)
+    const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
+    sendStudentCredentials(cleanEmail, cleanName, studentPass, college_name, batch_name, loginUrl)
+      .then(async () => {
+        try {
+          await db.query(`
+            INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
+            VALUES (?, 'STUDENT_CREDENTIALS', ?, 'Welcome to VEGA - Student Credentials', 'SENT')
+          `, [studentUserId, cleanEmail]);
+        } catch (e) {
+          console.error("Email log insert error:", e);
+        }
+      })
+      .catch((emailErr) => {
+        console.error(`Email dispatch failed for manual student ${cleanEmail}:`, emailErr);
+      });
 
-    await logAdminAction((req as any).user.userId, "ADD_MANUAL_STUDENT", { batch_id: id, batch_name, student_email: email, student_name: name }, req);
+    await logAdminAction((req as any).user.userId, "ADD_MANUAL_STUDENT", { batch_id: id, batch_name, student_email: cleanEmail, student_name: cleanName }, req);
 
     res.json({ success: true, message: "Student added successfully to the batch" });
   } catch (error: any) {
@@ -340,16 +359,21 @@ router.post("/onboard-batch", async (req, res) => {
           VALUES (?, ?)
         `, [studentProfileId, batch_id]);
 
-        // Send Email via SMTP & Log Email
-        try {
-          await sendStudentCredentials(email, name, studentPass, collegeName, batchName, loginUrl);
-          await db.query(`
-            INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
-            VALUES (?, 'STUDENT_CREDENTIALS', ?, 'Welcome to VEGA - Student Credentials', 'SENT')
-          `, [studentUserId, email]);
-        } catch (emailErr) {
-          console.error(`Email dispatch failed for student ${email}:`, emailErr);
-        }
+        // Send Email via SMTP & Log Email in background (non-blocking)
+        sendStudentCredentials(email, name, studentPass, collegeName, batchName, loginUrl)
+          .then(async () => {
+            try {
+              await db.query(`
+                INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
+                VALUES (?, 'STUDENT_CREDENTIALS', ?, 'Welcome to VEGA - Student Credentials', 'SENT')
+              `, [studentUserId, email]);
+            } catch (e) {
+              console.error("Failed email log insert:", e);
+            }
+          })
+          .catch((emailErr) => {
+            console.error(`Email dispatch failed for student ${email}:`, emailErr);
+          });
 
         results.push({ email, name, status: "SUCCESS" });
       } catch (err: any) {

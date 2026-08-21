@@ -392,18 +392,22 @@ router.post("/tpos", async (req, res) => {
       }
     }
 
-    // Send SMTP Credentials & Log Email
-    try {
-      const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
-      await sendTPOCredentials(cleanEmail, full_name, tempPassword, loginUrl);
-      
-      await db.query(`
-        INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
-        VALUES (?, 'TPO_CREDENTIALS', ?, 'Welcome to VEGA - TPO Credentials', 'SENT')
-      `, [createdUserId, cleanEmail]);
-    } catch (emailErr) {
-      console.error("Failed to send SMTP email:", emailErr);
-    }
+    // Send SMTP Credentials & Log Email in background (non-blocking)
+    const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
+    sendTPOCredentials(cleanEmail, full_name, tempPassword, loginUrl)
+      .then(async () => {
+        try {
+          await db.query(`
+            INSERT INTO email_logs (user_id, email_type, recipient, subject, status)
+            VALUES (?, 'TPO_CREDENTIALS', ?, 'Welcome to VEGA - TPO Credentials', 'SENT')
+          `, [createdUserId, cleanEmail]);
+        } catch (e) {
+          console.error("Failed logging email log:", e);
+        }
+      })
+      .catch((emailErr) => {
+        console.error("Failed to send SMTP email in background:", emailErr);
+      });
 
     await logAdminAction((req as any).user.userId, "CREATE_TPO", { email: cleanEmail, full_name, college_ids }, req);
 

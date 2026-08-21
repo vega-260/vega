@@ -14,7 +14,10 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     rejectUnauthorized: false
-  }
+  },
+  connectionTimeout: 3000,
+  greetingTimeout: 3000,
+  socketTimeout: 3000
 });
 
 export async function sendEmail(to: string, subject: string, html: string) {
@@ -29,14 +32,20 @@ Content: ${html}
       return true;
     }
 
-    const info = await transporter.sendMail({
+    const sendPromise = transporter.sendMail({
       from: `"VEGA" <${process.env.SMTP_USER}>`,
       to,
       subject,
       html,
     });
 
-    console.log("Message sent: %s", info.messageId);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('SMTP connection timed out after 3000ms')), 3000)
+    );
+
+    const info: any = await Promise.race([sendPromise, timeoutPromise]);
+
+    console.log("Message sent: %s", info?.messageId || 'ok');
     return true;
   } catch (error) {
     console.error("Error sending email:", error);
