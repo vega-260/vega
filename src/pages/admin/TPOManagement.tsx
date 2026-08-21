@@ -246,11 +246,20 @@ export default function TPOManagement() {
         api.get('/admin/audit-logs')
       ]);
 
-      if (collegesRes.data.success) setColleges(collegesRes.data.data);
+      let fetchedCollegesCount = 0;
+      if (collegesRes.data.success) {
+        setColleges(collegesRes.data.data);
+        fetchedCollegesCount = Array.isArray(collegesRes.data.data) ? collegesRes.data.data.length : 0;
+      }
       if (tposRes.data.success) setTpos(tposRes.data.data);
       if (batchesRes.data.success) setBatches(batchesRes.data.data);
       if (treeRes.data.success) setTreeData(treeRes.data.data);
-      if (analyticsRes.data.success) setAnalytics(analyticsRes.data.data);
+      if (analyticsRes.data.success) {
+        setAnalytics({
+          ...analyticsRes.data.data,
+          totalColleges: fetchedCollegesCount || analyticsRes.data.data.totalColleges
+        });
+      }
       if (logsRes.data.success) setAuditLogs(logsRes.data.data);
     } catch (error) {
       console.error('Error fetching CMS details:', error);
@@ -264,20 +273,24 @@ export default function TPOManagement() {
   const parseStudentsFromRawText = (text: string) => {
     if (!text || typeof text !== 'string') return [];
     
-    // Quick binary check - reject string if it contains null bytes or binary control characters
-    if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 2000))) {
+    // Quick binary / replacement character check - reject string if it contains null bytes, binary control characters, or Unicode replacement characters (\uFFFD / )
+    if (text.includes('\uFFFD') || text.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(text.slice(0, 5000))) {
       return [];
     }
 
     const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    // Valid student name regex: letters, numbers, spaces, dots, hyphens, apostrophes, ampersands, and parentheses
+    const VALID_NAME_REGEX = /^[a-zA-Z0-9\s.,'()&/-]{2,100}$/;
+
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const list: { name: string; email: string; department?: string }[] = [];
 
     for (const line of lines) {
       if (line.toLowerCase().includes('email') && line.toLowerCase().includes('name')) continue;
       
-      // Skip lines with unprintable binary characters
-      if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(line)) continue;
+      // Skip lines with unprintable binary characters or XML/zip garbage
+      if (line.includes('\uFFFD') || line.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(line)) continue;
+      if (line.includes('xmlns:') || line.includes('http://') || line.includes('https://') || line.includes('<') || line.includes('>')) continue;
 
       const parts = line.split(/,|\t|;/).map(p => p.trim());
       if (parts.length >= 2) {
@@ -289,36 +302,29 @@ export default function TPOManagement() {
           const rawDept = nonEmailParts[1]?.replace(/["']/g, '').trim() || '';
           const name = rawName.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
           const dept = rawDept.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
-          if (name && email) {
+          if (name && email && VALID_NAME_REGEX.test(name)) {
             list.push({ name, email, department: dept || undefined });
-          }
-        } else {
-          // Fallback email check
-          const fallbackEmailIdx = parts.findIndex(part => part.includes('@'));
-          if (fallbackEmailIdx !== -1) {
-            const potentialEmail = parts[fallbackEmailIdx].trim();
-            if (EMAIL_REGEX.test(potentialEmail)) {
-              const nonEmailParts = parts.filter((_, idx) => idx !== fallbackEmailIdx);
-              const rawName = nonEmailParts[0]?.replace(/["']/g, '').trim() || '';
-              const rawDept = nonEmailParts[1]?.replace(/["']/g, '').trim() || '';
-              const name = rawName.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
-              const dept = rawDept.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
-              if (name && potentialEmail) {
-                list.push({ name, email: potentialEmail, department: dept || undefined });
-              }
-            }
           }
         }
       } else if (parts.length === 1 && EMAIL_REGEX.test(parts[0].trim())) {
         const email = parts[0].trim();
         const deducedName = email.split('@')[0].split(/[._+-]+/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-        list.push({ name: deducedName, email });
+        if (VALID_NAME_REGEX.test(deducedName)) {
+          list.push({ name: deducedName, email });
+        }
       }
     }
     return list;
   };
 
   const handleStudentsTextChange = (text: string) => {
+    // Sanitize binary control characters and replacement characters if pasted directly
+    if (text.includes('\uFFFD') || text.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 2000))) {
+      toast.error('Invalid text format. Binary or unsupported characters detected.');
+      setStudentsText('');
+      setParsedStudents([]);
+      return;
+    }
     setStudentsText(text);
     const parsed = parseStudentsFromRawText(text);
     setParsedStudents(parsed);
@@ -328,17 +334,20 @@ export default function TPOManagement() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const fileName = file.name || '';
-    const fileExt = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
+    const fileName = (file.name || '').toLowerCase();
+    const fileExt = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
     const allowedExtensions = ['csv', 'txt'];
 
-    const unsupportedExts = ['doc', 'docx', 'pdf', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'exe'];
+    const unsupportedExts = ['doc', 'docx', 'pdf', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'exe', 'rtf', 'odt', 'pages'];
     const isUnsupportedDoc = unsupportedExts.includes(fileExt) || 
       file.type.includes('word') || 
       file.type.includes('officedocument') || 
-      file.type.includes('pdf');
+      file.type.includes('pdf') ||
+      file.type.includes('excel') ||
+      file.type.includes('spreadsheet') ||
+      file.type.includes('zip');
 
-    if (!allowedExtensions.includes(fileExt) || isUnsupportedDoc) {
+    if (!allowedExtensions.includes(fileExt) || isUnsupportedDoc || (!fileName.endsWith('.csv') && !fileName.endsWith('.txt'))) {
       toast.error('Invalid file format. Only .csv and .txt files are supported.');
       e.target.value = '';
       return;
@@ -348,20 +357,27 @@ export default function TPOManagement() {
     reader.onload = (event) => {
       const text = event.target?.result as string;
 
-      // Binary content check
-      if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.slice(0, 1000))) {
+      // Binary / Word document content check: test for null bytes, control characters, or Unicode Replacement Characters (\uFFFD / )
+      if (!text || text.includes('\uFFFD') || text.includes('') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(text.slice(0, 5000))) {
         toast.error('Invalid file format. Only .csv and .txt files are supported.');
+        setStudentsText('');
+        setParsedStudents([]);
         e.target.value = '';
         return;
       }
 
-      handleStudentsTextChange(text);
       const parsed = parseStudentsFromRawText(text);
       if (parsed.length === 0) {
-        toast.error('No valid student entries found in the file.');
-      } else {
-        toast.success(`Successfully parsed ${parsed.length} student${parsed.length === 1 ? '' : 's'} from roster file.`);
+        toast.error('Invalid file format or no valid student entries found in the file. Only .csv and .txt files are supported.');
+        setStudentsText('');
+        setParsedStudents([]);
+        e.target.value = '';
+        return;
       }
+
+      setStudentsText(text);
+      setParsedStudents(parsed);
+      toast.success(`Successfully parsed ${parsed.length} student${parsed.length === 1 ? '' : 's'} from roster file.`);
       e.target.value = '';
     };
 
@@ -698,7 +714,7 @@ export default function TPOManagement() {
           </div>
           <div className="min-w-0">
             <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block truncate">Colleges</span>
-            <span className="text-xl lg:text-2xl font-black text-slate-900">{analytics.totalColleges}</span>
+            <span className="text-xl lg:text-2xl font-black text-slate-900">{colleges.length > 0 ? colleges.length : analytics.totalColleges}</span>
           </div>
         </div>
 

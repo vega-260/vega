@@ -28,7 +28,7 @@ router.get("/college-analytics", async (req, res) => {
       // One round trip instead of five independent COUNT queries.
       const [rows]: any = await db.readQuery(`
         SELECT
-          (SELECT COUNT(*) FROM college_master WHERE status = 'ACTIVE') AS totalColleges,
+          (SELECT COUNT(*) FROM college_master) AS totalColleges,
           (SELECT COUNT(*) FROM tpo_profiles WHERE status = 'ACTIVE') AS totalTPOs,
           (SELECT COUNT(*) FROM batches WHERE status = 'ACTIVE') AS totalBatches,
           (SELECT COUNT(*) FROM student_profiles) AS totalStudents,
