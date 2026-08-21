@@ -178,7 +178,11 @@ export default function TPOManagement() {
   const [loading, setLoading] = useState(true);
   const [expandedColleges, setExpandedColleges] = useState<Record<number, boolean>>({});
   const [expandedBatches, setExpandedBatches] = useState<Record<number, boolean>>({});
-  const [searchQuery, setSearchQuery] = useState('');
+  const [treeSearch, setTreeSearch] = useState('');
+  const [collegesSearch, setCollegesSearch] = useState('');
+  const [tposSearch, setTposSearch] = useState('');
+  const [batchesSearch, setBatchesSearch] = useState('');
+  const [logsSearch, setLogsSearch] = useState('');
 
   // Pagination state
   const [pageSize, setPageSize] = useState(10);
@@ -194,7 +198,7 @@ export default function TPOManagement() {
     setTposPage(1);
     setBatchesPage(1);
     setLogsPage(1);
-  }, [searchQuery, activeTab, pageSize]);
+  }, [treeSearch, collegesSearch, tposSearch, batchesSearch, logsSearch, activeTab, pageSize]);
 
   // Modals visibility
   const [showCollegeModal, setShowCollegeModal] = useState(false);
@@ -631,8 +635,8 @@ export default function TPOManagement() {
 
   // Search filters
   const filteredTree = treeData.filter(col => {
-    if (!searchQuery.trim()) return true;
-    const searchLower = searchQuery.toLowerCase();
+    if (!treeSearch.trim()) return true;
+    const searchLower = treeSearch.toLowerCase();
     return (
       (col.college_name && col.college_name.toLowerCase().includes(searchLower)) ||
       (col.college_code && col.college_code.toLowerCase().includes(searchLower)) ||
@@ -642,8 +646,8 @@ export default function TPOManagement() {
   });
 
   const filteredColleges = colleges.filter(col => {
-    if (!searchQuery.trim()) return true;
-    const s = searchQuery.toLowerCase();
+    if (!collegesSearch.trim()) return true;
+    const s = collegesSearch.toLowerCase();
     return (
       (col.college_name && col.college_name.toLowerCase().includes(s)) ||
       (col.college_code && col.college_code.toLowerCase().includes(s)) ||
@@ -657,8 +661,8 @@ export default function TPOManagement() {
   });
 
   const filteredTpos = tpos.filter(tpo => {
-    if (!searchQuery.trim()) return true;
-    const s = searchQuery.toLowerCase();
+    if (!tposSearch.trim()) return true;
+    const s = tposSearch.toLowerCase();
     return (
       (tpo.full_name && tpo.full_name.toLowerCase().includes(s)) ||
       (tpo.email && tpo.email.toLowerCase().includes(s)) ||
@@ -670,8 +674,8 @@ export default function TPOManagement() {
   });
 
   const filteredBatches = batches.filter(batch => {
-    if (!searchQuery.trim()) return true;
-    const s = searchQuery.toLowerCase();
+    if (!batchesSearch.trim()) return true;
+    const s = batchesSearch.toLowerCase();
     return (
       (batch.batch_name && batch.batch_name.toLowerCase().includes(s)) ||
       (batch.department && batch.department.toLowerCase().includes(s)) ||
@@ -682,8 +686,8 @@ export default function TPOManagement() {
   });
 
   const filteredLogs = auditLogs.filter(log => {
-    if (!searchQuery.trim()) return true;
-    const s = searchQuery.toLowerCase();
+    if (!logsSearch.trim()) return true;
+    const s = logsSearch.toLowerCase();
     return (
       (log.action && log.action.toLowerCase().includes(s)) ||
       (log.admin_email && log.admin_email.toLowerCase().includes(s)) ||
@@ -876,8 +880,8 @@ export default function TPOManagement() {
                     type="text" 
                     placeholder="Fuzzy search college, region, code..." 
                     className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    value={treeSearch}
+                    onChange={e => setTreeSearch(e.target.value)}
                   />
                 </div>
                 <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
@@ -1089,8 +1093,8 @@ export default function TPOManagement() {
                     type="text" 
                     placeholder="Search college, region, code, contact..." 
                     className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    value={collegesSearch}
+                    onChange={e => setCollegesSearch(e.target.value)}
                   />
                 </div>
                 <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
@@ -1225,8 +1229,8 @@ export default function TPOManagement() {
                     type="text" 
                     placeholder="Search TPO officer, email, phone, college..." 
                     className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    value={tposSearch}
+                    onChange={e => setTposSearch(e.target.value)}
                   />
                 </div>
                 <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
@@ -1344,8 +1348,8 @@ export default function TPOManagement() {
                     type="text" 
                     placeholder="Search batch name, department, year, college, TPO..." 
                     className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    value={batchesSearch}
+                    onChange={e => setBatchesSearch(e.target.value)}
                   />
                 </div>
                 <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
@@ -1616,8 +1620,8 @@ export default function TPOManagement() {
                     type="text" 
                     placeholder="Search action, admin email, details..." 
                     className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium placeholder-slate-400 transition-all"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    value={logsSearch}
+                    onChange={e => setLogsSearch(e.target.value)}
                   />
                 </div>
                 <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
