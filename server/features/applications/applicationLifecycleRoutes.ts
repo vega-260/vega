@@ -83,7 +83,8 @@ router.post("/update-stage", authenticate, async (req: any, res) => {
             rejection_feedback = ?, 
             rejected_at = CURRENT_TIMESTAMP, 
             rejected_by_user_id = ?,
-            rejection_notification_status = ?
+            rejection_notification_status = ?,
+            hired_at = NULL
         WHERE id = ? AND status NOT IN ('REJECTED', 'SELECTED', 'HIRED', 'WITHDRAWN')
       `, [rejStageId, cleanFeedback, userId, initialNotifStatus, applicationId]);
 
@@ -266,9 +267,10 @@ router.post("/update-stage", authenticate, async (req: any, res) => {
       }
     }
 
+    const isHiredOrSelected = status === 'SELECTED' || status === 'HIRED';
     const [updateRes]: any = await db.query(`
       UPDATE job_applications 
-      SET current_stage_id = ?, status = ?
+      SET current_stage_id = ?, status = ?, hired_at = ${isHiredOrSelected ? 'CURRENT_TIMESTAMP' : 'NULL'}
       WHERE id = ? AND status NOT IN ('REJECTED', 'CANCELLED', 'WITHDRAWN')
     `, [stageId, status, applicationId]);
 
@@ -629,7 +631,8 @@ const handleUndoDecision = async (req: any, res: any) => {
             rejected_at = NULL,
             rejected_by_user_id = NULL,
             rejection_notification_status = ?,
-            rejection_notified_at = NULL
+            rejection_notified_at = NULL,
+            hired_at = NULL
         WHERE id = ? AND status IN ('SELECTED', 'REJECTED')
       `, [newStatus, restoredStageId, initialNotificationStatus, appId]);
 
@@ -876,7 +879,7 @@ const handleUndoStage = async (req: any, res: any) => {
 
       const [updateRes]: any = await tx.query(
         `UPDATE job_applications
-         SET current_stage_id = ?, status = ?
+         SET current_stage_id = ?, status = ?, hired_at = NULL
          WHERE id = ? AND current_stage_id = ? AND status NOT IN ('SELECTED', 'REJECTED', 'HIRED', 'OFFER_ACCEPTED', 'WITHDRAWN', 'CANCELLED')`,
         [targetStageId, newStatus, appId, lockedApp.current_stage_id]
       );

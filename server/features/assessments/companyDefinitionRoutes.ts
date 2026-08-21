@@ -4,18 +4,19 @@ import { authenticate, authorize } from "../../middleware/auth.ts";
 const router = express.Router();
 router.use(authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]));
 import crypto from "crypto";
+import { parseAndValidateBulkQuestions } from "../../services/assessmentBulkImportService.ts";
 // 4. Company & Student Assessment Workflow Endpoints
 // -------------------------------------------------------------
 
 // Helper to resolve company ID for user
-async function resolveCompanyIdForUser(user: any) {
+export async function resolveCompanyIdForUser(user: any) {
   if (!user) return null;
   if (user.role === "COMPANY" || user.role === "COMPANY_HR" || user.role === "COMPANY_SUB_HR" || user.role === "COMPANY_ADMIN") {
     const [profiles]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [user.id || user.userId]);
-    if (profiles.length > 0) return profiles[0].id;
+    if (profiles.length > 0) return Number(profiles[0].id);
 
     const [hrProfiles]: any = await db.query("SELECT company_id FROM company_hr_profiles WHERE user_id = ?", [user.id || user.userId]);
-    if (hrProfiles.length > 0) return hrProfiles[0].company_id;
+    if (hrProfiles.length > 0) return Number(hrProfiles[0].company_id);
   }
   return null;
 }
@@ -296,6 +297,32 @@ function computeAssessmentCreateHash(body: any): string {
 
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
+
+
+// POST /api/assessments/company/bulk-import-questions
+router.post("/company/bulk-import-questions", async (req: any, res: any) => {
+  try {
+    const companyId = await resolveCompanyIdForUser(req.user);
+    if (!companyId) {
+      return res.status(403).json({ success: false, code: "COMPANY_CONTEXT_REQUIRED", message: "Authenticated Company context is required" });
+    }
+    const { rawText } = req.body || {};
+    const result = parseAndValidateBulkQuestions(rawText);
+    if (!result.success) {
+      return res.status(result.statusCode).json({
+        success: false,
+        code: result.code,
+        message: result.message,
+        errors: result.errors,
+        meta: result.meta,
+      });
+    }
+    return res.status(result.statusCode).json({ success: true, questions: result.questions, errors: result.errors, meta: result.meta });
+  } catch (error: any) {
+    console.error("Error in company bulk question import:", error?.message || error);
+    return res.status(500).json({ success: false, code: "BULK_IMPORT_INTERNAL_ERROR", message: "An internal server error occurred during bulk import processing" });
+  }
+});
 
 // POST /api/assessments/company/create
 router.post("/company/create", authenticate, async (req: any, res) => {

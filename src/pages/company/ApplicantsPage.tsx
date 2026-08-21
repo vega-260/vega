@@ -108,7 +108,7 @@ export function ApplicantsPage() {
       `"${app.full_name}"`,
       `"${app.email}"`,
       `"${app.job_title || 'General Applicant'}"`,
-      `"${Math.round(app.talent_score || 0)}%"`,
+      `"${app.talent_score !== null && app.talent_score !== undefined && !isNaN(Number(app.talent_score)) ? `${Math.round(Number(app.talent_score))}%` : 'Not available'}"`,
       `"${app.status || 'APPLIED'}"`,
       `"${new Date(app.applied_at).toLocaleDateString()}"`
     ]);

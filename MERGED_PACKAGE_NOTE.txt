@@ -1,0 +1,11 @@
+VEGA APP — COMPANY MERGED PACKAGE
+Date: 2026-08-21
+
+Base project: vega_app.zip
+Company source: TB-TPO-Company-Merged.zip
+
+This package contains the merged source code. The local .env file and .git metadata
+were intentionally excluded so secrets and local repository state are not shared.
+Use .env.example to configure your local/deployment environment.
+
+See COMPANY_MERGE_REPORT_2026-08-21.md for merge details.

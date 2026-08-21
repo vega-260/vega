@@ -117,8 +117,14 @@ export function CandidateDetailModal({ candidate, onClose }: CandidateDetailModa
                  <div className="text-right mr-6 pr-6 border-r border-slate-200">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Talent Score</p>
                     <div className="flex items-baseline gap-1">
-                       <span className={`text-4xl font-black ${candidate.talent_score >= 80 ? 'text-emerald-600' : 'text-blue-600'}`}>{Math.round(candidate.talent_score || 0)}</span>
-                       <span className="text-xs font-black text-slate-300">/100</span>
+                       {candidate.talent_score !== null && candidate.talent_score !== undefined && !isNaN(Number(candidate.talent_score)) ? (
+                         <>
+                           <span className={`text-4xl font-black ${Number(candidate.talent_score) >= 80 ? 'text-emerald-600' : 'text-blue-600'}`}>{Math.round(Number(candidate.talent_score))}</span>
+                           <span className="text-xs font-black text-slate-300">/100</span>
+                         </>
+                       ) : (
+                         <span className="text-sm font-bold text-slate-400">Not available</span>
+                       )}
                     </div>
                  </div>
                  <button onClick={onClose} className="p-3 bg-white border border-slate-100 text-slate-400 hover:text-slate-600 rounded-2xl shadow-sm transition-all hover:scale-110 active:scale-95">
@@ -264,7 +270,7 @@ export function CandidateDetailModal({ candidate, onClose }: CandidateDetailModa
                                 </div>
                                 <div className="mt-8 pt-8 border-t border-white/5">
                                    <p className="text-[10px] font-medium text-slate-400 italic leading-relaxed">
-                                      "Overall Talent Score: {Math.round(candidate.talent_score || 0)}. Analyzed across 7 critical parameters."
+                                      "Overall Talent Score: {candidate.talent_score !== null && candidate.talent_score !== undefined && !isNaN(Number(candidate.talent_score)) ? Math.round(Number(candidate.talent_score)) : 'Not available'}. Analyzed across 7 critical parameters."
                                    </p>
                                 </div>
                              </div>

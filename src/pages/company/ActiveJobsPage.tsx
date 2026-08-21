@@ -7,7 +7,6 @@ import { EditJobModal } from '../../components/company/EditJobModal.tsx';
 import { ViewJobDetailsModal } from '../../components/company/ViewJobDetailsModal.tsx';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { getAccessToken } from "../../services/tokenStore";
 
 export function ActiveJobsPage() {
   const { profile } = useAuth();
@@ -67,7 +66,7 @@ export function ActiveJobsPage() {
   const fetchSubHrsAndAssignments = async (job: any) => {
     try {
       setAssigningJob(job);
-      const token = getAccessToken();
+      const token = localStorage.getItem('token');
       // Fetch all company sub HR profiles
       const subHrsRes = await fetch('/api/company/sub-hr', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -103,7 +102,7 @@ export function ActiveJobsPage() {
     if (!assigningJob) return;
     try {
       setSavingAssignment(true);
-      const token = getAccessToken();
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/company/jobs/assign', {
         method: 'POST',
         headers: {

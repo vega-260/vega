@@ -3,7 +3,6 @@ import { Settings, Shield, Bell, Key, Briefcase, Mail, Loader2, Eye, EyeOff, Use
 import { useAuth } from '../../context/AuthContext.tsx';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { getAccessToken } from "../../services/tokenStore";
 
 interface TeamMember {
   id: number;
@@ -32,7 +31,22 @@ export function CompanySettingsPage() {
   const { user, token: contextToken } = useAuth();
   const navigate = useNavigate();
 
-  const getEffectiveToken = () => contextToken || getAccessToken() || "";
+  // Token helper
+  const getEffectiveToken = () => {
+    if (contextToken) return contextToken;
+    const authData = localStorage.getItem("vega_auth");
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed && parsed.token) {
+          return parsed.token;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return "";
+  };
 
   // Preferences State
   const [preferences, setPreferences] = useState({

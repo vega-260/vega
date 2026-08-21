@@ -1478,12 +1478,41 @@ export default function CompanyAssessments() {
                 </button>
               </div>
 
-              {/* Raw Text Input */}
+              {/* File Upload or Raw Text Input */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Paste Raw Content (CSV / JSON / Text)</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Select File or Paste Content (CSV / JSON / Text)</label>
+                  <label className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1">
+                    <Upload size={12} />
+                    <span>Upload File</span>
+                    <input
+                      type="file"
+                      accept=".csv,.json,.txt,.tsv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 512 * 1024) {
+                            toast.error("File size exceeds 512 KB limit.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const content = event.target?.result as string;
+                            if (content) {
+                              setBulkRawText(content);
+                              toast.success(`Loaded ${file.name}`);
+                            }
+                          };
+                          reader.readAsText(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
                 <textarea
                   rows={6}
-                  placeholder={`Paste content here...\nExample:\nWhat is SQL?,Structured Query Language,Sequential Query Logic,Server Quality Language,System Query List,A,10,EASY`}
+                  placeholder={`Paste content or upload file...\nExample CSV:\nQuestion Text,Option A,Option B,Option C,Option D,Correct Option,Points,Difficulty\nWhat is SQL?,Structured Query Language,Sequential Query Logic,Server Quality Language,System Query List,A,10,EASY`}
                   value={bulkRawText}
                   onChange={(e) => setBulkRawText(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono outline-none focus:border-indigo-500 text-slate-800"

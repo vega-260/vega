@@ -11,6 +11,7 @@ import { cacheGetOrLoad, invalidateCacheNamespace } from "../services/cacheServi
 import {
   resolveCompanyContext,
   resolveCompanyAndCheckPermission,
+  canAccessApplication,
   requireApplicationAccess,
   requireCompanyJobAccess,
   requireCompanyApplicationsAccess,
@@ -657,15 +658,22 @@ router.get("/company/applicants/:studentId/history", authenticate, async (req: a
       return res.status(400).json({ success: false, message: "Invalid student ID." });
     }
 
-    // 1. Get company profile of the logged-in user
-    const [profiles]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [userId]);
-    if (profiles.length === 0) {
-      return res.status(403).json({ success: false, message: "Access denied. Company profile not found." });
+    // 1. Resolve Super HR / Sub HR company context without trusting a company ID from the request.
+    const ctx = await resolveCompanyContext(req);
+    if (ctx.error || !ctx.companyId) {
+      return res.status(ctx.statusCode || 403).json({ success: false, message: ctx.error || "Company context required." });
     }
-    const companyId = profiles[0].id;
+    const companyId = ctx.companyId;
 
-    // 2. Fetch all applications of this student to this specific company's jobs
-    const [applications]: any = await db.query(`
+    const [studentProfiles]: any = await db.query(
+      "SELECT id FROM student_profiles WHERE id = ? OR user_id = ? LIMIT 1",
+      [studentId, studentId]
+    );
+    if (!studentProfiles?.length) return res.status(404).json({ success: false, message: "Student profile not found." });
+    const actualStudentId = Number(studentProfiles[0].id);
+
+    // 2. Fetch all applications of this student to this specific company's jobs.
+    const [allApplications]: any = await db.query(`
       SELECT 
         ja.id as application_id,
         ja.status as application_status,
@@ -679,7 +687,16 @@ router.get("/company/applicants/:studentId/history", authenticate, async (req: a
       LEFT JOIN job_stages js ON ja.current_stage_id = js.id
       WHERE ja.student_id = ? AND j.company_id = ?
       ORDER BY ja.applied_at DESC
-    `, [studentId, companyId]);
+    `, [actualStudentId, companyId]);
+
+    let applications = allApplications || [];
+    if (ctx.roleType === "SUB_HR") {
+      const scoped: any[] = [];
+      for (const app of applications) {
+        if (await canAccessApplication(req, Number(app.application_id))) scoped.push(app);
+      }
+      applications = scoped;
+    }
 
     const sanitizeText = (text: string | null | undefined): string => {
       if (!text) return "";

@@ -1,5 +1,6 @@
 import db from "../db.ts";
 import { isJobActive, isJobEnded } from "./jobLifecycleService.ts";
+import { sanitizeTalentScore } from "./companyTalentScoreService.ts";
 
 export type PipelineStageKey =
   | 'applied'
@@ -231,6 +232,7 @@ export async function getPipelineSnapshot(
       a.rejection_notification_status,
       a.rejection_notified_at,
       a.applied_at,
+      a.hired_at,
       j.title as job_title,
       j.status as job_status,
       j.deadline,
@@ -368,9 +370,18 @@ export async function getPipelineSnapshot(
       if (!matchName && !matchJob && !matchEmail) return false;
     }
 
+    // Sanitize talent score so missing/invalid values are never displayed as a real 0 score.
+    const tsRes = sanitizeTalentScore(a.talent_score);
+    a.talent_score = tsRes.talentScore;
+    a.talent_score_status = tsRes.talentScoreStatus;
+    a.talent_score_source = tsRes.talentScoreSource;
+    a.talentScore = tsRes.talentScore;
+    a.talentScoreStatus = tsRes.talentScoreStatus;
+    a.talentScoreSource = tsRes.talentScoreSource;
+
     // Minimum match score filter
     if (options?.minScore && options.minScore > 0) {
-      if ((a.talent_score || 0) < options.minScore) return false;
+      if (a.talent_score === null || a.talent_score === undefined || Number(a.talent_score) < options.minScore) return false;
     }
 
     return true;

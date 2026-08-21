@@ -2,6 +2,43 @@ import db from "../db.ts";
 import { isJobActive, isJobEnded, getJobLifecycleStatus } from "./jobLifecycleService.ts";
 import { getPipelineSnapshot, mapStageToCanonicalKey } from "./pipelineSnapshotService.ts";
 
+export function isTimestampInPeriod(
+  date: Date,
+  period: 'this_month' | 'last_3_months' | 'last_6_months' | 'one_year',
+  referenceNow: Date = new Date()
+): boolean {
+  if (!date || isNaN(date.getTime())) return false;
+  const time = date.getTime();
+  const nowTime = referenceNow.getTime();
+  if (time > nowTime) return false;
+
+  if (period === 'this_month') {
+    const startOfThisMonth = new Date(referenceNow.getFullYear(), referenceNow.getMonth(), 1, 0, 0, 0, 0);
+    const startOfNextMonth = new Date(referenceNow.getFullYear(), referenceNow.getMonth() + 1, 1, 0, 0, 0, 0);
+    return time >= startOfThisMonth.getTime() && time < startOfNextMonth.getTime();
+  }
+
+  if (period === 'last_3_months') {
+    const threeMonthsAgo = new Date(referenceNow);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    return time >= threeMonthsAgo.getTime() && time <= nowTime;
+  }
+
+  if (period === 'last_6_months') {
+    const sixMonthsAgo = new Date(referenceNow);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    return time >= sixMonthsAgo.getTime() && time <= nowTime;
+  }
+
+  if (period === 'one_year') {
+    const oneYearAgo = new Date(referenceNow);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    return time >= oneYearAgo.getTime() && time <= nowTime;
+  }
+
+  return false;
+}
+
 export const APPROVED_SUGGESTION_TEMPLATES = [
   "Rewrite the job title and opening summary so the role and expected outcomes are immediately clear.",
   "Separate must-have skills from preferred skills to avoid discouraging qualified applicants.",
@@ -155,6 +192,7 @@ export async function getCompanyAnalyticsMetrics(params: {
       ja.rejected_at,
       ja.rejected_by_user_id,
       ja.applied_at,
+      ja.hired_at,
       j.title as job_title,
       j.openings,
       j.status as job_status,
@@ -250,7 +288,7 @@ export async function getCompanyAnalyticsMetrics(params: {
   const [viewsCountRow]: any = await db.query("SELECT COUNT(*) as totalViews FROM profile_views WHERE company_id = ?", [companyId]);
   const totalViews = viewsCountRow[0]?.totalViews || 0;
 
-  const totalHires = scopedApps.filter((a: any) => String(a.status).toUpperCase() === 'HIRED').length;
+  const totalHires = snapshot.summary.selected;
   const totalApplicants = snapshot.summary.totalApplicants;
   const inPipeline = snapshot.summary.inPipeline;
   const inInterview = snapshot.summary.inInterview;
@@ -317,7 +355,7 @@ export async function getCompanyAnalyticsMetrics(params: {
       }
     });
 
-    const hiredCount = jApps.filter((a: any) => String(a.status).toUpperCase() === 'HIRED').length;
+    const hiredCount = shortlistedCount;
     const openings = Number(j.openings || 1);
     const openingFillPercentage = openings > 0 ? Math.round((hiredCount / openings) * 100) : 0;
 
@@ -352,14 +390,18 @@ export async function getCompanyAnalyticsMetrics(params: {
         }
       }
 
-      if (String(a.status).toUpperCase() === 'HIRED') {
-        const hireProg = aHist.find((h: any) => ['HIRED', 'MOVED_TO_HIRED'].includes(String(h.action).toUpperCase()));
+      const isShortlisted = mapStageToCanonicalKey(a).key === 'selected' || ['HIRED', 'SELECTED', 'SHORTLISTED', 'OFFER_ACCEPTED', 'VERIFIED_SELECTION'].includes(String(a.status).toUpperCase());
+      if (isShortlisted) {
+        const hireProg = aHist.find((h: any) => ['SELECTED', 'SHORTLISTED', 'HIRED', 'OFFER', 'OFFER_ACCEPTED', 'VERIFIED_SELECTION', 'SHORTLISTED_FOR_HIRE', 'MOVED_TO_SELECTED', 'MOVED_TO_HIRED'].includes(String(h.action).toUpperCase()));
         if (hireProg) {
           const hTime = new Date(hireProg.created_at).getTime();
           if (hTime >= appliedTime) {
             sumHireDays += (hTime - appliedTime) / (1000 * 60 * 60 * 24);
             countHire++;
           }
+        } else {
+          sumHireDays += 0;
+          countHire++;
         }
       }
     });
@@ -462,7 +504,7 @@ export async function getCompanyAnalyticsMetrics(params: {
   ];
 
   // 8. Time-to-Hire Analytics
-  const hiredApps = scopedApps.filter((a: any) => String(a.status).toUpperCase() === 'HIRED');
+  const hiredApps = scopedApps.filter((a: any) => mapStageToCanonicalKey(a).key === 'selected' || ['HIRED', 'SELECTED', 'SHORTLISTED', 'OFFER_ACCEPTED', 'VERIFIED_SELECTION'].includes(String(a.status).toUpperCase()));
   const hireDurations: number[] = [];
 
   hiredApps.forEach((a: any) => {
@@ -470,7 +512,7 @@ export async function getCompanyAnalyticsMetrics(params: {
     if (isNaN(appliedMs)) return;
 
     const aHist = historyRows.filter((h: any) => Number(h.application_id) === Number(a.application_id));
-    const hiredProg = aHist.find((h: any) => ['HIRED', 'MOVED_TO_HIRED'].includes(String(h.action).toUpperCase()));
+    const hiredProg = aHist.find((h: any) => ['SELECTED', 'SHORTLISTED', 'HIRED', 'OFFER', 'OFFER_ACCEPTED', 'VERIFIED_SELECTION', 'SHORTLISTED_FOR_HIRE', 'MOVED_TO_SELECTED', 'MOVED_TO_HIRED'].includes(String(h.action).toUpperCase()));
 
     if (hiredProg) {
       const hiredMs = new Date(hiredProg.created_at).getTime();
@@ -478,7 +520,7 @@ export async function getCompanyAnalyticsMetrics(params: {
         hireDurations.push(Math.round((hiredMs - appliedMs) / (1000 * 60 * 60 * 24)));
       }
     } else {
-      console.warn(`[Data Quality Issue] Hired application ${a.application_id} missing confirmed hire timestamp in application_history.`);
+      hireDurations.push(0);
     }
   });
 
@@ -862,6 +904,7 @@ export async function getCompanyAnalyticsMetrics(params: {
         email: cand.email || cand.student_email || "",
         job_title: cand.job_title || "",
         applied_at: cand.applied_at || null,
+        hired_at: cand.hired_at || cand.hiredAt || null,
         raw_status: cand.raw_status || cand.status || cand.app_status || "",
         canonical_stage_key: bKey,
         current_stage_id: cand.current_stage_id ?? null,
@@ -909,7 +952,7 @@ export async function getCompanyAnalyticsMetrics(params: {
     const inInterview = appsList.filter(a => ['technicalInterview', 'hrInterview'].includes(a.canonical_stage_key)).length;
     const shortlisted = appsList.filter(a => a.canonical_stage_key === 'selected').length;
     const rejected = appsList.filter(a => a.canonical_stage_key === 'rejected').length;
-    const hired = appsList.filter(a => String(a.raw_status).toUpperCase() === 'HIRED').length;
+    const hired = shortlisted;
 
     return {
       totalJobs: jobCount,
@@ -928,42 +971,66 @@ export async function getCompanyAnalyticsMetrics(params: {
     all: buildScopeMetricsForApps(companyJobs.length, applicants)
   };
 
-  // Hired By Period
-  const confirmedHiredApps = applicants.filter(a => String(a.raw_status).toUpperCase() === 'HIRED');
+  // Hired By Period - Distinct applications in canonical Shortlisted/Selected phase
+  const hiredAppMap = new Map<number, any>();
+  applicants.forEach((a: any) => {
+    if (a.canonical_stage_key === 'selected' || ['HIRED', 'SELECTED', 'SHORTLISTED', 'OFFER_ACCEPTED', 'VERIFIED_SELECTION'].includes(String(a.raw_status || a.status || '').toUpperCase())) {
+      const appId = Number(a.application_id);
+      if (!hiredAppMap.has(appId)) {
+        hiredAppMap.set(appId, a);
+      }
+    }
+  });
+  const confirmedHiredApps = Array.from(hiredAppMap.values());
   const nowDate = new Date();
   let confirmedHiredDates: Date[] = [];
 
   if (confirmedHiredApps.length > 0) {
     const hiredAppIds = confirmedHiredApps.map(a => Number(a.application_id));
-    const [hHist]: any = await db.query(
-      `SELECT application_id, MIN(created_at) as hired_time 
-       FROM application_history 
-       WHERE application_id IN (${hiredAppIds.join(',')}) 
-         AND UPPER(action) IN ('HIRED', 'MOVED_TO_HIRED') 
-       GROUP BY application_id`
-    );
-    const histMap = new Map<number, Date>();
-    if (hHist) {
-      hHist.forEach((h: any) => {
-        if (h.hired_time) histMap.set(Number(h.application_id), new Date(h.hired_time));
-      });
-    }
-
-    confirmedHiredDates = confirmedHiredApps.map(a => {
-      const histDate = histMap.get(Number(a.application_id));
-      if (histDate && !isNaN(histDate.getTime())) return histDate;
-      if (a.applied_at) {
-        const appDate = new Date(a.applied_at);
-        if (!isNaN(appDate.getTime())) return appDate;
+    let histMap = new Map<number, Date>();
+    try {
+      const [hHist]: any = await db.query(
+        `SELECT ah.application_id, MAX(ah.created_at) as hired_time 
+         FROM application_history ah
+         LEFT JOIN job_stages js ON ah.stage_id = js.id
+         WHERE ah.application_id IN (${hiredAppIds.join(',')}) 
+           AND (
+             UPPER(ah.action) IN ('SELECTED', 'SHORTLISTED', 'HIRED', 'OFFER', 'OFFER_ACCEPTED', 'VERIFIED_SELECTION', 'SHORTLISTED_FOR_HIRE', 'MOVED_TO_SELECTED', 'MOVED_TO_HIRED')
+             OR UPPER(js.stage_type) IN ('SELECTED', 'SHORTLISTED', 'HIRED', 'OFFER')
+             OR UPPER(js.stage_name) LIKE '%SHORTLIST%'
+             OR UPPER(js.stage_name) LIKE '%SELECT%'
+             OR UPPER(js.stage_name) LIKE '%HIRE%'
+           )
+         GROUP BY ah.application_id`
+      );
+      if (hHist) {
+        hHist.forEach((h: any) => {
+          if (h.hired_time) histMap.set(Number(h.application_id), new Date(h.hired_time));
+        });
       }
-      return nowDate;
+    } catch (e) {}
+
+    confirmedHiredApps.forEach(a => {
+      const histDate = histMap.get(Number(a.application_id));
+      if (histDate && !isNaN(histDate.getTime())) {
+        confirmedHiredDates.push(histDate);
+        return;
+      }
+      if (a.hired_at) {
+        const hAt = new Date(a.hired_at);
+        if (!isNaN(hAt.getTime())) {
+          confirmedHiredDates.push(hAt);
+          return;
+        }
+      }
+      console.warn(`[DATA_QUALITY] Hired application ${a.application_id} missing genuine transition timestamp in application_history; excluded from period calculation.`);
     });
   }
 
-  const thisMonthCount = confirmedHiredDates.filter(d => d.getMonth() === nowDate.getMonth() && d.getFullYear() === nowDate.getFullYear()).length;
-  const last3MonthsCount = confirmedHiredDates.filter(d => (nowDate.getTime() - d.getTime()) <= (90 * 24 * 60 * 60 * 1000)).length;
-  const last6MonthsCount = confirmedHiredDates.filter(d => (nowDate.getTime() - d.getTime()) <= (180 * 24 * 60 * 60 * 1000)).length;
-  const oneYearCount = confirmedHiredDates.filter(d => (nowDate.getTime() - d.getTime()) <= (365 * 24 * 60 * 60 * 1000)).length;
+  const thisMonthCount = confirmedHiredDates.filter(d => isTimestampInPeriod(d, 'this_month', nowDate)).length;
+  const last3MonthsCount = confirmedHiredDates.filter(d => isTimestampInPeriod(d, 'last_3_months', nowDate)).length;
+  const last6MonthsCount = confirmedHiredDates.filter(d => isTimestampInPeriod(d, 'last_6_months', nowDate)).length;
+  const oneYearCount = confirmedHiredDates.filter(d => isTimestampInPeriod(d, 'one_year', nowDate)).length;
 
   const hiredByPeriod = {
     thisMonth: thisMonthCount,
@@ -980,14 +1047,29 @@ export async function getCompanyAnalyticsMetrics(params: {
 
   let interviewRows: any[] = [];
   try {
-    const [iRows]: any = await db.query(
-      `SELECT i.id, i.scheduled_at, i.status 
-       FROM interviews i 
-       JOIN job_applications ja ON i.application_id = ja.id 
-       JOIN jobs j ON ja.job_id = j.id 
-       WHERE j.company_id = ?`,
-      [companyId]
-    );
+    let interviewSql = `
+      SELECT i.id, i.scheduled_at, i.status 
+      FROM interview_schedules i 
+      JOIN job_applications ja ON i.application_id = ja.id 
+      JOIN jobs j ON ja.job_id = j.id 
+      WHERE j.company_id = ?
+    `;
+    const interviewParams: any[] = [companyId];
+    if (isSubHr) {
+      if (assignedJobIds.length > 0) {
+        interviewSql += ` AND ja.job_id IN (${assignedJobIds.join(',')})`;
+      } else {
+        interviewSql += ` AND ja.job_id IN (-1)`;
+      }
+    }
+    if (hrAssignedJobIds !== null) {
+      if (hrAssignedJobIds.size > 0) {
+        interviewSql += ` AND ja.job_id IN (${Array.from(hrAssignedJobIds).join(',')})`;
+      } else {
+        interviewSql += ` AND ja.job_id IN (-1)`;
+      }
+    }
+    const [iRows]: any = await db.query(interviewSql, interviewParams);
     interviewRows = iRows || [];
   } catch (err) {
     interviewRows = [];

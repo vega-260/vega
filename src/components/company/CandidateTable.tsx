@@ -58,9 +58,11 @@ export function CandidateTable({ applicants, onViewCandidate, onOpenHistory }: C
           <tbody className="divide-y divide-slate-100">
             {applicants.map((app, i) => {
               const violationCount = Number(app.latest_test_violations_count ?? app.latest_test_violations ?? 0);
-              const talentScore = Math.round(app.talent_score || 0);
+              const hasScore = app.talent_score !== null && app.talent_score !== undefined && !isNaN(Number(app.talent_score));
+              const talentScore = hasScore ? Math.round(Number(app.talent_score)) : null;
               
               const getScoreBand = () => {
+                if (talentScore === null) return { text: 'Not available', pill: 'bg-slate-50 text-slate-500 border-slate-100' };
                 if (talentScore >= 85) return { text: 'Expert Match', pill: 'bg-emerald-50 text-emerald-700 border-emerald-100 font-extrabold' };
                 if (talentScore >= 70) return { text: 'Strong Fit', pill: 'bg-indigo-50 text-indigo-700 border-indigo-100' };
                 if (talentScore >= 50) return { text: 'Core Potential', pill: 'bg-blue-50 text-blue-700 border-blue-100' };
@@ -90,7 +92,7 @@ export function CandidateTable({ applicants, onViewCandidate, onOpenHistory }: C
                       <div>
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{app.full_name}</p>
-                          {talentScore >= 85 && <Award size={14} className="text-amber-500 fill-amber-100" />}
+                          {talentScore !== null && talentScore >= 85 && <Award size={14} className="text-amber-500 fill-amber-100" />}
                         </div>
                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
                           <Mail size={10} className="text-slate-350" />
@@ -128,16 +130,18 @@ export function CandidateTable({ applicants, onViewCandidate, onOpenHistory }: C
                   <td className="px-8 py-5">
                     <div className="flex flex-col items-center">
                       <span className={`text-[11px] px-2 py-0.5 rounded-md border text-center ${band.pill}`}>
-                        {band.text} ({talentScore}%)
+                        {talentScore !== null ? `${band.text} (${talentScore}%)` : band.text}
                       </span>
-                      <div className="w-16 h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${
-                            talentScore >= 85 ? 'bg-emerald-500' : talentScore >= 70 ? 'bg-indigo-500' : 'bg-blue-500'
-                          }`} 
-                          style={{ width: `${Math.min(talentScore, 100)}%` }} 
-                        />
-                      </div>
+                      {talentScore !== null && (
+                        <div className="w-16 h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${
+                              talentScore >= 85 ? 'bg-emerald-500' : talentScore >= 70 ? 'bg-indigo-500' : 'bg-blue-500'
+                            }`} 
+                            style={{ width: `${Math.min(talentScore, 100)}%` }} 
+                          />
+                        </div>
+                      )}
                     </div>
                   </td>
 

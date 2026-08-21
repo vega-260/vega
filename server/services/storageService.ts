@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -132,4 +132,54 @@ export async function getCloudObjectByUrl(fileUrl: string): Promise<{ body: any;
   const object = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
   if (!object.Body) throw new Error("Object body is unavailable");
   return { body: object.Body, contentType: object.ContentType, contentLength: object.ContentLength };
+}
+
+
+/**
+ * Safely removes a file created by this storage service.
+ * Supports the configured S3 bucket and development-only /uploads files.
+ * Deletion is idempotent: missing files are treated as already deleted.
+ */
+export async function deleteFromStorage(fileUrlOrPath: string): Promise<boolean> {
+  if (!fileUrlOrPath || typeof fileUrlOrPath !== "string") return true;
+
+  try {
+    const client = getS3Client();
+    if (client && bucketName && /^https?:\/\//i.test(fileUrlOrPath)) {
+      try {
+        const parsed = new URL(fileUrlOrPath);
+        const expectedHost = `${bucketName}.s3.${process.env.AWS_REGION || "us-east-1"}.amazonaws.com`;
+        if (parsed.hostname === expectedHost) {
+          const key = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+          if (!key.startsWith("uploads/")) return false;
+          await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }));
+          return true;
+        }
+      } catch {
+        // Fall through to local-path handling only for development paths.
+      }
+    }
+
+    let relativePath = fileUrlOrPath;
+    if (/^https?:\/\//i.test(relativePath)) {
+      const parsed = new URL(relativePath);
+      relativePath = parsed.pathname;
+    }
+    relativePath = relativePath.replace(/^\/+/, "");
+    if (!relativePath.startsWith("uploads/")) return false;
+
+    const uploadsDir = path.resolve(process.cwd(), "uploads");
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    if (!absolutePath.startsWith(uploadsDir + path.sep)) return false;
+
+    try {
+      await fs.promises.unlink(absolutePath);
+    } catch (error: any) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    return true;
+  } catch (error) {
+    console.error("Storage deletion failed:", error);
+    return false;
+  }
 }

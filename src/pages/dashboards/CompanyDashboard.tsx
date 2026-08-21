@@ -16,6 +16,7 @@ import {
   TrendingUp, 
   TrendingDown, 
   ArrowUpRight,
+  ArrowRight,
   GitBranch,
   ShieldCheck,
   CheckCircle2,
@@ -36,6 +37,7 @@ import { CandidateDetailModal } from "../../components/company/CandidateDetailMo
 
 export function CompanyDashboard() {
   const { user, profile } = useAuth();
+  const isFrozen = profile?.status === 'PENDING_REVERIFICATION' || profile?.status === 'PENDING';
   const navigate = useNavigate();
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export function CompanyDashboard() {
   }, []);
 
   const getCanonicalStageBucket = useCallback((app: any) => {
-    const status = String(app.status || '').toUpperCase();
+    const status = String(app.status || app.raw_status || '').toUpperCase();
     const stageType = String(app.current_stage_type || app.stage_type || '').toUpperCase();
     const stageName = String(app.current_stage_name || app.stage_name || '').toUpperCase();
 
@@ -59,7 +61,7 @@ export function CompanyDashboard() {
       return 'REJECTED';
     }
 
-    // Check Hired / Selected
+    // Check Hired / Selected (including canonical Shortlisted)
     if (
       status === 'SELECTED' ||
       status === 'HIRED' ||
@@ -68,8 +70,16 @@ export function CompanyDashboard() {
       status === 'SHORTLISTED' ||
       stageType === 'HIRED' ||
       stageType === 'SELECTED' ||
+      stageType === 'SHORTLISTED' ||
+      stageType.includes('SHORTLIST') ||
+      stageType.includes('HIRE') ||
+      stageType.includes('SELECT') ||
       stageName === 'HIRED' ||
-      stageName === 'SELECTED'
+      stageName === 'SELECTED' ||
+      stageName === 'SHORTLISTED' ||
+      stageName.includes('SHORTLIST') ||
+      stageName.includes('HIRE') ||
+      stageName.includes('SELECT')
     ) {
       return 'HIRED';
     }
@@ -162,50 +172,61 @@ export function CompanyDashboard() {
 
   const hiredCountFiltered = useMemo(() => {
     if (hiredByPeriod) {
-      if (hiredFilter === 'this_month') return hiredByPeriod.thisMonth;
-      if (hiredFilter === 'last_3_months') return hiredByPeriod.last3Months;
-      if (hiredFilter === 'last_6_months') return hiredByPeriod.last6Months;
-      if (hiredFilter === 'one_year') return hiredByPeriod.oneYear;
+      if (hiredFilter === 'this_month') return hiredByPeriod.thisMonth ?? 0;
+      if (hiredFilter === 'last_3_months') return hiredByPeriod.last3Months ?? 0;
+      if (hiredFilter === 'last_6_months') return hiredByPeriod.last6Months ?? 0;
+      if (hiredFilter === 'one_year') return hiredByPeriod.oneYear ?? 0;
     }
-    return realApplicants.filter((a: any) => String(a.raw_status || a.status).toUpperCase() === 'HIRED').length;
-  }, [hiredByPeriod, hiredFilter, realApplicants]);
+    return (realApplicants || []).filter((a: any) => a && getCanonicalStageBucket(a) === 'HIRED').length;
+  }, [hiredByPeriod, hiredFilter, realApplicants, getCanonicalStageBucket]);
 
   const displayedJobsCount = useMemo(() => {
     if (scopeMetrics && scopeMetrics[jobsCardFilter]) {
-      return scopeMetrics[jobsCardFilter].totalJobs;
+      return scopeMetrics[jobsCardFilter].totalJobs ?? 0;
     }
-    if (jobsCardFilter === 'active') return realJobs.filter(isJobActive).length;
-    if (jobsCardFilter === 'ended') return realJobs.filter(isJobEnded).length;
-    return realJobs.filter(j => isJobActive(j) || isJobEnded(j)).length;
+    if (jobsCardFilter === 'active') return (realJobs || []).filter(isJobActive).length;
+    if (jobsCardFilter === 'ended') return (realJobs || []).filter(isJobEnded).length;
+    return (realJobs || []).filter((j: any) => isJobActive(j) || isJobEnded(j)).length;
   }, [scopeMetrics, jobsCardFilter, realJobs, isJobActive, isJobEnded]);
 
   const displayedApplicantsCount = useMemo(() => {
     if (scopeMetrics && scopeMetrics[applicantsCardFilter]) {
-      return scopeMetrics[applicantsCardFilter].totalApplicants;
+      return scopeMetrics[applicantsCardFilter].totalApplicants ?? 0;
     }
-    return realApplicants.length;
+    return (realApplicants || []).length;
   }, [scopeMetrics, applicantsCardFilter, realApplicants]);
 
   const displayedPipelineCount = useMemo(() => {
     if (scopeMetrics && scopeMetrics[pipelineCardFilter]) {
-      return scopeMetrics[pipelineCardFilter].inPipeline;
+      return scopeMetrics[pipelineCardFilter].inPipeline ?? 0;
     }
     return 0;
   }, [scopeMetrics, pipelineCardFilter]);
 
   const displayedInInterviewCount = useMemo(() => {
     if (scopeMetrics && scopeMetrics[interviewCardFilter]) {
-      return scopeMetrics[interviewCardFilter].inInterview;
+      return scopeMetrics[interviewCardFilter].inInterview ?? 0;
     }
-    return 0;
-  }, [scopeMetrics, interviewCardFilter]);
+    return (realApplicants || []).filter((a: any) => {
+      if (!a) return false;
+      const job = (realJobs || []).find((j: any) => j && j.id === a.job_id);
+      if (!job) return false;
+      const active = isJobActive(job);
+      const ended = isJobEnded(job);
+      if (interviewCardFilter === 'active' && !active) return false;
+      if (interviewCardFilter === 'ended' && !ended) return false;
+      if (interviewCardFilter === 'all' && !active && !ended) return false;
+      return getCanonicalStageBucket(a) === 'INTERVIEW';
+    }).length;
+  }, [scopeMetrics, interviewCardFilter, realApplicants, realJobs, isJobActive, isJobEnded, getCanonicalStageBucket]);
 
   const applicantsThisWeekCount = useMemo(() => {
     const now = new Date();
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(now.getDate() - 7);
-    return realApplicants.filter((a: any) => {
-      const job = realJobs.find((j: any) => j.id === a.job_id);
+    return (realApplicants || []).filter((a: any) => {
+      if (!a) return false;
+      const job = (realJobs || []).find((j: any) => j && j.id === a.job_id);
       if (!job) return false;
       const active = isJobActive(job);
       const ended = isJobEnded(job);
@@ -213,27 +234,32 @@ export function CompanyDashboard() {
       if (applicantsCardFilter === 'ended' && !ended) return false;
       if (applicantsCardFilter === 'all' && !active && !ended) return false;
       
+      if (!a.applied_at) return false;
       const appDate = new Date(a.applied_at);
+      if (isNaN(appDate.getTime())) return false;
       return appDate >= oneWeekAgo;
     }).length;
   }, [realApplicants, realJobs, applicantsCardFilter, isJobActive, isJobEnded]);
 
   const pendingInterviewsCount = useMemo(() => {
-    return realInterviews.filter((i: any) => {
-      const statusUpper = (i.status || '').toUpperCase();
+    return (realInterviews || []).filter((i: any) => {
+      if (!i) return false;
+      const statusUpper = String(i.status || '').toUpperCase();
       return statusUpper === 'PENDING' || statusUpper === 'AWAITING_CONFIRMATION' || statusUpper === 'PENDING_CONFIRMATION';
     }).length;
   }, [realInterviews]);
 
   const displayedInterviewsTodayCount = useMemo(() => {
+    if (!currentTime) return 0;
     const todayStr = currentTime.toDateString();
-    return realInterviews.filter((i: any) => {
-      if (!i.time) return false;
+    return (realInterviews || []).filter((i: any) => {
+      if (!i || !i.time) return false;
       const scheduledTime = new Date(i.time);
+      if (isNaN(scheduledTime.getTime())) return false;
       if (scheduledTime.toDateString() !== todayStr) return false;
 
       // Check status: scheduled, confirmed, or live
-      const statusUpper = (i.status || '').toUpperCase();
+      const statusUpper = String(i.status || '').toUpperCase();
       const isCancelledOrCompleted = statusUpper === 'CANCELLED' || statusUpper === 'COMPLETED' || statusUpper === 'REJECTED' || statusUpper === 'ENDED';
       if (isCancelledOrCompleted) return false;
 
@@ -529,17 +555,6 @@ export function CompanyDashboard() {
     };
   }, [user?.id, profile?.id]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#f8fafd]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-slate-500 font-bold text-sm">Loading dashboard metrics...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Dynamic calculation helpers
   const getPast7Days = () => {
     const days = [];
@@ -577,45 +592,83 @@ export function CompanyDashboard() {
   };
 
   // Derived datasets
-  const activeJobsListToRender = realJobs.filter(isJobActive).map((j: any) => {
-    const matchingApps = realApplicants.filter((a: any) => a.job_title === j.title || a.job_id === j.id);
-    const hiredCount = matchingApps.filter((a: any) => normalizeStageBucket(a) === 'HIRED').length;
-    const pipelineCount = matchingApps.filter((a: any) => {
-      const b = normalizeStageBucket(a);
-      return b !== 'REJECTED' && b !== 'HIRED';
-    }).length;
+  const activeJobsListToRender = useMemo(() => {
+    return (realJobs || []).filter(isJobActive).map((j: any) => {
+      const matchingApps = (realApplicants || []).filter((a: any) => a && (a.job_title === j.title || a.job_id === j.id));
+      const hiredCount = matchingApps.filter((a: any) => normalizeStageBucket(a) === 'HIRED').length;
+      const pipelineCount = matchingApps.filter((a: any) => {
+        const b = normalizeStageBucket(a);
+        return b !== 'REJECTED' && b !== 'HIRED';
+      }).length;
 
-    const positions = j.openings || 1;
-    const stageCount = j.stage_count ?? j.pipeline_stages_count ?? (j.stages ? j.stages.length : null);
+      const positions = j.openings || 1;
+      const stageCount = j.stage_count ?? j.pipeline_stages_count ?? (j.stages ? j.stages.length : null);
 
-    return {
-      id: j.id,
-      title: j.title,
-      type: j.job_type || "Full-time",
-      applicants: matchingApps.length,
-      pipeline: pipelineCount,
-      hired: hiredCount,
-      positionsAvailable: positions !== null ? String(positions) : "—",
-      stageCount: stageCount !== null ? `${stageCount} stages` : "—",
-      status: "Active"
-    };
-  });
+      return {
+        id: j.id,
+        title: j.title || 'Untitled Job',
+        type: j.job_type || "Full-time",
+        applicants: matchingApps.length,
+        pipeline: pipelineCount,
+        hired: hiredCount,
+        positionsAvailable: positions !== null ? String(positions) : "—",
+        stageCount: stageCount !== null ? `${stageCount} stages` : "—",
+        status: "Active"
+      };
+    });
+  }, [realJobs, realApplicants, isJobActive, normalizeStageBucket]);
 
   const totalJobsPages = Math.max(1, Math.ceil(activeJobsListToRender.length / jobsPerPage));
   const safeJobsPage = jobsPage > totalJobsPages ? totalJobsPages : jobsPage;
-  const paginatedActiveJobs = activeJobsListToRender.slice(
-    (safeJobsPage - 1) * jobsPerPage,
-    safeJobsPage * jobsPerPage
-  );
+  const paginatedActiveJobs = useMemo(() => {
+    return activeJobsListToRender.slice(
+      (safeJobsPage - 1) * jobsPerPage,
+      safeJobsPage * jobsPerPage
+    );
+  }, [activeJobsListToRender, safeJobsPage, jobsPerPage]);
 
-  const upcomingInterviews = realInterviews.slice(0, 4).map((i: any) => ({
-    id: i.id,
-    name: i.candidate,
-    role: i.role,
-    time: new Date(i.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    status: i.status === 'UPCOMING' ? 'Scheduled' : 'Live Meet',
-    avatar: i.photo || `https://images.unsplash.com/photo-${1534528741775 + i.id % 100}?auto=format&fit=crop&q=80&w=120`
-  }));
+  const upcomingInterviews = useMemo(() => {
+    const now = new Date();
+    return (realInterviews || [])
+      .filter((i: any) => {
+        if (!i || !i.time) return false;
+        const scheduledTime = new Date(i.time);
+        if (isNaN(scheduledTime.getTime())) return false;
+
+        const statusUpper = String(i.status || '').toUpperCase();
+        if (statusUpper === 'CANCELLED' || statusUpper === 'COMPLETED' || statusUpper === 'REJECTED' || statusUpper === 'EXPIRED') {
+          return false;
+        }
+
+        // Live interviews remain visible
+        if (statusUpper === 'LIVE') {
+          return true;
+        }
+
+        // Scheduled / upcoming interviews must be in the future (or present)
+        return scheduledTime >= now;
+      })
+      .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
+      .slice(0, 4)
+      .map((i: any) => {
+        const d = new Date(i.time);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const formattedDate = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        const formattedTime = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const isLive = String(i.status || '').toUpperCase() === 'LIVE';
+
+        return {
+          id: i.id,
+          name: i.candidate || i.candidate_name || i.student_name || 'Candidate',
+          role: i.role || i.job_title || i.jobTitle || 'Role',
+          time: formattedTime,
+          date: formattedDate,
+          isLive,
+          status: isLive ? 'Live Meet' : (i.status === 'UPCOMING' || i.status === 'SCHEDULED' ? 'Scheduled' : (i.status || 'Scheduled')),
+          avatar: i.photo || i.avatar || `https://images.unsplash.com/photo-${1534528741775 + (Number(i.id) || 0) % 100}?auto=format&fit=crop&q=80&w=120`
+        };
+      });
+  }, [realInterviews, currentTime]);
 
 
 
@@ -663,6 +716,17 @@ export function CompanyDashboard() {
   const avgOverallScore = totalWithScores > 0 ? Math.round(totalScoresSum / totalWithScores) : 0;
 
   const qualityLabel = avgOverallScore >= 80 ? "Excellent" : avgOverallScore >= 60 ? "Good" : avgOverallScore >= 40 ? "Average" : totalWithScores > 0 ? "Under Review" : "N/A";
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#f8fafd]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-500 font-bold text-sm">Loading dashboard metrics...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" id="company-dashboard-container">
@@ -956,57 +1020,128 @@ export function CompanyDashboard() {
             </div>
             
             {activeJobsListToRender.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                  <Briefcase size={20} />
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gradient-to-b from-white via-slate-50/30 to-slate-50/60">
+                <div className="relative mb-3.5 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-500/10 via-indigo-500/10 to-violet-500/10 border border-blue-500/15 flex items-center justify-center text-blue-600 shadow-sm relative">
+                    <Briefcase size={26} className="text-blue-600 drop-shadow-sm" />
+                    <span className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30">
+                      <Plus size={13} strokeWidth={3} />
+                    </span>
+                  </div>
                 </div>
-                <h3 className="text-sm font-black text-slate-800">No active jobs available yet.</h3>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                  Create a job posting to start tracking active hiring performance.
+                <h3 className="text-sm sm:text-base font-black text-slate-800 tracking-tight">
+                  Add more job posts to grow your hiring pipeline
+                </h3>
+                <p className="text-xs text-slate-500 mt-1.5 max-w-md font-medium leading-relaxed">
+                  Create new openings to keep your dashboard active and attract more candidates.
                 </p>
                 <Link 
-                  to="/company/jobs" 
-                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
+                  to={isFrozen ? "#" : "/company/jobs/new"}
+                  onClick={(e) => {
+                    if (isFrozen) {
+                      e.preventDefault();
+                      toast.error("Your company profile is pending verification. Please wait for Admin approval.");
+                    }
+                  }}
+                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] group cursor-pointer"
                 >
-                  Post First Job
+                  <span>Post Another Job</span>
+                  <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
                 </Link>
+
+                {/* Subtle decorative placeholder silhouettes */}
+                <div className="w-full max-w-md grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-dashed border-slate-200/80 opacity-60 pointer-events-none select-none">
+                  <div className="border border-dashed border-slate-200 rounded-xl p-2.5 bg-white/60 flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400">
+                      <Briefcase size={12} />
+                    </div>
+                    <div className="space-y-1 flex-1 text-left">
+                      <div className="h-2 w-16 bg-slate-200 rounded" />
+                      <div className="h-1.5 w-10 bg-slate-100 rounded" />
+                    </div>
+                  </div>
+                  <div className="border border-dashed border-slate-200 rounded-xl p-2.5 bg-white/60 flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400">
+                      <Briefcase size={12} />
+                    </div>
+                    <div className="space-y-1 flex-1 text-left">
+                      <div className="h-2 w-20 bg-slate-200 rounded" />
+                      <div className="h-1.5 w-12 bg-slate-100 rounded" />
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="overflow-x-auto overflow-y-auto flex-1 scrollbar-hide">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                      <th className="py-4 px-6">Job Title</th>
-                      <th className="py-4 px-6 text-center">Applicants</th>
-                      <th className="py-4 px-6 text-center">In Pipeline</th>
-                      <th className="py-4 px-6 text-center">Positions Available</th>
-                      <th className="py-4 px-6 text-center">Pipeline Stages</th>
-                      <th className="py-4 px-6 text-center">Hired</th>
-                      <th className="py-4 px-6 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 text-slate-700 text-xs font-semibold">
-                    {paginatedActiveJobs.map((job, index) => (
-                      <tr key={index} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-3.5 px-6">
-                           <span className="font-extrabold text-slate-900 block">{job.title}</span>
-                           <span className="text-[10px] text-slate-400 font-bold block mt-1">{job.type}</span>
-                        </td>
-                        <td className="py-3.5 px-6 font-extrabold text-center text-slate-900">{job.applicants}</td>
-                        <td className="py-3.5 px-6 font-extrabold text-center text-indigo-600">{job.pipeline}</td>
-                        <td className="py-3.5 px-6 font-extrabold text-center text-slate-700">{job.positionsAvailable}</td>
-                        <td className="py-3.5 px-6 font-extrabold text-center text-indigo-500">{job.stageCount}</td>
-                        <td className="py-3.5 px-6 font-extrabold text-center text-[#10b981]">{job.hired}</td>
-                        <td className="py-3.5 px-6 text-right">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 font-black uppercase text-[9px] rounded-lg tracking-wide">
-                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                            Active
-                          </span>
-                        </td>
+              <div className="flex-1 flex flex-col justify-between overflow-hidden">
+                <div className="overflow-x-auto overflow-y-auto scrollbar-hide">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                        <th className="py-4 px-6">Job Title</th>
+                        <th className="py-4 px-6 text-center">Applicants</th>
+                        <th className="py-4 px-6 text-center">In Pipeline</th>
+                        <th className="py-4 px-6 text-center">Positions Available</th>
+                        <th className="py-4 px-6 text-center">Pipeline Stages</th>
+                        <th className="py-4 px-6 text-center">Hired</th>
+                        <th className="py-4 px-6 text-right">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-slate-700 text-xs font-semibold">
+                      {paginatedActiveJobs.map((job, index) => (
+                        <tr key={index} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3.5 px-6">
+                             <span className="font-extrabold text-slate-900 block">{job.title}</span>
+                             <span className="text-[10px] text-slate-400 font-bold block mt-1">{job.type}</span>
+                          </td>
+                          <td className="py-3.5 px-6 font-extrabold text-center text-slate-900">{job.applicants}</td>
+                          <td className="py-3.5 px-6 font-extrabold text-center text-indigo-600">{job.pipeline}</td>
+                          <td className="py-3.5 px-6 font-extrabold text-center text-slate-700">{job.positionsAvailable}</td>
+                          <td className="py-3.5 px-6 font-extrabold text-center text-indigo-500">{job.stageCount}</td>
+                          <td className="py-3.5 px-6 font-extrabold text-center text-[#10b981]">{job.hired}</td>
+                          <td className="py-3.5 px-6 text-right">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 font-black uppercase text-[9px] rounded-lg tracking-wide">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                              Active
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Secondary CTA panel when small number of active jobs leaves empty space */}
+                {paginatedActiveJobs.length <= 2 && safeJobsPage === 1 && (
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-transparent via-slate-50/20 to-slate-50/50 border-t border-dashed border-slate-100">
+                    <div className="relative mb-2.5 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-500/10 via-indigo-500/10 to-violet-500/10 border border-blue-500/15 flex items-center justify-center text-blue-600 shadow-sm relative">
+                        <Briefcase size={20} className="text-blue-600 drop-shadow-sm" />
+                        <span className="absolute -top-1 -right-1 w-5 h-5 rounded-md bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center shadow-sm">
+                          <Plus size={11} strokeWidth={3} />
+                        </span>
+                      </div>
+                    </div>
+                    <h3 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight">
+                      Add more job posts to grow your hiring pipeline
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1 max-w-sm font-medium leading-relaxed">
+                      Create new openings to keep your dashboard active and attract more candidates.
+                    </p>
+                    <Link 
+                      to={isFrozen ? "#" : "/company/jobs/new"}
+                      onClick={(e) => {
+                        if (isFrozen) {
+                          e.preventDefault();
+                          toast.error("Your company profile is pending verification. Please wait for Admin approval.");
+                        }
+                      }}
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-200 shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] group cursor-pointer"
+                    >
+                      <span>Post Another Job</span>
+                      <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
             
@@ -1926,7 +2061,7 @@ export function CompanyDashboard() {
                     <div className="flex items-center gap-3 text-right">
                       <div className="text-right">
                         <span className="text-[10px] font-black text-slate-950 block">{interview.time}</span>
-                        <span className="text-[8px] text-indigo-500 font-extrabold uppercase mt-0.5 block">Live Meet</span>
+                        <span className="text-[9px] text-slate-400 font-bold block mt-0.5">{interview.date}</span>
                       </div>
                       
                       <button 
@@ -1934,7 +2069,11 @@ export function CompanyDashboard() {
                           toast.success(`Opening live audio/video setup for ${interview.name}...`);
                           navigate(`/company/interviews`);
                         }}
-                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-black uppercase tracking-wider text-[9px] rounded-lg cursor-pointer"
+                        className={`px-3 py-1.5 font-black uppercase tracking-wider text-[9px] rounded-lg cursor-pointer transition-colors ${
+                          interview.isLive
+                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 animate-pulse'
+                            : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                        }`}
                       >
                         {interview.status}
                       </button>

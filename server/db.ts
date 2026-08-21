@@ -123,7 +123,7 @@ function createSqlite(): Database.Database {
     throw new Error("SQLite is disabled in production");
   }
   if (!sqlite) {
-    sqlite = new Database(path.join(process.cwd(), process.env.SQLITE_FILE || "vega.db"));
+    sqlite = new Database(path.join(process.cwd(), process.env.SQLITE_FILE || process.env.SQLITE_DB_PATH || "vega.db"));
     sqlite.pragma("journal_mode = WAL");
     sqlite.pragma("synchronous = NORMAL");
     sqlite.pragma("busy_timeout = 10000");

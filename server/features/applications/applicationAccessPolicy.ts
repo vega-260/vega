@@ -84,7 +84,22 @@ export async function canAccessApplication(req: any, applicationId: number): Pro
   if (role === "STUDENT") return Number(rows[0].student_user_id) === userId;
   if (role === "COMPANY") {
     const ctx = await resolveCompanyContext(req);
-    return !ctx.error && Number(ctx.companyId) === Number(rows[0].company_id);
+    if (ctx.error || Number(ctx.companyId) !== Number(rows[0].company_id)) return false;
+    if (ctx.roleType !== "SUB_HR") return true;
+
+    const [appRows]: any = await db.query("SELECT job_id FROM job_applications WHERE id = ? LIMIT 1", [applicationId]);
+    if (!appRows?.length) return false;
+    const jobId = Number(appRows[0].job_id);
+    const [jobAssignments]: any = await db.query(
+      "SELECT id FROM company_job_assignments WHERE company_id = ? AND assigned_hr_user_id = ? AND job_id = ? LIMIT 1",
+      [ctx.companyId, userId, jobId]
+    );
+    if (jobAssignments?.length) return true;
+    const [appAssignments]: any = await db.query(
+      "SELECT id FROM company_application_assignments WHERE company_id = ? AND assigned_hr_user_id = ? AND (application_id = ? OR job_id = ?) LIMIT 1",
+      [ctx.companyId, userId, applicationId, jobId]
+    );
+    return Boolean(appAssignments?.length);
   }
   return false;
 }
@@ -105,6 +120,19 @@ export async function requireCompanyJobAccess(req: any, res: any, next: any) {
   if (ctx.error) return res.status(ctx.statusCode || 403).json({ success: false, message: ctx.error });
   const [rows]: any = await db.query("SELECT id FROM jobs WHERE id = ? AND company_id = ? LIMIT 1", [jobId, ctx.companyId]);
   if (!rows?.length) return res.status(403).json({ success: false, message: "Access denied for this job" });
+  if (ctx.roleType === "SUB_HR") {
+    const [jobAssignments]: any = await db.query(
+      "SELECT id FROM company_job_assignments WHERE company_id = ? AND assigned_hr_user_id = ? AND job_id = ? LIMIT 1",
+      [ctx.companyId, req.user.userId, jobId]
+    );
+    const [appAssignments]: any = await db.query(
+      "SELECT id FROM company_application_assignments WHERE company_id = ? AND assigned_hr_user_id = ? AND job_id = ? LIMIT 1",
+      [ctx.companyId, req.user.userId, jobId]
+    );
+    if (!jobAssignments?.length && !appAssignments?.length) {
+      return res.status(403).json({ success: false, message: "Forbidden: You are not assigned to manage this job." });
+    }
+  }
   return next();
 }
 
@@ -116,8 +144,23 @@ export async function requireCompanyApplicationsAccess(req: any, res: any, next:
   const ctx = await resolveCompanyContext(req);
   if (ctx.error) return res.status(ctx.statusCode || 403).json({ success: false, message: ctx.error });
   const placeholders = ids.map(() => "?").join(",");
-  const [rows]: any = await db.query(`SELECT ja.id FROM job_applications ja JOIN jobs j ON ja.job_id = j.id WHERE ja.id IN (${placeholders}) AND j.company_id = ?`, [...ids, ctx.companyId]);
+  const [rows]: any = await db.query(`SELECT ja.id, ja.job_id FROM job_applications ja JOIN jobs j ON ja.job_id = j.id WHERE ja.id IN (${placeholders}) AND j.company_id = ?`, [...ids, ctx.companyId]);
   if (rows.length !== ids.length) return res.status(403).json({ success: false, message: "One or more applications do not belong to your company" });
+  if (ctx.roleType === "SUB_HR") {
+    const [jobAssignments]: any = await db.query(
+      "SELECT job_id FROM company_job_assignments WHERE company_id = ? AND assigned_hr_user_id = ?",
+      [ctx.companyId, req.user.userId]
+    );
+    const [appAssignments]: any = await db.query(
+      "SELECT application_id, job_id FROM company_application_assignments WHERE company_id = ? AND assigned_hr_user_id = ?",
+      [ctx.companyId, req.user.userId]
+    );
+    const assignedJobs = new Set((jobAssignments || []).map((x: any) => Number(x.job_id)));
+    const assignedApps = new Set((appAssignments || []).map((x: any) => Number(x.application_id)));
+    (appAssignments || []).forEach((x: any) => x.job_id && assignedJobs.add(Number(x.job_id)));
+    const unauthorized = rows.some((row: any) => !assignedApps.has(Number(row.id)) && !assignedJobs.has(Number(row.job_id)));
+    if (unauthorized) return res.status(403).json({ success: false, message: "One or more applications are outside your assigned recruitment scope" });
+  }
   return next();
 }
 
@@ -132,8 +175,15 @@ export async function requireStudentRecruitingDataAccess(req: any, res: any, nex
   if (req.user?.role === "COMPANY") {
     const ctx = await resolveCompanyContext(req);
     if (ctx.error) return res.status(ctx.statusCode || 403).json({ success: false, message: ctx.error });
-    const [applications]: any = await db.query(`SELECT ja.id FROM job_applications ja JOIN jobs j ON ja.job_id = j.id WHERE ja.student_id = ? AND j.company_id = ? LIMIT 1`, [student.id, ctx.companyId]);
+    const [applications]: any = await db.query(`SELECT ja.id, ja.job_id FROM job_applications ja JOIN jobs j ON ja.job_id = j.id WHERE ja.student_id = ? AND j.company_id = ?`, [student.id, ctx.companyId]);
     if (!applications?.length) return res.status(403).json({ success: false, message: "Student data is available only for candidates in your recruitment pipeline" });
+    if (ctx.roleType === "SUB_HR") {
+      let scoped = false;
+      for (const app of applications) {
+        if (await canAccessApplication(req, Number(app.id))) { scoped = true; break; }
+      }
+      if (!scoped) return res.status(403).json({ success: false, message: "Candidate is outside your assigned recruitment scope" });
+    }
     return next();
   }
 

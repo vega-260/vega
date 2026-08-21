@@ -141,6 +141,9 @@ export function CompanyProfile() {
 
   const [documents, setDocuments] = useState<any[]>([]);
   const [completeness, setCompleteness] = useState(0);
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<string | null>(null);
+  const [deletingDocType, setDeletingDocType] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.status === 'APPROVED' || profile?.status === 'PENDING' || profile?.status === 'PENDING_REVERIFICATION') {
@@ -306,23 +309,45 @@ export function CompanyProfile() {
     reader.readAsDataURL(file);
   };
 
-  const handleDocDelete = async (type: string) => {
-    const confirmDelete = window.confirm(`Are you sure you want to remove your ${type}?`);
-    if (!confirmDelete) return;
+  const handleDocDelete = (type: string) => {
+    setDeleteConfirmDoc(type);
+    setDeleteError(null);
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!deleteConfirmDoc || !user?.id) return;
+    const docType = deleteConfirmDoc;
+    setDeletingDocType(docType);
+    setDeleteError(null);
 
     try {
-      const { data } = await api.delete(`/companies/profile/${user?.id}/documents/${type}`);
+      const { data } = await api.delete(`/companies/profile/${user.id}/documents/${encodeURIComponent(docType)}`);
       if (data.success) {
-        setDocuments(prev => prev.filter(d => d.doc_type !== type));
-        setCompleteness(data.score);
+        setDocuments(prev => prev.filter(d => d.doc_type !== docType && String(d.id) !== docType));
+        if (data.score !== undefined) {
+          setCompleteness(data.score);
+        }
         if (data.newStatus) {
           updateProfile({ ...profile, status: data.newStatus });
         }
-        alert("Document deleted successfully!");
+        setDeleteConfirmDoc(null);
+        setDeletingDocType(null);
+      } else {
+        setDeleteError(data.message || "Failed to delete document.");
+        setDeletingDocType(null);
       }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete document");
+    } catch (err: any) {
+      console.error("Document deletion error:", err);
+      if (err.response?.status === 404) {
+        // 404 Reconciliation: remove missing document from local UI state
+        setDocuments(prev => prev.filter(d => d.doc_type !== docType && String(d.id) !== docType));
+        setDeleteConfirmDoc(null);
+        setDeletingDocType(null);
+      } else {
+        const msg = err.response?.data?.message || "Failed to delete document. Please try again.";
+        setDeleteError(msg);
+        setDeletingDocType(null);
+      }
     }
   };
 
@@ -753,11 +778,23 @@ export function CompanyProfile() {
                             <FileCheck size={16} className="text-emerald-500 shrink-0" />
                             <span className="text-[10px] font-bold text-slate-700 truncate">{doc.doc_type}</span>
                           </div>
-                          {doc.doc_url && (
-                            <a href={doc.doc_url} target="_blank" rel="noreferrer" className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline shrink-0">
-                              View
-                            </a>
-                          )}
+                          <div className="flex items-center gap-3 shrink-0">
+                            {doc.doc_url && (
+                              <a href={doc.doc_url} target="_blank" rel="noreferrer" className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline">
+                                View
+                              </a>
+                            )}
+                            {profile?.status !== 'APPROVED' && profile?.status !== 'PENDING' && profile?.status !== 'UNDER_REVIEW' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDocDelete(doc.doc_type)}
+                                className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors cursor-pointer"
+                                title={`Delete ${doc.doc_type}`}
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1091,6 +1128,70 @@ export function CompanyProfile() {
             </div>
           </>
         )}
+
+        {/* Document Deletion Confirmation Modal */}
+        <AnimatePresence>
+          {deleteConfirmDoc && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                className="relative w-full max-w-md bg-white rounded-3xl border border-slate-200 p-8 shadow-2xl overflow-hidden font-sans"
+              >
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 border border-red-100 shrink-0">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Delete Document</h3>
+                    <p className="text-xs font-semibold text-slate-500">Remove verification record</p>
+                  </div>
+                </div>
+
+                <p className="text-sm font-medium text-slate-600 leading-relaxed mb-6">
+                  Are you sure you want to remove your <strong className="text-slate-900">{deleteConfirmDoc}</strong>? This action will update your profile completeness score and remove the stored file permanently.
+                </p>
+
+                {deleteError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-700 text-xs font-bold">
+                    <AlertCircle size={16} className="shrink-0 text-red-500" />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={!!deletingDocType}
+                    onClick={() => {
+                      setDeleteConfirmDoc(null);
+                      setDeleteError(null);
+                    }}
+                    className="flex-1 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!deletingDocType}
+                    onClick={confirmDeleteDocument}
+                    className="flex-1 py-3.5 px-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-red-500/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {deletingDocType ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete Document"
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
@@ -1138,7 +1239,7 @@ function Select({ label, value, onChange, options, icon }: any) {
   );
 }
 
-function DocUpload({ label, required, active, onUpload, onDelete }: any) {
+function DocUpload({ label, required, active, isDeleting, onUpload, onDelete }: any) {
   return (
     <div className={`p-6 rounded-3xl border-2 transition-all group ${active ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-100 hover:border-blue-400 hover:bg-white border-dashed'}`}>
        <div className="flex items-center justify-between mb-4">
@@ -1157,11 +1258,16 @@ function DocUpload({ label, required, active, onUpload, onDelete }: any) {
              )}
              {active && onDelete && (
                <button 
+                 disabled={isDeleting}
                  onClick={onDelete}
-                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                  title="Delete Document"
                >
-                 <X size={14} />
+                 {isDeleting ? (
+                   <span className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin inline-block" />
+                 ) : (
+                   <X size={14} />
+                 )}
                </button>
              )}
           </div>

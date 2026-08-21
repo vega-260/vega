@@ -226,7 +226,7 @@ export function CompanyLayout() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <span className="text-xs font-bold text-slate-800 block truncate">{applicant.full_name}</span>
-                                  <span className="text-[10px] text-slate-500 font-semibold block truncate">Job: {applicant.job_title} &bull; Score: {applicant.talent_score || 0}%</span>
+                                  <span className="text-[10px] text-slate-500 font-semibold block truncate">Job: {applicant.job_title} &bull; Score: {applicant.talent_score !== null && applicant.talent_score !== undefined && !isNaN(Number(applicant.talent_score)) ? `${Math.round(Number(applicant.talent_score))}%` : 'Not available'}</span>
                                 </div>
                                 <span className="text-[9px] font-extrabold text-emerald-600 uppercase bg-emerald-50 px-2.5 py-0.5 rounded">View Profile</span>
                               </button>

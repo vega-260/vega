@@ -1480,6 +1480,7 @@ export async function runSqliteInit(sqliteDb: any) {
     try { sqliteDb.exec("ALTER TABLE job_applications ADD COLUMN rejection_feedback TEXT NULL"); } catch (e) {}
     try { sqliteDb.exec("ALTER TABLE job_applications ADD COLUMN rejected_at DATETIME NULL"); } catch (e) {}
     try { sqliteDb.exec("ALTER TABLE job_applications ADD COLUMN rejected_by_user_id INTEGER NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE job_applications ADD COLUMN hired_at DATETIME NULL"); } catch (e) {}
 
     // Migration for notifications idempotency_key
     try { sqliteDb.exec("ALTER TABLE notifications ADD COLUMN idempotency_key TEXT DEFAULT NULL"); } catch (e) {}

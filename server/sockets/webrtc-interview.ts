@@ -1,45 +1,18 @@
 import { Server, Socket } from "socket.io";
 import db from "../db.ts";
 import { createInterviewRedisBridge } from "./interviewRedisBridge.ts";
+import { resolveInterviewAccess } from "../services/interviewAuthorizationService.ts";
 
 interface JoinRoomData {
   interviewId: string | number;
 }
 
 async function authorizeInterviewParticipant(user: any, interviewId: number) {
-  const [rows]: any = await db.query(`
-    SELECT i.id, i.status, a.student_id, sp.user_id AS student_user_id, j.company_id
-    FROM interview_schedules i
-    JOIN job_applications a ON i.application_id = a.id
-    JOIN student_profiles sp ON a.student_id = sp.id
-    JOIN jobs j ON a.job_id = j.id
-    WHERE i.id = ?
-    LIMIT 1
-  `, [interviewId]);
-
-  if (!rows?.length) return { allowed: false, reason: "INTERVIEW_NOT_FOUND" };
-  const interview = rows[0];
-
-  if (["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
-    return { allowed: true, interview };
+  const access = await resolveInterviewAccess(interviewId, user);
+  if (!access.canAccess || !access.schedule) {
+    return { allowed: false, reason: access.code || "INTERVIEW_NOT_FOUND" };
   }
-
-  if (user.role === "STUDENT") {
-    return { allowed: Number(interview.student_user_id) === Number(user.userId), interview };
-  }
-
-  if (user.role === "COMPANY") {
-    const [companyRows]: any = await db.query(`
-      SELECT company_id FROM company_hr_profiles WHERE user_id = ?
-      UNION ALL
-      SELECT id AS company_id FROM company_profiles WHERE user_id = ?
-      LIMIT 1
-    `, [user.userId, user.userId]);
-    const companyId = companyRows?.[0]?.company_id;
-    return { allowed: Number(companyId) === Number(interview.company_id), interview };
-  }
-
-  return { allowed: false, reason: "ROLE_NOT_ALLOWED", interview };
+  return { allowed: true, interview: access.schedule };
 }
 
 export function setupWebRTCInterviewSocket(io: Server) {

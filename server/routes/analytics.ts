@@ -808,7 +808,7 @@ router.get("/employer/:companyUserId/interviews", authenticate, async (req: any,
       computedInterviews = filteredInterviews.map((i: any) => {
         const time = new Date(i.time);
         let status = i.status || 'UPCOMING';
-        if (status === 'UPCOMING' && time < now) {
+        if ((status === 'UPCOMING' || status === 'SCHEDULED') && time < now) {
           status = 'COMPLETED';
         }
         return {

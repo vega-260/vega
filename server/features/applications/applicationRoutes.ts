@@ -5,6 +5,9 @@ import { authenticate, authorize } from "../../middleware/auth.ts";
 import { mapStageToCanonicalKey } from "../../services/pipelineSnapshotService.ts";
 import { checkAndProcessJobExpirations } from "../../services/jobExpiryService.ts";
 import { registerApplicationLifecycleRoutes } from "./applicationLifecycleRoutes.ts";
+import { sanitizeTalentScore } from "../../services/companyTalentScoreService.ts";
+import { resolveAuthenticatedCompanyContext } from "../../services/companyPipelineAuthorizationService.ts";
+import { executeBulkPipelineAction, executeBulkTestSchedule } from "../../services/companyPipelineBulkActionService.ts";
 
 import { enqueueEmail } from "../../services/queueService.ts";
 
@@ -72,6 +75,36 @@ router.get("/application-status/:appId", authenticate, requireApplicationAccess,
 router.post("/bulk-action", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireCompanyApplicationsAccess, async (req: any, res) => {
   const { applicationIds, action, stageId, notes } = req.body;
   try {
+    if (req.user?.role === "COMPANY") {
+      const ctxRes = await resolveAuthenticatedCompanyContext(req.user);
+      if (!ctxRes.success || !ctxRes.context) {
+        return res.status(ctxRes.statusCode || 403).json({
+          success: false,
+          code: ctxRes.code || "COMPANY_CONTEXT_REQUIRED",
+          message: ctxRes.error || "Company authorization context required"
+        });
+      }
+      const result = await executeBulkPipelineAction(ctxRes.context, {
+        applicationIds,
+        action,
+        stageId,
+        notes,
+        feedback: req.body.feedback,
+        expectedCurrentStageId: req.body.expectedCurrentStageId,
+        notifyCandidate: req.body.notifyCandidate
+      });
+      if (!result.success && (result.summary.requested === 0 || result.code === "INVALID_BULK_REQUEST" || result.code === "INVALID_ACTION")) {
+        return res.status(400).json(result);
+      }
+      if (result.summary.succeeded === 0 && result.summary.failed > 0) {
+        const firstFail = result.results.find((item) => !item.success);
+        if (firstFail?.code === "STALE_APPLICATION_STATE") return res.status(409).json(result);
+        if (firstFail?.code === "APPLICATION_NOT_ACCESSIBLE") return res.status(403).json(result);
+        if (firstFail?.code === "JOB_READ_ONLY" || firstFail?.code === "INVALID_STAGE") return res.status(400).json(result);
+      }
+      return res.json({ ...result, message: `Bulk action ${action} processed for ${result.summary.succeeded} applicant(s)` });
+    }
+
     const ids = Array.isArray(applicationIds) ? [...new Set(applicationIds.map(Number).filter(Number.isInteger))] : [];
     if (ids.length === 0 || ids.length > 1000) return res.status(400).json({ success: false, message: "applicationIds must contain 1-1000 valid IDs" });
     const placeholders = ids.map(() => '?').join(',');
@@ -92,7 +125,8 @@ router.post("/bulk-action", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_
 
     const status = action === 'REJECTED' ? 'REJECTED' : action === 'SELECTED' ? 'SELECTED' : 'IN_PROGRESS';
     await db.transaction(async (tx) => {
-      await tx.query(`UPDATE job_applications SET current_stage_id = COALESCE(?, current_stage_id), status = ? WHERE id IN (${placeholders})`, [stageId || null, status, ...ids]);
+      const hiredAtSql = status === 'SELECTED' ? 'CURRENT_TIMESTAMP' : 'NULL';
+      await tx.query(`UPDATE job_applications SET current_stage_id = COALESCE(?, current_stage_id), status = ?, hired_at = ${hiredAtSql} WHERE id IN (${placeholders})`, [stageId || null, status, ...ids]);
 
       const historyValues = ids.map(() => '(?, ?, ?, ?)').join(',');
       const historyParams = ids.flatMap((id) => [id, stageId || null, action, notes || `Bulk action: ${action}`]);
@@ -130,6 +164,33 @@ router.post("/bulk-action", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_
 router.post("/schedule-test-bulk", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireCompanyApplicationsAccess, async (req: any, res) => {
   const { applicationIds, scheduledAt, durationMinutes, cutoffScore } = req.body;
   try {
+    if (req.user?.role === "COMPANY") {
+      const ctxRes = await resolveAuthenticatedCompanyContext(req.user);
+      if (!ctxRes.success || !ctxRes.context) {
+        return res.status(ctxRes.statusCode || 403).json({
+          success: false,
+          code: ctxRes.code || "COMPANY_CONTEXT_REQUIRED",
+          message: ctxRes.error || "Company authorization context required"
+        });
+      }
+      const result = await executeBulkTestSchedule(ctxRes.context, {
+        applicationIds,
+        scheduledAt,
+        durationMinutes,
+        cutoffScore,
+        assessmentId: req.body.assessmentId
+      });
+      if (!result.success && result.summary.requested === 0) return res.status(400).json(result);
+      if (result.summary.succeeded === 0 && result.summary.failed > 0) {
+        const firstFail = result.results.find((item) => !item.success);
+        if (firstFail?.code === "APPLICATION_NOT_ACCESSIBLE") return res.status(403).json(result);
+        if (["ASSESSMENT_NOT_FOUND", "JOB_MISMATCH", "TERMINAL_STATE", "JOB_READ_ONLY"].includes(firstFail?.code || "")) {
+          return res.status(400).json(result);
+        }
+      }
+      return res.json({ ...result, message: `Tests scheduled for ${result.summary.succeeded} applicant(s)` });
+    }
+
     const ids = Array.isArray(applicationIds) ? [...new Set(applicationIds.map(Number).filter(Number.isInteger))] : [];
     if (ids.length === 0 || ids.length > 1000) return res.status(400).json({ success: false, message: "Invalid application list" });
     const placeholders = ids.map(() => '?').join(',');
@@ -329,9 +390,8 @@ router.post("/applications/schedule-interview", authenticate, async (req: any, r
          j.title as job_title, 
          j.company_id as job_company_id, 
          cp.company_name, 
-         cp.contact_person, 
          sp.full_name as candidate_name, 
-         sp.email as candidate_email, 
+         u.email as candidate_email, 
          sp.user_id as user_id,
          js.stage_name as current_stage_name,
          js.stage_type as current_stage_type
@@ -339,6 +399,7 @@ router.post("/applications/schedule-interview", authenticate, async (req: any, r
        JOIN jobs j ON ja.job_id = j.id
        LEFT JOIN company_profiles cp ON j.company_id = cp.id
        LEFT JOIN student_profiles sp ON ja.student_id = sp.id
+       LEFT JOIN users u ON sp.user_id = u.id
        LEFT JOIN job_stages js ON ja.current_stage_id = js.id
        WHERE ja.id = ?
      `, [appId]);
@@ -431,7 +492,7 @@ router.post("/applications/schedule-interview", authenticate, async (req: any, r
      const instructionsVal = req.body.instructions || notes || "Please join the room on time.";
 
      // Default scheduler HR name
-     const finalSchedulerHrName = schedulerHrName || appData.contact_person || appData.company_name || "HR Team";
+     const finalSchedulerHrName = schedulerHrName || appData.company_name || "HR Team";
 
      const [existing]: any = await db.query("SELECT id FROM interview_schedules WHERE application_id = ? AND stage_id = ?", [appId, stgId]);
      
@@ -697,6 +758,69 @@ router.get("/applications/history/:appId", authenticate, requireApplicationAcces
 // Update applicant stage
 registerApplicationLifecycleRoutes(router, { resolveCompanyContext });
 
+// Preferred application-bound candidate detail endpoint for Company pipeline screens.
+router.get("/applications/:applicationId/candidate-detail", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireApplicationAccess, async (req: any, res) => {
+  const applicationId = Number(req.params.applicationId);
+  try {
+    const [apps]: any = await db.query(`
+      SELECT JA.id, JA.job_id, JA.student_id, JA.status, JA.current_stage_id, JA.applied_at, J.title AS job_title
+      FROM job_applications JA
+      JOIN jobs J ON JA.job_id = J.id
+      WHERE JA.id = ?
+      LIMIT 1
+    `, [applicationId]);
+    if (!apps?.length) return res.status(404).json({ success: false, message: "Application not found" });
+    const app = apps[0];
+
+    const [profiles]: any = await db.query(`
+      SELECT SP.id, SP.user_id, SP.full_name, SP.headline, SP.phone, SP.location, SP.about,
+             SP.resume_url, SP.portfolio_url, SP.github_url, SP.linkedin_url, SP.skills_json, SP.profile_photo_url,
+             U.email, TS.overall_score AS talent_score, TS.breakdown_json
+      FROM student_profiles SP
+      JOIN users U ON SP.user_id = U.id
+      LEFT JOIN talent_scores TS ON U.id = TS.user_id
+      WHERE SP.id = ?
+      LIMIT 1
+    `, [app.student_id]);
+    if (!profiles?.length) return res.status(404).json({ success: false, message: "Candidate profile not found" });
+
+    const profile = profiles[0];
+    const score = sanitizeTalentScore(profile.talent_score);
+    profile.talent_score = score.talentScore;
+    profile.talent_score_status = score.talentScoreStatus;
+    profile.talent_score_source = score.talentScoreSource;
+    profile.talentScore = score.talentScore;
+    profile.talentScoreStatus = score.talentScoreStatus;
+    profile.talentScoreSource = score.talentScoreSource;
+
+    const [mockInterviews]: any = await db.query("SELECT id, student_id, job_id, overall_score, feedback_json, created_at FROM interview_history WHERE student_id = ? ORDER BY created_at DESC", [profile.id]);
+    const [education]: any = await db.query("SELECT * FROM student_education WHERE student_id = ? ORDER BY start_date DESC", [profile.id]);
+    const [experience]: any = await db.query("SELECT * FROM student_experience WHERE student_id = ? ORDER BY start_date DESC", [profile.id]);
+    const [projects]: any = await db.query("SELECT * FROM student_projects WHERE student_id = ? ORDER BY created_at DESC", [profile.id]);
+    const [extracurriculars]: any = await db.query("SELECT * FROM extracurricular_activities WHERE user_id = ? ORDER BY activity_date DESC", [profile.user_id]);
+    const [history]: any = await db.query("SELECT * FROM application_history WHERE application_id = ? ORDER BY created_at ASC", [applicationId]);
+
+    return res.json({
+      success: true,
+      data: {
+        profile,
+        application: {
+          id: app.id,
+          job_id: app.job_id,
+          job_title: app.job_title,
+          status: app.status,
+          current_stage_id: app.current_stage_id,
+          applied_at: app.applied_at
+        },
+        mockInterviews, education, experience, projects, extracurriculars, history
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching candidate detail:", error);
+    return res.status(500).json({ success: false, message: "Error fetching candidate details" });
+  }
+});
+
 router.get("/student-full-details/:studentId", authenticate, authorize(["COMPANY", "TPO", "ADMIN", "SUPER_ADMIN"]), requireStudentRecruitingDataAccess, async (req: any, res) => {
   const { studentId } = req.params;
   try {
@@ -711,7 +835,15 @@ router.get("/student-full-details/:studentId", authenticate, authorize(["COMPANY
 
     if (profile.length === 0) return res.status(404).json({ success: false, message: "Student profile not found" });
 
-    const actualStudentId = profile[0].id;
+    const studentProfile = profile[0];
+    const talentScoreResult = sanitizeTalentScore(studentProfile.talent_score);
+    studentProfile.talent_score = talentScoreResult.talentScore;
+    studentProfile.talent_score_status = talentScoreResult.talentScoreStatus;
+    studentProfile.talent_score_source = talentScoreResult.talentScoreSource;
+    studentProfile.talentScore = talentScoreResult.talentScore;
+    studentProfile.talentScoreStatus = talentScoreResult.talentScoreStatus;
+    studentProfile.talentScoreSource = talentScoreResult.talentScoreSource;
+    const actualStudentId = studentProfile.id;
 
     const [mockInterviews]: any = await db.query(`
       SELECT * 
@@ -728,7 +860,7 @@ router.get("/student-full-details/:studentId", authenticate, authorize(["COMPANY
     res.json({
       success: true,
       data: {
-        profile: profile[0],
+        profile: studentProfile,
         mockInterviews,
         education,
         experience,
@@ -786,9 +918,21 @@ router.get("/applicants/:jobId", authenticate, authorize(["COMPANY", "ADMIN", "S
       WHERE JA.job_id = ?
     `, [req.params.jobId]);
 
+    const sanitizedApplicants = (applicants || []).map((app: any) => {
+      const score = sanitizeTalentScore(app.talent_score);
+      return {
+        ...app,
+        talent_score: score.talentScore,
+        talent_score_status: score.talentScoreStatus,
+        talent_score_source: score.talentScoreSource,
+        talentScore: score.talentScore,
+        talentScoreStatus: score.talentScoreStatus,
+        talentScoreSource: score.talentScoreSource,
+      };
+    });
     const [stages] = await db.query("SELECT * FROM job_stages WHERE job_id = ? ORDER BY stage_order ASC", [req.params.jobId]);
 
-    res.json({ success: true, data: { applicants, stages } });
+    res.json({ success: true, data: { applicants: sanitizedApplicants, stages } });
   } catch (error) {
     res.status(500).json({ success: false, message: "Error fetching applicants" });
   }

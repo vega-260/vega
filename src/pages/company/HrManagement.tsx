@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
-import { getAccessToken } from "../../services/tokenStore";
 
 interface SubHrUser {
   id: number;
@@ -83,7 +82,22 @@ const ALL_PERMISSIONS = [
 export function HrManagement() {
   const { token: contextToken, profile } = useAuth();
 
-  const getEffectiveToken = () => contextToken || getAccessToken() || '';
+  // Robust token retrieval falling back safely if context is loading
+  const getEffectiveToken = () => {
+    if (contextToken) return contextToken;
+    const authData = localStorage.getItem("vega_auth");
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed && parsed.token) {
+          return parsed.token;
+        }
+      } catch (e) {
+        console.error("Auth parsing error", e);
+      }
+    }
+    return localStorage.getItem('token') || '';
+  };
 
   const [activeTab, setActiveTab] = useState<'accounts' | 'allocation'>('accounts');
   const [hrs, setHrs] = useState<SubHrUser[]>([]);

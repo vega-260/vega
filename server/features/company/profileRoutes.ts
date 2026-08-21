@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../../db.ts";
 import { authenticate, authorize, requireSelfParam } from "../../middleware/auth.ts";
+import { deleteCompanyVerificationDocument } from "../../services/companyDocumentService.ts";
 const router = express.Router();
 
 const calculateCompleteness = (profile: any, docs: any[]) => {
@@ -213,6 +214,24 @@ router.post("/profile/:userId/documents", authenticate, authorize(["COMPANY", "A
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Document upload failed" });
+  }
+});
+
+
+// Delete a verification document with server-side company ownership and storage cleanup.
+router.delete("/profile/:userId/documents/:type", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireSelfParam("userId"), async (req: any, res) => {
+  try {
+    const actorUserId = Number(req.user?.userId);
+    const result = await deleteCompanyVerificationDocument({
+      userId: actorUserId,
+      actorRole: String(req.user?.role || "COMPANY"),
+      actorName: req.user?.email || "Company Representative",
+      docIdentifier: String(req.params.type || ""),
+    });
+    return res.status(result.statusCode).json(result);
+  } catch (error) {
+    console.error("Company document deletion failed:", error);
+    return res.status(500).json({ success: false, message: "Document deletion failed" });
   }
 });
 
