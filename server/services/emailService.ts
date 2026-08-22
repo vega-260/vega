@@ -3,7 +3,31 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-let cachedTransporter: nodemailer.Transporter | null = null;
+/**
+ * Sends email via Resend HTTP API (Port 443 HTTPS - never blocked by cloud hosts)
+ */
+async function sendViaResendApi(apiKey: string, to: string, subject: string, html: string, senderEmail: string) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: senderEmail && !senderEmail.includes("gmail.com") ? (senderEmail.includes("<") ? senderEmail : `VEGA <${senderEmail}>`) : "VEGA <onboarding@resend.dev>",
+      to: [to],
+      subject,
+      html
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Resend API error (${response.status}): ${errText}`);
+  }
+
+  return response.json();
+}
 
 function getTransporter() {
   const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
@@ -12,21 +36,6 @@ function getTransporter() {
   const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
-
-  const isGmail = host.toLowerCase().includes('gmail') || user?.toLowerCase().endsWith('@gmail.com');
-
-  if (isGmail) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user,
-        pass,
-      },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-  }
 
   return nodemailer.createTransport({
     host,
@@ -40,41 +49,45 @@ function getTransporter() {
       rejectUnauthorized: false
     },
     family: 4, // Force IPv4 for cloud environments
-    connectionTimeout: 20000,
-    greetingTimeout: 20000,
-    socketTimeout: 20000
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000
   });
 }
 
 export async function sendEmail(to: string, subject: string, html: string) {
   try {
+    // 1. Check HTTP API providers first
+    const resendApiKey = process.env.RESEND_API_KEY?.trim();
+    const senderEmail = process.env.SENDER_EMAIL?.trim() || process.env.SMTP_USER?.trim() || "notifications@vega.ai";
+
+    if (resendApiKey) {
+      await sendViaResendApi(resendApiKey, to, subject, html, senderEmail);
+      console.log("Email sent successfully via Resend HTTP API to %s", to);
+      return true;
+    }
+
+    // 2. SMTP Transport
     const user = process.env.SMTP_USER?.trim();
     const pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
 
     if (!user || !pass) {
-      console.warn("⚠️ SMTP credentials not set or incomplete (SMTP_USER or SMTP_PASS missing). Email not sent.");
+      console.warn("⚠️ No Email API key (RESEND_API_KEY) or SMTP credentials found. Email not sent.");
       console.log(`--- EMAIL PREVIEW ---
 To: ${to}
 Subject: ${subject}
-Content: ${html}
-----------------------`);
+---------------------`);
       return true;
     }
 
     const transporter = getTransporter();
 
-    const sendPromise = transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"VEGA" <${user}>`,
       to,
       subject,
       html,
     });
-
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('SMTP connection timed out after 20000ms')), 20000)
-    );
-
-    const info: any = await Promise.race([sendPromise, timeoutPromise]);
 
     console.log("Email sent successfully to %s, messageId: %s", to, info?.messageId || 'ok');
     return true;
