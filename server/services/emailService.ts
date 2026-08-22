@@ -13,8 +13,8 @@ function getTransporter() {
 
   return nodemailer.createTransport({
     host,
-    port,
-    secure: isSecure,
+    port: port || 587,
+    secure: false, // Use false for port 587
     auth: {
       user,
       pass,
@@ -22,10 +22,10 @@ function getTransporter() {
     tls: {
       rejectUnauthorized: false
     },
-    family: 4, // Force IPv4 for cloud environments
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000
+    family: 4, // Force IPv4
+    connectionTimeout: 30000, // Increase timeout to 30s
+    greetingTimeout: 30000,
+    socketTimeout: 30000
   });
 }
 
