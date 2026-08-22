@@ -3,27 +3,39 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Gmail SMTP or other provider
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 3000,
-  greetingTimeout: 3000,
-  socketTimeout: 3000
-});
+let cachedTransporter: nodemailer.Transporter | null = null;
+
+function getTransporter() {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: isSecure,
+    auth: {
+      user,
+      pass,
+    },
+    tls: {
+      rejectUnauthorized: false
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000
+  });
+}
 
 export async function sendEmail(to: string, subject: string, html: string) {
   try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.warn("⚠️ SMTP credentials not set. Email not sent.");
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
+
+    if (!user || !pass) {
+      console.warn("⚠️ SMTP credentials not set or incomplete (SMTP_USER or SMTP_PASS missing). Email not sent.");
       console.log(`--- EMAIL PREVIEW ---
 To: ${to}
 Subject: ${subject}
@@ -32,23 +44,25 @@ Content: ${html}
       return true;
     }
 
+    const transporter = getTransporter();
+
     const sendPromise = transporter.sendMail({
-      from: `"VEGA" <${process.env.SMTP_USER}>`,
+      from: `"VEGA" <${user}>`,
       to,
       subject,
       html,
     });
 
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('SMTP connection timed out after 3000ms')), 3000)
+      setTimeout(() => reject(new Error('SMTP connection timed out after 15000ms')), 15000)
     );
 
     const info: any = await Promise.race([sendPromise, timeoutPromise]);
 
-    console.log("Message sent: %s", info?.messageId || 'ok');
+    console.log("Email sent successfully to %s, messageId: %s", to, info?.messageId || 'ok');
     return true;
-  } catch (error) {
-    console.error("Error sending email:", error);
+  } catch (error: any) {
+    console.error("Error sending email to " + to + ":", error?.message || error);
     return false;
   }
 }

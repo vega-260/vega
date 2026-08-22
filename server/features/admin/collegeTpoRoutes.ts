@@ -393,7 +393,9 @@ router.post("/tpos", async (req, res) => {
     }
 
     // Send SMTP Credentials & Log Email in background (non-blocking)
-    const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
+    const origin = req.get('origin') || (req.get('host') ? `${req.protocol}://${req.get('host')}` : null);
+    const baseUrl = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || origin || 'http://localhost:3000';
+    const loginUrl = `${baseUrl}/login`;
     sendTPOCredentials(cleanEmail, full_name, tempPassword, loginUrl)
       .then(async () => {
         try {

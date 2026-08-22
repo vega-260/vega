@@ -5,10 +5,23 @@ import IORedis from "ioredis";
 import crypto from "crypto";
 
 export function getAllowedOrigins(): string[] {
-  return (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000")
+  const custom = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+
+  const defaults = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ];
+
+  if (process.env.RENDER_EXTERNAL_URL) defaults.push(process.env.RENDER_EXTERNAL_URL.trim());
+  if (process.env.APP_URL) defaults.push(process.env.APP_URL.trim());
+  if (process.env.FRONTEND_URL) defaults.push(process.env.FRONTEND_URL.trim());
+
+  return [...new Set([...defaults, ...custom])];
 }
 
 
@@ -24,22 +37,48 @@ export const requireTrustedBrowserOrigin = (req: Request, res: Response, next: N
     return res.status(403).json({ success: false, message: "Cross-site request rejected" });
   }
   const origin = req.headers.origin;
-  if (!origin) return next(); // CLI/native clients do not necessarily send Origin.
-  if (!getAllowedOrigins().includes(origin)) {
-    return res.status(403).json({ success: false, message: "Untrusted request origin" });
+  if (!origin) return next(); // CLI/native clients or same-origin navigations
+
+  const allowedOrigins = getAllowedOrigins();
+  if (allowedOrigins.includes(origin)) return next();
+
+  // Allow same host origin
+  const host = req.get("host");
+  if (host && (origin === `https://${host}` || origin === `http://${host}`)) {
+    return next();
   }
-  return next();
+
+  // Allow render & google run subdomains for deployed instances
+  try {
+    const originUrl = new URL(origin);
+    if (host && originUrl.host === host) return next();
+    if (originUrl.hostname.endsWith(".onrender.com") || originUrl.hostname.endsWith(".run.app")) {
+      return next();
+    }
+  } catch {}
+
+  return res.status(403).json({ success: false, message: "Untrusted request origin" });
 };
 
-/** Strict production CORS: no wildcard domains and no implicit Render/local exceptions. */
+/** Strict production CORS: allows configured origins, server host, and cloud deployment subdomains */
 export const configureCors = () => {
-  const allowedOrigins = getAllowedOrigins();
   return cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true); // non-browser clients
-      if (process.env.NODE_ENV !== "production" || allowedOrigins.includes(origin)) {
+      if (process.env.NODE_ENV !== "production") return callback(null, true);
+
+      const allowedOrigins = getAllowedOrigins();
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
+
+      try {
+        const parsed = new URL(origin);
+        if (parsed.hostname.endsWith(".onrender.com") || parsed.hostname.endsWith(".run.app")) {
+          return callback(null, true);
+        }
+      } catch {}
+
       return callback(null, false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -176,12 +215,20 @@ export const secureHeadersConfig = (): any => ({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://checkout.razorpay.com", "https://cdn.razorpay.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.razorpay.com", "https://cdn.razorpay.com", "https://*.razorpay.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "wss:", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://lumberjack-cx.razorpay.com"],
-      frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://custom-analytics.razorpay.com"],
+      connectSrc: [
+        "'self'", 
+        "wss:", 
+        "https://api.razorpay.com", 
+        "https://checkout.razorpay.com", 
+        "https://lumberjack-cx.razorpay.com",
+        "https://lumberjack.razorpay.com",
+        "https://*.razorpay.com"
+      ],
+      frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://custom-analytics.razorpay.com", "https://*.razorpay.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       frameAncestors: ["'none'"],
