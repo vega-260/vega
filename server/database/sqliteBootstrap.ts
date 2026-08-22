@@ -1530,6 +1530,14 @@ export async function runSqliteInit(sqliteDb: any) {
     try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN qualification TEXT DEFAULT NULL"); } catch (e) {}
     try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN employee_id TEXT DEFAULT NULL"); } catch (e) {}
     try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e) {}
+    // Performance indexes for frequent queries
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)"); } catch (e) {}
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_lookup ON refresh_tokens(token, user_id)"); } catch (e) {}
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)"); } catch (e) {}
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_tpo_profiles_user ON tpo_profiles(user_id)"); } catch (e) {}
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC)"); } catch (e) {}
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_batches_college ON batches(college_id)"); } catch (e) {}
+    try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_student_batch_batch ON student_batch(batch_id)"); } catch (e) {}
   } catch (e) { 
     console.error("SQLite migration error:", e);
   }

@@ -6,11 +6,27 @@ dotenv.config();
 let cachedTransporter: nodemailer.Transporter | null = null;
 
 function getTransporter() {
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  const rawPort = process.env.SMTP_PORT?.trim();
+  const port = rawPort ? parseInt(rawPort, 10) : 465;
   const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
+
+  const isGmail = host.toLowerCase().includes('gmail') || user?.toLowerCase().endsWith('@gmail.com');
+
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user,
+        pass,
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+  }
 
   return nodemailer.createTransport({
     host,
@@ -23,9 +39,10 @@ function getTransporter() {
     tls: {
       rejectUnauthorized: false
     },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000
+    family: 4, // Force IPv4 for cloud environments
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000
   });
 }
 
@@ -54,7 +71,7 @@ Content: ${html}
     });
 
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('SMTP connection timed out after 15000ms')), 15000)
+      setTimeout(() => reject(new Error('SMTP connection timed out after 20000ms')), 20000)
     );
 
     const info: any = await Promise.race([sendPromise, timeoutPromise]);
