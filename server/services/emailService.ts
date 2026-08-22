@@ -3,32 +3,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-/**
- * Sends email via Resend HTTP API (Port 443 HTTPS - never blocked by cloud hosts)
- */
-async function sendViaResendApi(apiKey: string, to: string, subject: string, html: string, senderEmail: string) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      from: senderEmail && !senderEmail.includes("gmail.com") ? (senderEmail.includes("<") ? senderEmail : `VEGA <${senderEmail}>`) : "VEGA <onboarding@resend.dev>",
-      to: [to],
-      subject,
-      html
-    })
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Resend API error (${response.status}): ${errText}`);
-  }
-
-  return response.json();
-}
-
 function getTransporter() {
   const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const rawPort = process.env.SMTP_PORT?.trim();
@@ -57,22 +31,11 @@ function getTransporter() {
 
 export async function sendEmail(to: string, subject: string, html: string) {
   try {
-    // 1. Check HTTP API providers first
-    const resendApiKey = process.env.RESEND_API_KEY?.trim();
-    const senderEmail = process.env.SENDER_EMAIL?.trim() || process.env.SMTP_USER?.trim() || "notifications@vega.ai";
-
-    if (resendApiKey) {
-      await sendViaResendApi(resendApiKey, to, subject, html, senderEmail);
-      console.log("Email sent successfully via Resend HTTP API to %s", to);
-      return true;
-    }
-
-    // 2. SMTP Transport
     const user = process.env.SMTP_USER?.trim();
     const pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
 
     if (!user || !pass) {
-      console.warn("⚠️ No Email API key (RESEND_API_KEY) or SMTP credentials found. Email not sent.");
+      console.warn("⚠️ SMTP credentials missing. Email not sent.");
       console.log(`--- EMAIL PREVIEW ---
 To: ${to}
 Subject: ${subject}
