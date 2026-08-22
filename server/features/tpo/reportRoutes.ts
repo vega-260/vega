@@ -51,16 +51,40 @@ router.get("/reports/meta", async (req: any, res) => {
     `, [...context.collegeIds]);
 
     // 4. Assessment Tests
-    const [testsRows]: any = await db.query(`
-      SELECT t.id, t.title, t.category, t.duration_minutes, t.created_at,
-             COUNT(ts.id) as submission_count,
-             COALESCE(ROUND(AVG(ts.score)), 0) as avg_score
-      FROM assessment_tests t
-      LEFT JOIN test_submissions ts ON t.id = ts.test_id
-      WHERE t.college_id IN (${placeholders})
-      GROUP BY t.id
-      ORDER BY t.created_at DESC
-    `, [...context.collegeIds]);
+    let testsRows: any[] = [];
+    try {
+      const [rows]: any = await db.query(`
+        SELECT t.id, t.title, t.category, t.duration_minutes, t.created_at,
+               (
+                 SELECT COUNT(*) 
+                 FROM assessment_attempts aa 
+                 WHERE aa.assessment_id = t.id
+               ) as submission_count,
+               COALESCE((
+                 SELECT ROUND(AVG(aa.score)) 
+                 FROM assessment_attempts aa 
+                 WHERE aa.assessment_id = t.id AND aa.status = 'COMPLETED'
+               ), 0) as avg_score
+        FROM assessment_tests t
+        WHERE t.college_id IN (${placeholders})
+        ORDER BY t.created_at DESC
+      `, [...context.collegeIds]);
+      testsRows = rows;
+    } catch (testErr) {
+      try {
+        const [rows]: any = await db.query(`
+          SELECT t.id, t.title, t.category, t.duration_minutes, t.created_at,
+                 0 as submission_count,
+                 0 as avg_score
+          FROM assessment_tests t
+          WHERE t.college_id IN (${placeholders})
+          ORDER BY t.created_at DESC
+        `, [...context.collegeIds]);
+        testsRows = rows;
+      } catch (_) {
+        testsRows = [];
+      }
+    }
 
     res.json({
       success: true,
@@ -146,17 +170,17 @@ router.post("/reports/generate", async (req: any, res) => {
         const test = testDetails[0];
 
         let subQuery = `
-          SELECT ts.id, ts.student_id, ts.score, ts.total_questions, ts.time_taken_seconds, ts.submitted_at,
-                 sp.full_name, COALESCE(sp.aadhar_or_college_id, CONCAT('REG', sp.id)) as roll_number,
+          SELECT aa.id, aa.score, aa.percentage, aa.total_time_taken_seconds as time_taken_seconds, aa.submitted_at,
+                 sp.id as student_id, sp.full_name, COALESCE(sp.aadhar_or_college_id, CONCAT('REG', sp.id)) as roll_number,
                  COALESCE(sp.onboarding_industry, 'General') as department,
                  COALESCE(b.batch_name, sp.batch, 'General Batch') as batch_name,
                  u.email
-          FROM test_submissions ts
-          JOIN student_profiles sp ON ts.student_id = sp.id
-          JOIN users u ON sp.user_id = u.id
+          FROM assessment_attempts aa
+          JOIN users u ON aa.student_user_id = u.id
+          LEFT JOIN student_profiles sp ON sp.user_id = u.id
           LEFT JOIN student_batch sb ON sp.id = sb.student_id
           LEFT JOIN batches b ON COALESCE(sp.batch_id, sb.batch_id) = b.id
-          WHERE ts.test_id = ?
+          WHERE aa.assessment_id = ?
         `;
         let subParams: any[] = [targetTestId];
 
@@ -170,9 +194,32 @@ router.post("/reports/generate", async (req: any, res) => {
           subParams.push(department, department);
         }
 
-        subQuery += ` ORDER BY ts.score DESC, ts.submitted_at ASC`;
+        subQuery += ` ORDER BY aa.score DESC, aa.submitted_at ASC`;
 
-        const [submissions]: any = await db.query(subQuery, subParams);
+        let submissions: any[] = [];
+        try {
+          const [res]: any = await db.query(subQuery, subParams);
+          submissions = res || [];
+        } catch (_) {
+          try {
+            const [res]: any = await db.query(`
+              SELECT ts.id, ts.student_id, ts.score, ts.submitted_at,
+                     sp.full_name, COALESCE(sp.aadhar_or_college_id, CONCAT('REG', sp.id)) as roll_number,
+                     COALESCE(sp.onboarding_industry, 'General') as department,
+                     COALESCE(b.batch_name, sp.batch, 'General Batch') as batch_name,
+                     u.email
+              FROM test_submissions ts
+              JOIN student_profiles sp ON ts.student_id = sp.id
+              JOIN users u ON sp.user_id = u.id
+              LEFT JOIN student_batch sb ON sp.id = sb.student_id
+              LEFT JOIN batches b ON COALESCE(sp.batch_id, sb.batch_id) = b.id
+              WHERE ts.assignment_id = ? OR ts.stage_id = ?
+            `, [targetTestId, targetTestId]);
+            submissions = res || [];
+          } catch (_) {
+            submissions = [];
+          }
+        }
 
         let passedCount = 0;
         let totalScoreSum = 0;
@@ -248,14 +295,32 @@ router.post("/reports/generate", async (req: any, res) => {
       if (studentData && studentData.length > 0) {
         const st = studentData[0];
 
-        // Fetch test submissions
-        const [testSubs]: any = await db.query(`
-          SELECT ts.score, ts.submitted_at, at.title as test_title, at.category
-          FROM test_submissions ts
-          JOIN assessment_tests at ON ts.test_id = at.id
-          WHERE ts.student_id = ?
-          ORDER BY ts.submitted_at DESC
-        `, [targetStudentId]);
+        // Fetch test submissions / attempts
+        let testSubs: any[] = [];
+        try {
+          const [attempts]: any = await db.query(`
+            SELECT aa.score, aa.submitted_at, at.title as test_title, at.category
+            FROM assessment_attempts aa
+            JOIN assessment_tests at ON aa.assessment_id = at.id
+            JOIN users u ON aa.student_user_id = u.id
+            JOIN student_profiles sp ON sp.user_id = u.id
+            WHERE sp.id = ?
+            ORDER BY aa.submitted_at DESC
+          `, [targetStudentId]);
+          testSubs = attempts || [];
+        } catch (_) {
+          try {
+            const [subs]: any = await db.query(`
+              SELECT ts.score, ts.submitted_at, 'Assessment' as test_title, 'Technical' as category
+              FROM test_submissions ts
+              WHERE ts.student_id = ?
+              ORDER BY ts.submitted_at DESC
+            `, [targetStudentId]);
+            testSubs = subs || [];
+          } catch (_) {
+            testSubs = [];
+          }
+        }
 
         // Fetch job applications
         const [jobApps]: any = await db.query(`
@@ -416,16 +481,18 @@ router.post("/reports/generate", async (req: any, res) => {
         });
       } catch (_) {}
 
-      // Test Submissions
+      // Test Submissions / Assessment Attempts
       try {
         const [subs]: any = await db.query(`
-          SELECT ts.student_id, ts.score, at.category
-          FROM test_submissions ts
-          LEFT JOIN assessment_tests at ON ts.test_id = at.id
-          WHERE ts.student_id IN (${sPlaceholders})
+          SELECT sp.id as student_id, aa.score, at.category
+          FROM assessment_attempts aa
+          JOIN assessment_tests at ON aa.assessment_id = at.id
+          JOIN users u ON aa.student_user_id = u.id
+          JOIN student_profiles sp ON sp.user_id = u.id
+          WHERE sp.id IN (${sPlaceholders})
         `, studentIds);
 
-        subs.forEach((sb: any) => {
+        (subs || []).forEach((sb: any) => {
           const val = Number(sb.score || 0);
           if (!testScoresMap[sb.student_id]) testScoresMap[sb.student_id] = { total: 0, count: 0 };
           testScoresMap[sb.student_id].total += val;
@@ -436,7 +503,27 @@ router.post("/reports/generate", async (req: any, res) => {
           categoryAgg[cat].total += val;
           categoryAgg[cat].count += 1;
         });
-      } catch (_) {}
+      } catch (_) {
+        try {
+          const [subs]: any = await db.query(`
+            SELECT ts.student_id, ts.score, 'Technical' as category
+            FROM test_submissions ts
+            WHERE ts.student_id IN (${sPlaceholders})
+          `, studentIds);
+
+          (subs || []).forEach((sb: any) => {
+            const val = Number(sb.score || 0);
+            if (!testScoresMap[sb.student_id]) testScoresMap[sb.student_id] = { total: 0, count: 0 };
+            testScoresMap[sb.student_id].total += val;
+            testScoresMap[sb.student_id].count += 1;
+
+            const cat = sb.category || 'Aptitude & Technical';
+            if (!categoryAgg[cat]) categoryAgg[cat] = { total: 0, count: 0 };
+            categoryAgg[cat].total += val;
+            categoryAgg[cat].count += 1;
+          });
+        } catch (_) {}
+      }
     }
 
     // Process roster & metrics

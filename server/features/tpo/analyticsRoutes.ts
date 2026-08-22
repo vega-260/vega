@@ -193,10 +193,12 @@ router.get("/analytics", async (req: any, res) => {
       const studentPlaceholders = studentIds.map(() => '?').join(',');
       try {
         const [submissions]: any = await db.query(`
-          SELECT ts.student_id, ts.score as percentage, at.category
-          FROM test_submissions ts
-          LEFT JOIN assessment_tests at ON ts.test_id = at.id
-          WHERE ts.student_id IN (${studentPlaceholders})
+          SELECT sp.id as student_id, aa.score as percentage, at.category
+          FROM assessment_attempts aa
+          JOIN assessment_tests at ON aa.assessment_id = at.id
+          JOIN users u ON aa.student_user_id = u.id
+          JOIN student_profiles sp ON sp.user_id = u.id
+          WHERE sp.id IN (${studentPlaceholders})
         `, studentIds);
         (submissions || []).forEach((att: any) => {
           const val = Number(att.percentage) || 0;
@@ -216,7 +218,33 @@ router.get("/analytics", async (req: any, res) => {
           studentCategoryScores[att.student_id][cat].total += val;
           studentCategoryScores[att.student_id][cat].count += 1;
         });
-      } catch (_) {}
+      } catch (_) {
+        try {
+          const [submissions]: any = await db.query(`
+            SELECT ts.student_id, ts.score as percentage, 'General Assessment' as category
+            FROM test_submissions ts
+            WHERE ts.student_id IN (${studentPlaceholders})
+          `, studentIds);
+          (submissions || []).forEach((att: any) => {
+            const val = Number(att.percentage) || 0;
+            if (!assessmentScoresMap[att.student_id]) {
+              assessmentScoresMap[att.student_id] = { totalScore: 0, count: 0 };
+            }
+            assessmentScoresMap[att.student_id].totalScore += val;
+            assessmentScoresMap[att.student_id].count += 1;
+
+            const cat = att.category || 'General Assessment';
+            if (!categoryScoresMap[cat]) categoryScoresMap[cat] = { total: 0, count: 0 };
+            categoryScoresMap[cat].total += val;
+            categoryScoresMap[cat].count += 1;
+
+            if (!studentCategoryScores[att.student_id]) studentCategoryScores[att.student_id] = {};
+            if (!studentCategoryScores[att.student_id][cat]) studentCategoryScores[att.student_id][cat] = { total: 0, count: 0 };
+            studentCategoryScores[att.student_id][cat].total += val;
+            studentCategoryScores[att.student_id][cat].count += 1;
+          });
+        } catch (_) {}
+      }
     }
 
     const totalStudents = students.length;

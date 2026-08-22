@@ -2736,6 +2736,8 @@ export async function initDb() {
         console.error("Error creating test_submissions table on MySQL:", err.message);
       }
 
+      try { await connection.query("ALTER TABLE test_submissions ADD COLUMN test_id INT DEFAULT NULL"); } catch (e) {}
+      try { await connection.query("ALTER TABLE test_submissions ADD COLUMN stage_id INT DEFAULT NULL"); } catch (e) {}
       try { await connection.query("ALTER TABLE test_submissions ADD COLUMN assignment_id INT DEFAULT NULL"); } catch (e) {}
       try { await connection.query("ALTER TABLE test_submissions ADD COLUMN assessment_version_id INT DEFAULT NULL"); } catch (e) {}
       try { await connection.query("ALTER TABLE test_submissions ADD COLUMN job_id INT DEFAULT NULL"); } catch (e) {}
@@ -2750,6 +2752,8 @@ export async function initDb() {
       try { await connection.query("ALTER TABLE test_submissions ADD COLUMN violations_count INT DEFAULT 0"); } catch (e) {}
       try { await connection.query("ALTER TABLE test_submissions ADD COLUMN status VARCHAR(50) DEFAULT 'SUBMITTED'"); } catch (e) {}
       try { await connection.query("ALTER TABLE test_submissions ADD COLUMN duration INT DEFAULT 30"); } catch (e) {}
+      try { await connection.query("ALTER TABLE test_submissions ADD COLUMN total_questions INT DEFAULT 0"); } catch (e) {}
+      try { await connection.query("ALTER TABLE test_submissions ADD COLUMN time_taken_seconds INT DEFAULT 0"); } catch (e) {}
 
       // Ensure test_submission_events table exists and has required columns on MySQL
       try {

@@ -1530,6 +1530,11 @@ export async function runSqliteInit(sqliteDb: any) {
     try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN qualification TEXT DEFAULT NULL"); } catch (e) {}
     try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN employee_id TEXT DEFAULT NULL"); } catch (e) {}
     try { sqliteDb.exec("ALTER TABLE tpo_profiles ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE test_submissions ADD COLUMN test_id INTEGER DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE test_submissions ADD COLUMN stage_id INTEGER DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE test_submissions ADD COLUMN assignment_id INTEGER DEFAULT NULL"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE test_submissions ADD COLUMN total_questions INTEGER DEFAULT 0"); } catch (e) {}
+    try { sqliteDb.exec("ALTER TABLE test_submissions ADD COLUMN time_taken_seconds INTEGER DEFAULT 0"); } catch (e) {}
     // Performance indexes for frequent queries
     try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)"); } catch (e) {}
     try { sqliteDb.exec("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_lookup ON refresh_tokens(token, user_id)"); } catch (e) {}
