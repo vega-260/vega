@@ -193,7 +193,34 @@ export default function App() {
     <LanguageProvider>
       <AuthProvider>
         <AccessibilityProvider>
-          <Toaster position="top-right" />
+          <Toaster 
+            position="top-right" 
+            containerStyle={{ zIndex: 9999999 }}
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#0f172a',
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '13px',
+                borderRadius: '12px',
+                padding: '12px 16px',
+                boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)'
+              },
+              success: {
+                iconTheme: {
+                  primary: '#10b981',
+                  secondary: '#ffffff',
+                },
+              },
+              error: {
+                iconTheme: {
+                  primary: '#ef4444',
+                  secondary: '#ffffff',
+                },
+              },
+            }}
+          />
       <Router>
         <ActivityTracker />
         <SidebarProvider>
