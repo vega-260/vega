@@ -248,7 +248,7 @@ export default function TPOStudents() {
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
             <div>
-              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Academic Batches</h2>
+              <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Student Monitoring</h1>
               <p className="text-sm font-bold text-slate-500 mt-1">Select a batch to monitor active students or mark batch as passout</p>
             </div>
             <div className="flex items-center gap-3">

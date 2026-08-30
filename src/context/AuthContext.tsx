@@ -30,90 +30,112 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  const bootstrapSession = async () => {
-    try {
-      let persisted: any = null;
+    const bootstrapSession = async () => {
+      try {
+        // Check if there is an active session initiated by explicit login in this browser session
+        const sessionActive = sessionStorage.getItem("vega_session_active") === "true";
+        const savedAuth = sessionStorage.getItem("vega_auth") || localStorage.getItem("vega_auth");
 
-      const savedAuth =
-        localStorage.getItem("vega_auth");
+        // If no explicit active session was started, unauthenticated visitors remain logged out by default
+        if (!sessionActive || !savedAuth) {
+          localStorage.removeItem("vega_auth");
+          sessionStorage.removeItem("vega_auth");
+          sessionStorage.removeItem("vega_session_active");
+          sessionStorage.removeItem("token");
+          setAccessToken(null);
+          setToken(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
 
-      if (savedAuth) {
+        let persisted: any = null;
         try {
           persisted = JSON.parse(savedAuth);
         } catch {
+          sessionStorage.removeItem("vega_auth");
+          sessionStorage.removeItem("vega_session_active");
           localStorage.removeItem("vega_auth");
         }
+
+        /*
+         * Refresh session only for explicitly authenticated active sessions
+         */
+        const data = await refreshSession();
+
+        if (cancelled) return;
+
+        if (data?.token && (data?.user || persisted?.user)) {
+          const activeUser = data.user || persisted?.user;
+          setAccessToken(data.token);
+          setToken(data.token);
+          setUser(activeUser);
+          setProfile(persisted?.profile || null);
+
+          const authPayload = JSON.stringify({
+            user: activeUser,
+            profile: persisted?.profile || null,
+            token: data.token,
+          });
+          sessionStorage.setItem("vega_session_active", "true");
+          sessionStorage.setItem("vega_auth", authPayload);
+          sessionStorage.setItem("token", data.token);
+        } else {
+          throw new Error("Unable to establish active session");
+        }
+      } catch {
+        if (cancelled) return;
+
+        /*
+         * No valid session or refresh failed means the user is logged out.
+         */
+        setAccessToken(null);
+        setToken(null);
+        setUser(null);
+        setProfile(null);
+
+        sessionStorage.removeItem("vega_auth");
+        sessionStorage.removeItem("vega_session_active");
+        sessionStorage.removeItem("token");
+        localStorage.removeItem("vega_auth");
+        localStorage.removeItem("token");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
+    };
 
-      /*
-       * Do NOT require localStorage before attempting refresh.
-       *
-       * The HttpOnly refresh cookie is the real source of truth.
-       */
-      const data = await refreshSession();
+    bootstrapSession();
 
-      if (cancelled) return;
-
-      setAccessToken(data.token);
-      setToken(data.token);
-
-      const restoredUser =
-        data.user || persisted?.user || null;
-
-      setUser(restoredUser);
-      setProfile(persisted?.profile || null);
-
-      localStorage.setItem(
-        "vega_auth",
-        JSON.stringify({
-          user: restoredUser,
-          profile: persisted?.profile || null,
-        })
-      );
-    } catch {
-      if (cancelled) return;
-
-      /*
-       * No valid refresh cookie means the user is genuinely
-       * logged out.
-       */
-      setAccessToken(null);
-      setToken(null);
-      setUser(null);
-      setProfile(null);
-
-      localStorage.removeItem("vega_auth");
-    } finally {
-      if (!cancelled) {
-        setLoading(false);
-      }
-    }
-  };
-
-  bootstrapSession();
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = (data: any) => {
     setUser(data.user);
     setToken(data.token);
     setAccessToken(data.token || null);
     setProfile(data.profile);
-    localStorage.setItem("vega_auth", JSON.stringify({ user: data.user, profile: data.profile }));
+    const authData = JSON.stringify({ user: data.user, profile: data.profile, token: data.token });
+    sessionStorage.setItem("vega_session_active", "true");
+    sessionStorage.setItem("vega_auth", authData);
+    if (data.token) {
+      sessionStorage.setItem("token", data.token);
+    }
   };
 
   const updateProfile = (newProfile: any) => {
     setProfile(newProfile);
-    const savedAuth = localStorage.getItem("vega_auth");
+    const savedAuth = sessionStorage.getItem("vega_auth");
     if (savedAuth) {
       const auth = JSON.parse(savedAuth);
       auth.profile = newProfile;
-      localStorage.setItem("vega_auth", JSON.stringify(auth));
+      sessionStorage.setItem("vega_auth", JSON.stringify(auth));
     }
   };
 
@@ -123,7 +145,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setAccessToken(null);
     setProfile(null);
+    sessionStorage.removeItem("vega_auth");
+    sessionStorage.removeItem("vega_session_active");
+    sessionStorage.removeItem("token");
     localStorage.removeItem("vega_auth");
+    localStorage.removeItem("token");
   };
 
   return (

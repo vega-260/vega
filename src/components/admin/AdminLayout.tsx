@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
+import { PortalHeader } from '../PortalHeader';
 import { useAuth } from '../../context/AuthContext';
 
 export function AdminLayout() {
@@ -28,11 +29,14 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="flex bg-slate-50 min-h-screen w-full max-w-full overflow-x-hidden">
+    <div className="flex bg-slate-50 min-h-screen w-full max-w-full font-sans selection:bg-blue-100 selection:text-blue-600">
       <AdminSidebar />
-      <main className="flex-1 ml-64 min-w-0 max-w-[calc(100vw-16rem)] p-6 md:p-8 overflow-x-hidden">
-        <Outlet />
-      </main>
+      <div className="flex-1 ml-64 min-w-0 max-w-[calc(100vw-16rem)] flex flex-col min-h-screen">
+        <PortalHeader portalType="ADMIN" searchPlaceholder="Search staff, companies, students, logs..." />
+        <main className="flex-1 p-6 md:p-8 overflow-x-hidden">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,41 @@ router.post("/tests", async (req: any, res) => {
       negative_marking, webcam_monitoring, randomize_questions, test_date, start_time, 
       late_join_window, college_id, batch_name, questions
     } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: "Assessment title is required" });
+    }
+
+    const numDuration = parseInt(duration_minutes, 10);
+    const numMaxMarks = parseInt(max_marks, 10);
+    const numPassingMarks = parseInt(passing_marks, 10);
+    const numLateJoin = late_join_window !== undefined && late_join_window !== '' ? parseInt(late_join_window, 10) : 10;
+
+    if (isNaN(numDuration) || numDuration <= 0) {
+      return res.status(400).json({ success: false, message: "Duration must be a positive number (minimum 1 minute)" });
+    }
+    if (isNaN(numMaxMarks) || numMaxMarks <= 0) {
+      return res.status(400).json({ success: false, message: "Max Marks must be a positive number (minimum 1)" });
+    }
+    if (isNaN(numPassingMarks) || numPassingMarks < 0) {
+      return res.status(400).json({ success: false, message: "Pass Marks cannot be negative" });
+    }
+    if (numPassingMarks > numMaxMarks) {
+      return res.status(400).json({ success: false, message: "Pass Marks cannot exceed Max Marks" });
+    }
+    if (isNaN(numLateJoin) || numLateJoin < 0) {
+      return res.status(400).json({ success: false, message: "Late Entry Window cannot be negative" });
+    }
+
+    if (test_date) {
+      const selectedDate = new Date(test_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        return res.status(400).json({ success: false, message: "Test Date cannot be in the past. Please select today or a future date." });
+      }
+    }
     
     // Set status based on test_date
     let status = 'UPCOMING';
@@ -25,9 +60,9 @@ router.post("/tests", async (req: any, res) => {
         test_date, start_time, late_join_window, status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      context.tpoId, college_id, title, description || '', category || 'Aptitude', difficulty || 'Medium', duration_minutes || 60,
-      max_marks || 100, passing_marks || 40, negative_marking || 0, webcam_monitoring ? 1 : 0, randomize_questions ? 1 : 0,
-      test_date || null, start_time || null, late_join_window || 10, status
+      context.tpoId, college_id, title.trim(), description || '', category || 'Aptitude', difficulty || 'Medium', numDuration,
+      numMaxMarks, numPassingMarks, negative_marking || 0, webcam_monitoring ? 1 : 0, randomize_questions ? 1 : 0,
+      test_date || null, start_time || null, numLateJoin, status
     ]);
 
     const testId = result.insertId;

@@ -66,7 +66,7 @@ export function ActiveJobsPage() {
   const fetchSubHrsAndAssignments = async (job: any) => {
     try {
       setAssigningJob(job);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
       // Fetch all company sub HR profiles
       const subHrsRes = await fetch('/api/company/sub-hr', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -102,7 +102,7 @@ export function ActiveJobsPage() {
     if (!assigningJob) return;
     try {
       setSavingAssignment(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
       const response = await fetch('/api/company/jobs/assign', {
         method: 'POST',
         headers: {

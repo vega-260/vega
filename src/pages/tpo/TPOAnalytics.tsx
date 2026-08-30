@@ -19,7 +19,11 @@ import {
   Sparkles,
   ArrowUpRight,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -55,6 +59,15 @@ export default function TPOAnalytics() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'placements' | 'assessments' | 'talent' | 'students'>('overview');
+
+  // Pagination State for Student Roster Matrix
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Reset pagination on filter or data update
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBatch, selectedCategory, searchQuery, data]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -148,6 +161,27 @@ export default function TPOAnalytics() {
   };
 
   const leaderboard = data?.studentLeaderboard || [];
+  const totalStudents = leaderboard.length;
+  const totalPages = Math.max(1, Math.ceil(totalStudents / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalStudents);
+  const paginatedStudents = leaderboard.slice(startIndex, endIndex);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 4) {
+        pages.push(1, 2, 3, 4, 5, '...', totalPages);
+      } else if (currentPage >= totalPages - 3) {
+        pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  };
 
   return (
     <div className="space-y-8 pb-12">
@@ -160,7 +194,7 @@ export default function TPOAnalytics() {
               <Sparkles size={12} /> Live Sync
             </span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">Placement & Performance Intelligence</h1>
+          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight mt-1">Placement Analytics</h1>
           <p className="text-sm font-medium text-slate-500">
             Real-time analytics across student placement status, assignment scores, talent metrics & batch filters.
           </p>
@@ -593,68 +627,158 @@ export default function TPOAnalytics() {
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
-                    {leaderboard.length} Students Displayed
+                    {totalStudents > 0 ? `Showing ${startIndex + 1}–${endIndex} of ${totalStudents} Students` : '0 Students Displayed'}
                   </span>
                 </div>
               </div>
 
-              {leaderboard.length === 0 ? (
+              {totalStudents === 0 ? (
                 <div className="p-12 text-center text-slate-400 font-bold text-sm">
                   No student records match the active filter criteria.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
-                        <th className="py-4 px-6">Student Name</th>
-                        <th className="py-4 px-6">Assigned Batch</th>
-                        <th className="py-4 px-6 text-center">Talent Score</th>
-                        <th className="py-4 px-6 text-center">Assessment Avg</th>
-                        <th className="py-4 px-6 text-right">Placement Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
-                      {leaderboard.map((student: any) => (
-                        <tr key={student.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-4 px-6">
-                            <div className="font-bold text-slate-900">{student.name}</div>
-                            <div className="text-xs text-slate-400 font-medium">{student.rollNumber}</div>
-                          </td>
-                          <td className="py-4 px-6 text-slate-700 font-bold">
-                            {student.batchName}
-                          </td>
-                          <td className="py-4 px-6 text-center">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black ${
-                              student.talentScore >= 80 
-                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : student.talentScore >= 60
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}>
-                              <Star size={12} className={student.talentScore >= 80 ? "fill-purple-500 text-purple-500" : ""} />
-                              {student.talentScore} / 100
-                            </span>
-                          </td>
-                          <td className="py-4 px-6 text-center font-black text-slate-900">
-                            {student.assessmentAvg}%
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            {student.placementStatus === 'PLACED' ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <CheckCircle2 size={12} /> Placed ({student.company} • {student.packageOffered})
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
-                                Unplaced / In Drives
-                              </span>
-                            )}
-                          </td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
+                          <th className="py-4 px-6">Student Name</th>
+                          <th className="py-4 px-6">Assigned Batch</th>
+                          <th className="py-4 px-6 text-center">Talent Score</th>
+                          <th className="py-4 px-6 text-center">Assessment Avg</th>
+                          <th className="py-4 px-6 text-right">Placement Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                        {paginatedStudents.map((student: any) => (
+                          <tr key={student.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-4 px-6">
+                              <div className="font-bold text-slate-900">{student.name}</div>
+                              <div className="text-xs text-slate-400 font-medium">{student.rollNumber}</div>
+                            </td>
+                            <td className="py-4 px-6 text-slate-700 font-bold">
+                              {student.batchName}
+                            </td>
+                            <td className="py-4 px-6 text-center">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black ${
+                                student.talentScore >= 80 
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : student.talentScore >= 60
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                <Star size={12} className={student.talentScore >= 80 ? "fill-purple-500 text-purple-500" : ""} />
+                                {student.talentScore} / 100
+                              </span>
+                            </td>
+                            <td className="py-4 px-6 text-center font-black text-slate-900">
+                              {student.assessmentAvg}%
+                            </td>
+                            <td className="py-4 px-6 text-right">
+                              {student.placementStatus === 'PLACED' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 size={12} /> Placed ({student.company} • {student.packageOffered})
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                                  Unplaced / In Drives
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer Controls */}
+                  <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
+                      <span>
+                        Showing <strong className="text-slate-900">{startIndex + 1}</strong> to <strong className="text-slate-900">{endIndex}</strong> of <strong className="text-slate-900">{totalStudents}</strong> students
+                      </span>
+                      <div className="flex items-center gap-1.5 sm:ml-2">
+                        <span className="text-slate-400 font-medium">Rows per page:</span>
+                        <select
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                        >
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={30}>30</option>
+                          <option value={50}>50</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        className="p-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                        title="First Page"
+                      >
+                        <ChevronsLeft size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft size={14} />
+                        <span>Previous</span>
+                      </button>
+
+                      <div className="flex items-center gap-1 px-1">
+                        {getPageNumbers().map((pageNum, idx) => (
+                          typeof pageNum === 'number' ? (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`min-w-[32px] h-8 px-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ) : (
+                            <span key={idx} className="px-1 text-slate-400 font-extrabold text-xs">...</span>
+                          )
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                        title="Next Page"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                        title="Last Page"
+                      >
+                        <ChevronsRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}

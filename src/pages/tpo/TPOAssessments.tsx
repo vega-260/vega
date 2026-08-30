@@ -131,7 +131,7 @@ export default function TPOAssessments() {
       {/* Header & Navigation */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Assessment Management</h1>
+          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Assessment Engine</h1>
           <p className="text-sm font-bold text-slate-500 mt-1">Enterprise testing & evaluation engine</p>
         </div>
         <div className="flex gap-3">

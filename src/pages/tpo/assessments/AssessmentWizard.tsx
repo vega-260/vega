@@ -15,15 +15,15 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
     description: '',
     category: 'Aptitude',
     difficulty: 'Medium',
-    duration_minutes: 60,
-    max_marks: 100,
-    passing_marks: 40,
+    duration_minutes: 60 as number | '',
+    max_marks: 100 as number | '',
+    passing_marks: 40 as number | '',
     negative_marking: 0,
     webcam_monitoring: false,
     randomize_questions: true,
     test_date: '',
     start_time: '',
-    late_join_window: 10,
+    late_join_window: 0 as number | '',
     college_id: '',
     batch_name: ''
   });
@@ -37,12 +37,102 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
     question_type: 'MCQ',
     options: ['','','',''],
     correct_answers: [0],
-    marks: 1,
+    marks: 1 as number | '',
     difficulty: 'Medium',
     topic: ''
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper functions for date validation
+  const getTodayDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isDateInPast = (dateStr: string) => {
+    if (!dateStr) return false;
+    return dateStr < getTodayDateString();
+  };
+
+  const isDateTimeInPast = (dateStr: string, timeStr?: string) => {
+    if (!dateStr) return false;
+    const todayStr = getTodayDateString();
+    if (dateStr < todayStr) return true;
+    if (dateStr === todayStr && timeStr) {
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${currentHours}:${currentMinutes}`;
+      if (timeStr < currentTimeStr) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Helper functions for positive number validation & 0 auto-clear
+  const blockNegativeAndExponentKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['-', '+', 'e', 'E'].includes(e.key)) {
+      e.preventDefault();
+      toast.error('Negative numbers and special symbols are not allowed in numeric fields');
+    }
+  };
+
+  const handleFocusAutoClear = (field: 'duration_minutes' | 'max_marks' | 'passing_marks' | 'late_join_window') => (e: React.FocusEvent<HTMLInputElement>) => {
+    if (e.target.value === '0' || Number(e.target.value) === 0 || formData[field] === 0) {
+      setFormData(prev => ({ ...prev, [field]: '' }));
+    } else {
+      e.target.select();
+    }
+  };
+
+  const handleNumericChange = (
+    field: 'duration_minutes' | 'max_marks' | 'passing_marks' | 'late_join_window',
+    fieldName: string,
+    minVal: number = 1
+  ) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === '') {
+      setFormData(prev => ({ ...prev, [field]: '' }));
+      return;
+    }
+
+    if (raw.includes('-') || Number(raw) < 0) {
+      toast.error(`${fieldName} cannot be negative. Positive numbers only.`);
+      return;
+    }
+
+    const parsed = parseInt(raw, 10);
+    if (isNaN(parsed)) return;
+
+    if (minVal > 0 && parsed < minVal) {
+      toast.error(`${fieldName} must be at least ${minVal}`);
+    }
+
+    setFormData(prev => ({ ...prev, [field]: parsed }));
+  };
+
+  const handleNumericBlur = (
+    field: 'duration_minutes' | 'max_marks' | 'passing_marks' | 'late_join_window',
+    defaultFallback: number,
+    minVal: number = 1,
+    fieldName: string
+  ) => () => {
+    const current = formData[field];
+    if (current === '' || current === undefined || isNaN(Number(current))) {
+      setFormData(prev => ({ ...prev, [field]: defaultFallback }));
+      return;
+    }
+    const num = Number(current);
+    if (num < minVal) {
+      toast.error(`${fieldName} must be at least ${minVal}`);
+      setFormData(prev => ({ ...prev, [field]: minVal }));
+    }
+  };
 
   useEffect(() => {
     fetchColleges();
@@ -105,11 +195,122 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
     if (val) fetchBatches(val);
   };
 
+  const handleNextStep = () => {
+    if (step === 1) {
+      if (!formData.title.trim()) {
+        toast.error('Assessment title is required');
+        return;
+      }
+      if (formData.duration_minutes === '' || Number(formData.duration_minutes) <= 0) {
+        toast.error('Duration must be a positive number (minimum 1 minute)');
+        return;
+      }
+      if (formData.max_marks === '' || Number(formData.max_marks) <= 0) {
+        toast.error('Max Marks must be a positive number (minimum 1)');
+        return;
+      }
+      if (formData.passing_marks === '' || Number(formData.passing_marks) < 0) {
+        toast.error('Pass Marks cannot be negative');
+        return;
+      }
+      if (Number(formData.passing_marks) > Number(formData.max_marks)) {
+        toast.error(`Pass Marks (${formData.passing_marks}) cannot exceed Max Marks (${formData.max_marks})`);
+        return;
+      }
+    } else if (step === 2) {
+      if (questions.length === 0) {
+        toast.error('Please add at least one question before proceeding');
+        return;
+      }
+    } else if (step === 3) {
+      if (!formData.test_date) {
+        toast.error('Please select a test date');
+        return;
+      }
+      if (isDateInPast(formData.test_date)) {
+        toast.error('Test Date cannot be in the past. Please select today or a future date.');
+        return;
+      }
+      if (!formData.start_time) {
+        toast.error('Please select a start time');
+        return;
+      }
+      if (isDateTimeInPast(formData.test_date, formData.start_time)) {
+        toast.error('Start Time cannot be in the past for today’s date. Please select a future time.');
+        return;
+      }
+      if (formData.late_join_window !== '' && Number(formData.late_join_window) < 0) {
+        toast.error('Late Entry Window cannot be negative');
+        return;
+      }
+    }
+    setStep(step + 1);
+  };
+
   const handleSubmit = async () => {
+    if (!formData.title.trim()) {
+      toast.error('Assessment title is required');
+      setStep(1);
+      return;
+    }
+    if (formData.duration_minutes === '' || Number(formData.duration_minutes) <= 0) {
+      toast.error('Duration must be a positive number (minimum 1 minute)');
+      setStep(1);
+      return;
+    }
+    if (formData.max_marks === '' || Number(formData.max_marks) <= 0) {
+      toast.error('Max Marks must be a positive number (minimum 1)');
+      setStep(1);
+      return;
+    }
+    if (formData.passing_marks === '' || Number(formData.passing_marks) < 0) {
+      toast.error('Pass Marks cannot be negative');
+      setStep(1);
+      return;
+    }
+    if (Number(formData.passing_marks) > Number(formData.max_marks)) {
+      toast.error('Pass Marks cannot exceed Max Marks');
+      setStep(1);
+      return;
+    }
+    if (questions.length === 0) {
+      toast.error('Please add at least one question');
+      setStep(2);
+      return;
+    }
+    if (!formData.test_date || !formData.start_time) {
+      toast.error('Please configure the test date and start time');
+      setStep(3);
+      return;
+    }
+    if (isDateInPast(formData.test_date)) {
+      toast.error('Test Date cannot be in the past. Please select today or a future date.');
+      setStep(3);
+      return;
+    }
+    if (isDateTimeInPast(formData.test_date, formData.start_time)) {
+      toast.error('Start Time cannot be in the past for today’s date. Please select a future time.');
+      setStep(3);
+      return;
+    }
+    if (formData.late_join_window !== '' && Number(formData.late_join_window) < 0) {
+      toast.error('Late Entry Window cannot be negative');
+      setStep(3);
+      return;
+    }
+    if (!formData.college_id) {
+      toast.error('Please select a college');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         ...formData,
+        duration_minutes: Number(formData.duration_minutes) || 60,
+        max_marks: Number(formData.max_marks) || 100,
+        passing_marks: Number(formData.passing_marks) || 40,
+        late_join_window: formData.late_join_window !== '' ? Number(formData.late_join_window) : 0,
         webcam_monitoring: formData.webcam_monitoring ? 1 : 0,
         randomize_questions: formData.randomize_questions ? 1 : 0,
         questions: questions,
@@ -129,8 +330,8 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
           onComplete();
         }
       }
-    } catch (e) {
-      toast.error(editTestId ? 'Failed to update assessment' : 'Failed to create assessment');
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || (editTestId ? 'Failed to update assessment' : 'Failed to create assessment'));
     } finally {
       setLoading(false);
     }
@@ -183,15 +384,54 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
             <div className="grid grid-cols-3 gap-4">
                <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Duration (Min)</label>
-                <input type="number" className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={formData.duration_minutes} onChange={e => setFormData({...formData, duration_minutes: Number(e.target.value)})} />
+                <input 
+                  type="number" 
+                  min="1"
+                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" 
+                  value={formData.duration_minutes} 
+                  onKeyDown={blockNegativeAndExponentKeys}
+                  onFocus={handleFocusAutoClear('duration_minutes')}
+                  onChange={handleNumericChange('duration_minutes', 'Duration (min)', 1)}
+                  onBlur={handleNumericBlur('duration_minutes', 60, 1, 'Duration (min)')}
+                />
+                {formData.duration_minutes !== '' && Number(formData.duration_minutes) <= 0 && (
+                  <p className="text-xs text-red-500 font-bold mt-1 ml-1">Duration must be a positive number</p>
+                )}
               </div>
                <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Max Marks</label>
-                <input type="number" className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={formData.max_marks} onChange={e => setFormData({...formData, max_marks: Number(e.target.value)})} />
+                <input 
+                  type="number" 
+                  min="1"
+                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" 
+                  value={formData.max_marks} 
+                  onKeyDown={blockNegativeAndExponentKeys}
+                  onFocus={handleFocusAutoClear('max_marks')}
+                  onChange={handleNumericChange('max_marks', 'Max Marks', 1)}
+                  onBlur={handleNumericBlur('max_marks', 100, 1, 'Max Marks')}
+                />
+                {formData.max_marks !== '' && Number(formData.max_marks) <= 0 && (
+                  <p className="text-xs text-red-500 font-bold mt-1 ml-1">Max Marks must be a positive number</p>
+                )}
               </div>
                <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pass Marks</label>
-                <input type="number" className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={formData.passing_marks} onChange={e => setFormData({...formData, passing_marks: Number(e.target.value)})} />
+                <input 
+                  type="number" 
+                  min="0"
+                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" 
+                  value={formData.passing_marks} 
+                  onKeyDown={blockNegativeAndExponentKeys}
+                  onFocus={handleFocusAutoClear('passing_marks')}
+                  onChange={handleNumericChange('passing_marks', 'Pass Marks', 0)}
+                  onBlur={handleNumericBlur('passing_marks', 40, 0, 'Pass Marks')}
+                />
+                {formData.passing_marks !== '' && Number(formData.passing_marks) < 0 && (
+                  <p className="text-xs text-red-500 font-bold mt-1 ml-1">Pass Marks cannot be negative</p>
+                )}
+                {formData.max_marks !== '' && formData.passing_marks !== '' && Number(formData.passing_marks) > Number(formData.max_marks) && (
+                  <p className="text-xs text-red-500 font-bold mt-1 ml-1">Pass Marks cannot exceed Max Marks ({formData.max_marks})</p>
+                )}
               </div>
             </div>
             
@@ -272,16 +512,71 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Test Date</label>
-                <input type="date" required className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={formData.test_date} onChange={e => setFormData({...formData, test_date: e.target.value})} />
+                <input 
+                  type="date" 
+                  required 
+                  min={getTodayDateString()}
+                  className={`w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none font-bold text-sm transition-all ${
+                    formData.test_date && isDateInPast(formData.test_date)
+                      ? 'ring-2 ring-red-500 bg-red-50/40 text-red-900'
+                      : 'focus:ring-2 focus:ring-blue-500'
+                  }`}
+                  value={formData.test_date} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val && isDateInPast(val)) {
+                      toast.error('Test Date cannot be in the past. Please select today or a future date.');
+                    }
+                    setFormData({...formData, test_date: val});
+                  }} 
+                />
+                {formData.test_date && isDateInPast(formData.test_date) && (
+                  <p className="text-xs text-red-500 font-bold mt-1 ml-1">
+                    Test Date cannot be in the past. Please select today or a future date.
+                  </p>
+                )}
               </div>
                <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
-                <input type="time" required className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={formData.start_time} onChange={e => setFormData({...formData, start_time: e.target.value})} />
+                <input 
+                  type="time" 
+                  required 
+                  className={`w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none font-bold text-sm transition-all ${
+                    formData.test_date && formData.start_time && isDateTimeInPast(formData.test_date, formData.start_time)
+                      ? 'ring-2 ring-red-500 bg-red-50/40 text-red-900'
+                      : 'focus:ring-2 focus:ring-blue-500'
+                  }`}
+                  value={formData.start_time} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (formData.test_date && val && isDateTimeInPast(formData.test_date, val)) {
+                      toast.error('Start Time cannot be in the past for today’s date.');
+                    }
+                    setFormData({...formData, start_time: val});
+                  }} 
+                />
+                {formData.test_date && formData.start_time && isDateTimeInPast(formData.test_date, formData.start_time) && (
+                  <p className="text-xs text-red-500 font-bold mt-1 ml-1">
+                    Start Time cannot be in the past for today.
+                  </p>
+                )}
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Late Entry Window (Minutes)</label>
-              <input type="number" className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={formData.late_join_window} onChange={e => setFormData({...formData, late_join_window: Number(e.target.value)})} />
+              <input 
+                type="number" 
+                min="0"
+                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" 
+                value={formData.late_join_window} 
+                onKeyDown={blockNegativeAndExponentKeys}
+                onFocus={handleFocusAutoClear('late_join_window')}
+                onChange={handleNumericChange('late_join_window', 'Late Entry Window', 0)}
+                onBlur={handleNumericBlur('late_join_window', 0, 0, 'Late Entry Window')}
+              />
+              {formData.late_join_window !== '' && Number(formData.late_join_window) < 0 && (
+                <p className="text-xs text-red-500 font-bold mt-1 ml-1">Late Entry Window cannot be negative</p>
+              )}
               <p className="text-xs text-slate-400 font-semibold mt-1 ml-1">Students cannot join after this window expires.</p>
             </div>
           </div>
@@ -317,7 +612,13 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
              <button onClick={() => setStep(step - 1)} className="px-6 py-3 bg-white rounded-2xl font-bold text-slate-600 hover:bg-slate-100">Back</button>
           )}
           {step < 4 ? (
-             <button disabled={(step === 1 && !formData.title) || (step === 2 && questions.length === 0)} onClick={() => setStep(step + 1)} className="px-6 py-3 bg-blue-600 rounded-2xl font-bold text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 flex items-center gap-2">Next Step <ChevronRight size={18} /></button>
+             <button 
+               disabled={(step === 1 && (!formData.title || Number(formData.duration_minutes) <= 0 || Number(formData.max_marks) <= 0)) || (step === 2 && questions.length === 0)} 
+               onClick={handleNextStep} 
+               className="px-6 py-3 bg-blue-600 rounded-2xl font-bold text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               Next Step <ChevronRight size={18} />
+             </button>
           ) : (
              <button disabled={loading || !formData.college_id} onClick={handleSubmit} className="px-6 py-3 bg-green-600 rounded-2xl font-bold text-white hover:bg-green-700 shadow-lg shadow-green-600/20 flex items-center gap-2">{loading ? (editTestId ? 'Saving...' : 'Publishing...') : (editTestId ? 'Save Changes' : 'Publish Assessment')} <CheckCircle2 size={18} /></button>
           )}
@@ -355,7 +656,41 @@ export default function AssessmentWizard({ onComplete, onCancel, editTestId }: {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Marks</label>
-                  <input type="number" className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" value={manualQ.marks} onChange={e => setManualQ({...manualQ, marks: Number(e.target.value)})} />
+                  <input 
+                    type="number" 
+                    min="1"
+                    className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" 
+                    value={manualQ.marks} 
+                    onKeyDown={blockNegativeAndExponentKeys}
+                    onFocus={(e) => {
+                      if (e.target.value === '0' || Number(e.target.value) === 0 || manualQ.marks === 0) {
+                        setManualQ(prev => ({ ...prev, marks: '' }));
+                      } else {
+                        e.target.select();
+                      }
+                    }}
+                    onChange={e => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setManualQ(prev => ({ ...prev, marks: '' }));
+                        return;
+                      }
+                      if (raw.includes('-') || Number(raw) < 0) {
+                        toast.error('Marks must be a positive number');
+                        return;
+                      }
+                      const val = parseInt(raw, 10);
+                      if (!isNaN(val)) setManualQ(prev => ({ ...prev, marks: val }));
+                    }}
+                    onBlur={() => {
+                      if (manualQ.marks === '' || Number(manualQ.marks) < 1) {
+                        setManualQ(prev => ({ ...prev, marks: 1 }));
+                      }
+                    }}
+                  />
+                  {manualQ.marks !== '' && Number(manualQ.marks) <= 0 && (
+                    <p className="text-xs text-red-500 font-bold mt-1 ml-1">Marks must be a positive number</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Topic/Tag</label>

@@ -80,8 +80,12 @@ api.interceptors.response.use(
     } catch (refreshError) {
       setAccessToken(null);
       localStorage.removeItem("vega_auth");
+      localStorage.removeItem("token");
+      sessionStorage.removeItem("vega_auth");
+      sessionStorage.removeItem("vega_session_active");
+      sessionStorage.removeItem("token");
 
-      if (window.location.pathname !== "/login") {
+      if (window.location.pathname !== "/login" && window.location.pathname !== "/") {
         window.location.href = "/login";
       }
 

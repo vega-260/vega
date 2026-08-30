@@ -34,7 +34,7 @@ export function CompanySettingsPage() {
   // Token helper
   const getEffectiveToken = () => {
     if (contextToken) return contextToken;
-    const authData = localStorage.getItem("vega_auth");
+    const authData = sessionStorage.getItem("vega_auth") || localStorage.getItem("vega_auth");
     if (authData) {
       try {
         const parsed = JSON.parse(authData);
@@ -45,7 +45,7 @@ export function CompanySettingsPage() {
         console.error(e);
       }
     }
-    return "";
+    return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   };
 
   // Preferences State

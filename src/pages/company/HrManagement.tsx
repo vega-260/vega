@@ -85,7 +85,7 @@ export function HrManagement() {
   // Robust token retrieval falling back safely if context is loading
   const getEffectiveToken = () => {
     if (contextToken) return contextToken;
-    const authData = localStorage.getItem("vega_auth");
+    const authData = sessionStorage.getItem("vega_auth") || localStorage.getItem("vega_auth");
     if (authData) {
       try {
         const parsed = JSON.parse(authData);
@@ -96,7 +96,7 @@ export function HrManagement() {
         console.error("Auth parsing error", e);
       }
     }
-    return localStorage.getItem('token') || '';
+    return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   };
 
   const [activeTab, setActiveTab] = useState<'accounts' | 'allocation'>('accounts');

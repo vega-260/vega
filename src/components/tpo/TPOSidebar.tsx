@@ -78,35 +78,10 @@ export function TPOSidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-white/5 space-y-2">
-        <NavLink
-          to="/tpo/profile"
-          className={({ isActive }) => `
-            w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-xl text-xs font-semibold transition-all
-            ${isActive
-              ? 'bg-white/10 text-white'
-              : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}
-          `}
-          title={isSidebarCollapsed ? 'Officer Profile' : ''}
-        >
-          <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shrink-0 overflow-hidden">
-            {profile?.profile_photo_url ? (
-              <img src={profile.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <User size={14} />
-            )}
-          </div>
-          {!isSidebarCollapsed && (
-            <div className="flex-1 text-left truncate">
-              <p className="text-xs font-bold text-slate-200 truncate">{user?.email?.split('@')[0] || 'Placement Officer'}</p>
-              <p className="text-[10px] text-emerald-400">Verified TPO</p>
-            </div>
-          )}
-        </NavLink>
-
+      <div className="p-4 border-t border-white/5 shrink-0">
         <button 
           onClick={logout}
-          className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-all`}
+          className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} px-4 py-3 rounded-xl text-sm font-bold text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-all cursor-pointer`}
           title={isSidebarCollapsed ? 'Logout' : ''}
         >
           <LogOut size={18} className="shrink-0" />

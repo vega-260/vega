@@ -1,48 +1,23 @@
 import React from 'react';
-import { Outlet, Navigate, Link } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
 import { TPOSidebar } from './TPOSidebar';
+import { PortalHeader } from '../PortalHeader';
 import { useAuth } from '../../context/AuthContext';
 import { useTPOUI, TPOUIProvider } from '../../context/TPOUIContext';
-import { User, Bell, Search } from 'lucide-react';
-import api from '../../services/api';
-import toast from 'react-hot-toast';
 
 function TPOLayoutContent() {
-  const { user, logout } = useAuth();
   const { isSidebarCollapsed } = useTPOUI();
-  const [showNotifications, setShowNotifications] = React.useState(false);
-  const [notifications, setNotifications] = React.useState<any[]>([]);
-  const notificationRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const markAllAsRead = async () => {
-    try {
-      await api.post('/notifications/mark-all-read');
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
-      toast.success('All notifications marked as read');
-    } catch (error) {
-      console.error('Error marking notifications as read');
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 flex font-sans selection:bg-blue-100 selection:text-blue-600">
       {/* Sidebar - Fixed */}
       <TPOSidebar />
 
       {/* Main Content Area */}
-      <div className={`flex-1 ${isSidebarCollapsed ? 'pl-20' : 'pl-64'} transition-all duration-300`}>
+      <div className={`flex-1 ${isSidebarCollapsed ? 'pl-20' : 'pl-64'} transition-all duration-300 flex flex-col min-h-screen`}>
+        <PortalHeader portalType="TPO" searchPlaceholder="Search students, assessments, drives..." />
         {/* Content */}
-        <main className="p-8">
+        <main className="flex-1 p-6 md:p-8">
           <Outlet />
         </main>
       </div>

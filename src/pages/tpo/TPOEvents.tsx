@@ -171,13 +171,18 @@ export default function TPOEvents() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-end">
+      {/* Header & Action */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Events & Drives</h1>
+          <p className="text-sm font-bold text-slate-500 mt-1">Campus recruitment drives, workshops, hackathons & training sessions</p>
+        </div>
         <button 
           onClick={() => {
             setShowCreateModal(true);
             setDateError('');
           }}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 rounded-2xl font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all"
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 rounded-2xl font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all cursor-pointer"
         >
           <Plus size={18} />
           Create Event

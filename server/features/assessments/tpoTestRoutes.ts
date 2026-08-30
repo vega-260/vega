@@ -97,8 +97,39 @@ router.post("/tests", authenticate, authorize(["TPO"]), async (req: any, res) =>
       college_id
     } = req.body;
 
-    if (!title) {
+    if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: "Assessment title is required" });
+    }
+
+    const numDuration = parseInt(duration_minutes, 10);
+    const numMaxMarks = parseInt(max_marks, 10);
+    const numPassingMarks = parseInt(passing_marks, 10);
+    const numLateJoin = late_join_window !== undefined && late_join_window !== '' ? parseInt(late_join_window, 10) : 10;
+
+    if (isNaN(numDuration) || numDuration <= 0) {
+      return res.status(400).json({ success: false, message: "Duration must be a positive number (minimum 1 minute)" });
+    }
+    if (isNaN(numMaxMarks) || numMaxMarks <= 0) {
+      return res.status(400).json({ success: false, message: "Max Marks must be a positive number (minimum 1)" });
+    }
+    if (isNaN(numPassingMarks) || numPassingMarks < 0) {
+      return res.status(400).json({ success: false, message: "Pass Marks cannot be negative" });
+    }
+    if (numPassingMarks > numMaxMarks) {
+      return res.status(400).json({ success: false, message: "Pass Marks cannot exceed Max Marks" });
+    }
+    if (isNaN(numLateJoin) || numLateJoin < 0) {
+      return res.status(400).json({ success: false, message: "Late Entry Window cannot be negative" });
+    }
+
+    if (test_date) {
+      const selectedDate = new Date(test_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        return res.status(400).json({ success: false, message: "Test Date cannot be in the past. Please select today or a future date." });
+      }
     }
 
     const targetCollegeId = college_id ? Number(college_id) : context.collegeId;
@@ -112,10 +143,10 @@ router.post("/tests", authenticate, authorize(["TPO"]), async (req: any, res) =>
         webcam_monitoring, camera_required, microphone_required, location_mandatory
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      context.tpoId, targetCollegeId, title, description || "", instructions || "", category || "Aptitude",
-      difficulty || "Medium", language || "English", department || "", parseInt(max_marks || 100), parseInt(passing_marks || 40),
+      context.tpoId, targetCollegeId, title.trim(), description || "", instructions || "", category || "Aptitude",
+      difficulty || "Medium", language || "English", department || "", numMaxMarks, numPassingMarks,
       negative_marking ? 1 : 0, randomize_questions ? 1 : 0, randomize_options ? 1 : 0, calculator_allowed ? 1 : 0,
-      test_date || null, start_time || null, end_time || null, parseInt(late_join_window || 10), parseInt(duration_minutes || 60),
+      test_date || null, start_time || null, end_time || null, numLateJoin, numDuration,
       webcam_monitoring ? 1 : 0, camera_required ? 1 : 0, microphone_required ? 1 : 0, location_mandatory ? 1 : 0
     ]);
 
@@ -221,6 +252,41 @@ router.put("/tests/:id", authenticate, authorize(["TPO"]), async (req: any, res)
 
     const targetCollegeId = college_id ? Number(college_id) : null;
 
+    if (title !== undefined && (!title || !title.trim())) {
+      return res.status(400).json({ success: false, message: "Assessment title is required" });
+    }
+
+    const numDuration = parseInt(duration_minutes, 10);
+    const numMaxMarks = parseInt(max_marks, 10);
+    const numPassingMarks = parseInt(passing_marks, 10);
+    const numLateJoin = late_join_window !== undefined && late_join_window !== '' ? parseInt(late_join_window, 10) : 10;
+
+    if (isNaN(numDuration) || numDuration <= 0) {
+      return res.status(400).json({ success: false, message: "Duration must be a positive number (minimum 1 minute)" });
+    }
+    if (isNaN(numMaxMarks) || numMaxMarks <= 0) {
+      return res.status(400).json({ success: false, message: "Max Marks must be a positive number (minimum 1)" });
+    }
+    if (isNaN(numPassingMarks) || numPassingMarks < 0) {
+      return res.status(400).json({ success: false, message: "Pass Marks cannot be negative" });
+    }
+    if (numPassingMarks > numMaxMarks) {
+      return res.status(400).json({ success: false, message: "Pass Marks cannot exceed Max Marks" });
+    }
+    if (isNaN(numLateJoin) || numLateJoin < 0) {
+      return res.status(400).json({ success: false, message: "Late Entry Window cannot be negative" });
+    }
+
+    if (test_date) {
+      const selectedDate = new Date(test_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        return res.status(400).json({ success: false, message: "Test Date cannot be in the past. Please select today or a future date." });
+      }
+    }
+
     // Fetch the existing test details to preserve the current status
     const [existingTests]: any = await db.query("SELECT status FROM assessment_tests WHERE id = ?", [testId]);
     if (existingTests.length === 0) {
@@ -237,15 +303,15 @@ router.put("/tests/:id", authenticate, authorize(["TPO"]), async (req: any, res)
         college_id = COALESCE(?, college_id)
       WHERE id = ?
     `, [
-      title || "",
+      title ? title.trim() : "",
       description || "",
       instructions || "",
       category || "Aptitude",
       difficulty || "Medium",
       language || "English",
       department || "",
-      parseInt(max_marks || 100),
-      parseInt(passing_marks || 40),
+      numMaxMarks,
+      numPassingMarks,
       negative_marking ? 1 : 0,
       randomize_questions ? 1 : 0,
       randomize_options ? 1 : 0,
@@ -254,8 +320,8 @@ router.put("/tests/:id", authenticate, authorize(["TPO"]), async (req: any, res)
       test_date || null,
       start_time || null,
       end_time || null,
-      parseInt(late_join_window || 10),
-      parseInt(duration_minutes || 60),
+      numLateJoin,
+      numDuration,
       webcam_monitoring ? 1 : 0,
       camera_required ? 1 : 0,
       microphone_required ? 1 : 0,
