@@ -18,7 +18,7 @@ function requiredSecret(name: "JWT_SECRET" | "REFRESH_SECRET"): string {
 export const JWT_SECRET = requiredSecret("JWT_SECRET");
 export const REFRESH_SECRET = requiredSecret("REFRESH_SECRET");
 
-const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
+const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "1h";
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL || "7d";
 
 export function generateToken(payload: { userId: number; role: string; email: string }) {

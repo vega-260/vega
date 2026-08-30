@@ -87,6 +87,14 @@ export default function TPOEvents() {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (newEvent.start_date && newEvent.end_date) {
+      if (new Date(newEvent.end_date) < new Date(newEvent.start_date)) {
+        toast.error('End Date cannot be earlier than Start Date.');
+        return;
+      }
+    }
+
     try {
       const res = await api.post('/tpo/events', newEvent);
       if (res.data.success) {
@@ -272,6 +280,7 @@ export default function TPOEvents() {
                     type="date" 
                     className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
                     value={newEvent.end_date}
+                    min={newEvent.start_date}
                     onChange={e => setNewEvent({...newEvent, end_date: e.target.value})}
                   />
                 </div>
