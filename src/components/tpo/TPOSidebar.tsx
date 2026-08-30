@@ -21,7 +21,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { BRAND } from '../../brand';
 
 export function TPOSidebar() {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
   const { isSidebarCollapsed, toggleSidebar } = useTPOUI();
 
   const navItems = [
@@ -89,8 +89,12 @@ export function TPOSidebar() {
           `}
           title={isSidebarCollapsed ? 'Officer Profile' : ''}
         >
-          <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shrink-0">
-            <User size={14} />
+          <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shrink-0 overflow-hidden">
+            {profile?.profile_photo_url ? (
+              <img src={profile.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <User size={14} />
+            )}
           </div>
           {!isSidebarCollapsed && (
             <div className="flex-1 text-left truncate">

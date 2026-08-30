@@ -89,7 +89,7 @@ interface StatsData {
 }
 
 export default function TPOProfile() {
-  const { user: authUser } = useAuth();
+  const { user: authUser, updateProfile } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -331,6 +331,7 @@ export default function TPOProfile() {
         setInitialData(updated);
         setFormData(updated);
         setHasUnsavedChanges(false);
+        updateProfile(updated);
       } else {
         toast.error(res.data?.message || 'Failed to update profile');
       }

@@ -26,6 +26,7 @@ export default function TPOEvents() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
@@ -87,7 +88,8 @@ export default function TPOEvents() {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (isSubmitting) return;
+
     if (newEvent.start_date && newEvent.end_date) {
       if (new Date(newEvent.end_date) < new Date(newEvent.start_date)) {
         toast.error('End Date cannot be earlier than Start Date.');
@@ -95,6 +97,7 @@ export default function TPOEvents() {
       }
     }
 
+    setIsSubmitting(true);
     try {
       const res = await api.post('/tpo/events', newEvent);
       if (res.data.success) {
@@ -114,6 +117,8 @@ export default function TPOEvents() {
       }
     } catch (error) {
       toast.error('Failed to create event');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -280,7 +285,6 @@ export default function TPOEvents() {
                     type="date" 
                     className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
                     value={newEvent.end_date}
-                    min={newEvent.start_date}
                     onChange={e => setNewEvent({...newEvent, end_date: e.target.value})}
                   />
                 </div>
@@ -361,9 +365,14 @@ export default function TPOEvents() {
 
               <button 
                 type="submit"
-                className="w-full py-4 bg-blue-600 rounded-2xl font-black text-white uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all"
+                disabled={isSubmitting}
+                className={`w-full py-4 rounded-2xl font-black text-white uppercase tracking-widest shadow-lg transition-all ${
+                  isSubmitting 
+                    ? 'bg-blue-400 cursor-not-allowed shadow-none' 
+                    : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'
+                }`}
               >
-                Create Event Now
+                {isSubmitting ? 'Creating...' : 'Create Event Now'}
               </button>
             </form>
           </div>
