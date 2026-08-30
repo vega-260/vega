@@ -252,3 +252,74 @@ export async function sendInterviewInvitationToAttendee(
   `;
   return sendEmail(email, `VEGA Invitation: ${jobTitle} Interview with ${candidateName}`, html);
 }
+
+export async function sendTPOPasswordResetOTP(email: string, name: string, otp: string) {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="color: #2563eb; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">VEGA TPO Security</h2>
+        <p style="color: #64748b; font-size: 13px; margin-top: 4px;">Training & Placement Officer Ecosystem</p>
+      </div>
+
+      <p style="font-size: 15px; color: #1e293b; line-height: 1.5;">Hello <strong>${name || 'Placement Officer'}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        We received a request to reset the password for your VEGA TPO account (<strong>${email}</strong>). Use the verification code below to authorize this password reset:
+      </p>
+
+      <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 11px; font-weight: bold; color: #1d4ed8; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px;">Your Security Verification Code</span>
+        <div style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #1e40af;">
+          ${otp}
+        </div>
+        <span style="font-size: 12px; color: #3b82f6; display: block; margin-top: 8px; font-weight: 500;">Valid for 10 minutes &bull; Single-use only</span>
+      </div>
+
+      <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 4px; margin: 20px 0;">
+        <p style="color: #991b1b; font-size: 12px; line-height: 1.5; margin: 0;">
+          <strong>Security Notice:</strong> Never share this OTP with anyone. VEGA administrative staff will never ask for your verification code or password.
+        </p>
+      </div>
+
+      <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+        If you did not request a password reset, your account credentials may still be safe, but we recommend checking your active sessions or contacting the platform administrator.
+      </p>
+
+      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        &copy; ${new Date().getFullYear()} VEGA Talent Platform &bull; Secure Institutional Access
+      </p>
+    </div>
+  `;
+  return sendEmail(email, "VEGA TPO: Password Reset Verification Code", html);
+}
+
+export async function sendTPOPasswordChangedAlert(email: string, name: string, ipAddress?: string) {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="color: #059669; margin: 0; font-size: 22px; font-weight: 800;">Password Updated Successfully</h2>
+        <p style="color: #64748b; font-size: 13px; margin-top: 4px;">VEGA TPO Security Alert</p>
+      </div>
+
+      <p style="font-size: 15px; color: #1e293b; line-height: 1.5;">Hello <strong>${name || 'Placement Officer'}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        This email confirms that the password for your VEGA TPO account (<strong>${email}</strong>) was successfully updated on <strong>${new Date().toUTCString()}</strong>.
+      </p>
+
+      ${ipAddress ? `<p style="font-size: 12px; color: #64748b;">Request origin IP: <code>${ipAddress}</code></p>` : ''}
+
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="color: #334155; font-size: 13px; margin: 0; font-weight: 600;">Didn't make this change?</p>
+        <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0;">
+          If you did not make this change, your account may be compromised. Please contact your Super Administrator immediately.
+        </p>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        &copy; ${new Date().getFullYear()} VEGA Talent Platform &bull; Security Team
+      </p>
+    </div>
+  `;
+  return sendEmail(email, "Security Alert: VEGA TPO Password Changed", html);
+}

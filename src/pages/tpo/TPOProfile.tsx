@@ -26,11 +26,14 @@ import {
   Trash2,
   Image as ImageIcon,
   Check,
-  X
+  X,
+  KeyRound,
+  Key
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { TPOResetPasswordModal } from '../../components/tpo/TPOResetPasswordModal';
 
 interface TPOProfileData {
   id?: number;
@@ -93,7 +96,9 @@ export default function TPOProfile() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'personal' | 'office'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'office' | 'security'>('personal');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalMode, setPasswordModalMode] = useState<'otp' | 'direct'>('otp');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string>('');
@@ -524,6 +529,19 @@ export default function TPOProfile() {
             <Clock className="w-4 h-4" />
             Office & Availability
           </button>
+          <button
+            type="button"
+            id="tab-security-password"
+            onClick={() => setActiveTab('security')}
+            className={`py-3.5 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 transition-all whitespace-nowrap ${
+              activeTab === 'security'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <KeyRound className="w-4 h-4" />
+            Security & Password
+          </button>
         </div>
       </div>
 
@@ -930,6 +948,178 @@ export default function TPOProfile() {
           </div>
         </div>
       )}
+
+      {/* TAB CONTENT 3: SECURITY & PASSWORD MANAGEMENT */}
+      {activeTab === 'security' && (
+        <div className="space-y-6">
+          {/* Security Overview Card */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-blue-600" />
+                  Security & Password Management
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Update and manage your institutional credentials through verified Email OTP or direct authentication.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg flex items-center gap-1.5 w-fit">
+                <ShieldCheck className="w-4 h-4" />
+                Protected Account
+              </span>
+            </div>
+
+            {/* Account Credentials Summary Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Registered Email</p>
+                <p className="text-xs font-black text-slate-900 truncate">{authUser?.email}</p>
+                <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+                  <CheckCircle2 size={11} /> Verified Account
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Authentication Protocol</p>
+                <p className="text-xs font-black text-slate-900">Bcrypt Salted Hash (12 Rounds)</p>
+                <p className="text-[10px] text-blue-600 font-semibold mt-1">
+                  Enterprise Security
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Account Role</p>
+                <p className="text-xs font-black text-slate-900">Training & Placement Officer</p>
+                <p className="text-[10px] text-slate-500 font-semibold mt-1">
+                  Campus Placement Head
+                </p>
+              </div>
+            </div>
+
+            {/* 2 Methods Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {/* Method 1: Email OTP Reset */}
+              <div className="bg-gradient-to-b from-blue-50/50 to-indigo-50/30 border border-blue-200/80 rounded-2xl p-6 flex flex-col justify-between space-y-5 hover:border-blue-300 transition-all shadow-xs">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                      <Mail className="w-6 h-6" />
+                    </div>
+                    <span className="px-2.5 py-1 bg-blue-100/80 text-blue-800 text-[10px] font-black uppercase tracking-wider rounded-md">
+                      Method 1
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Reset via Email OTP
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Dispatches a secure 6-digit verification code to <strong>{authUser?.email}</strong>. Ideal if you want a complete reset or forgot your existing password.
+                    </p>
+                  </div>
+
+                  <ul className="space-y-1.5 text-xs text-slate-600">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>6-digit cryptographic verification code</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>10-minute validity & anti-spam cooldown</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Email confirmation alert upon update</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordModalMode('otp');
+                    setShowPasswordModal(true);
+                  }}
+                  className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Start Email OTP Reset</span>
+                </button>
+              </div>
+
+              {/* Method 2: Current Password Change */}
+              <div className="bg-gradient-to-b from-slate-50 to-slate-100/50 border border-slate-200 rounded-2xl p-6 flex flex-col justify-between space-y-5 hover:border-slate-300 transition-all shadow-xs">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/20">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <span className="px-2.5 py-1 bg-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider rounded-md">
+                      Method 2
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Change with Current Password
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Authenticate with your current active password and immediately replace it with a new secure password.
+                    </p>
+                  </div>
+
+                  <ul className="space-y-1.5 text-xs text-slate-600">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Instant verification without email wait</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Live interactive password strength meter</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Immediate activation across all sessions</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordModalMode('direct');
+                    setShowPasswordModal(true);
+                  }}
+                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md shadow-slate-900/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>Change Password Now</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Password Standards Notice */}
+            <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                Institutional Password Policy & Requirements
+              </h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                For security compliance, passwords must be at least 8 characters long, include uppercase and lowercase letters, at least one digit (0-9), and at least one special symbol. Never reuse previous passwords.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset & Change Modal */}
+      <TPOResetPasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        initialMode={passwordModalMode}
+      />
 
       {/* Local Machine Avatar Upload Modal */}
       {showAvatarModal && (

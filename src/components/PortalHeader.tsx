@@ -17,11 +17,13 @@ import {
   X,
   FileText,
   Clock,
-  Sparkles
+  Sparkles,
+  KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { TPOResetPasswordModal } from './tpo/TPOResetPasswordModal';
 
 interface PortalHeaderProps {
   portalType: 'ADMIN' | 'TPO';
@@ -34,6 +36,7 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
@@ -362,6 +365,16 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
                     <button
                       onClick={() => {
                         setShowProfileMenu(false);
+                        setShowPasswordModal(true);
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-blue-50/50 hover:bg-blue-100/70 text-blue-700 font-bold text-xs uppercase tracking-wider transition-colors text-left cursor-pointer"
+                    >
+                      <KeyRound size={16} className="text-blue-600" />
+                      Change / Reset Password
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
                         navigate('/tpo');
                       }}
                       className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-blue-600 font-bold text-xs uppercase tracking-wider transition-colors text-left cursor-pointer"
@@ -435,6 +448,14 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
           </AnimatePresence>
         </div>
       </div>
+
+      {/* TPO Password Reset & Change Modal */}
+      {portalType === 'TPO' && (
+        <TPOResetPasswordModal
+          isOpen={showPasswordModal}
+          onClose={() => setShowPasswordModal(false)}
+        />
+      )}
     </header>
   );
 }
