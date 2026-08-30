@@ -53,6 +53,10 @@ router.post("/events", async (req: any, res) => {
     const safeStartDate = start_date || null;
     const safeEndDate = end_date || null;
 
+    if (safeStartDate && safeEndDate && new Date(safeEndDate) < new Date(safeStartDate)) {
+      return res.status(400).json({ success: false, message: "End Date cannot be earlier than Start Date." });
+    }
+
     const [result]: any = await db.query(`
       INSERT INTO events (college_id, tpo_id, title, description, event_type, start_date, end_date, location_or_link, image_url)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

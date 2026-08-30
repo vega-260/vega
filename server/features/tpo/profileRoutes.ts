@@ -32,6 +32,11 @@ async function ensureTPOProfileSchema() {
       await db.query(`ALTER TABLE tpo_profiles ADD COLUMN ${col.name} ${col.definition}`);
     } catch (e) {
       // Ignore error if column already exists (e.g. duplicate column name in MySQL / SQLite)
+      if (db.useMySQL && col.name === "profile_photo_url") {
+        try {
+          await db.query(`ALTER TABLE tpo_profiles MODIFY COLUMN profile_photo_url LONGTEXT`);
+        } catch (err) {}
+      }
     }
   }
   schemaEnsured = true;

@@ -15,7 +15,8 @@ import {
   ArrowUpRight,
   CheckCircle,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
@@ -27,6 +28,7 @@ export default function TPOEvents() {
   const [filterType, setFilterType] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dateError, setDateError] = useState('');
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
@@ -92,6 +94,7 @@ export default function TPOEvents() {
 
     if (newEvent.start_date && newEvent.end_date) {
       if (new Date(newEvent.end_date) < new Date(newEvent.start_date)) {
+        setDateError('End Date cannot be earlier than Start Date.');
         toast.error('End Date cannot be earlier than Start Date.');
         return;
       }
@@ -103,6 +106,7 @@ export default function TPOEvents() {
       if (res.data.success) {
         toast.success('Event created successfully');
         setShowCreateModal(false);
+        setDateError('');
         setNewEvent({
           title: '',
           description: '',
@@ -169,7 +173,10 @@ export default function TPOEvents() {
     <div className="space-y-8">
       <div className="flex justify-end">
         <button 
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            setShowCreateModal(true);
+            setDateError('');
+          }}
           className="flex items-center gap-2 px-6 py-3 bg-blue-600 rounded-2xl font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all"
         >
           <Plus size={18} />
@@ -213,7 +220,7 @@ export default function TPOEvents() {
                 <h3 className="text-lg font-black text-slate-900 uppercase tracking-widest italic">Create New Event</h3>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Schedule a recruitment drive, competition, or hackathon</p>
               </div>
-              <button type="button" onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-white rounded-xl transition-all">
+              <button type="button" onClick={() => { setShowCreateModal(false); setDateError(''); }} className="p-2 hover:bg-white rounded-xl transition-all">
                 <X size={20} className="text-slate-400" />
               </button>
             </div>
@@ -276,17 +283,46 @@ export default function TPOEvents() {
                     type="date" 
                     className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
                     value={newEvent.start_date}
-                    onChange={e => setNewEvent({...newEvent, start_date: e.target.value})}
+                    onChange={e => {
+                      const newStart = e.target.value;
+                      setNewEvent(prev => {
+                        const updated = { ...prev, start_date: newStart };
+                        if (newStart && prev.end_date && new Date(prev.end_date) < new Date(newStart)) {
+                          setDateError('End Date cannot be earlier than Start Date.');
+                        } else {
+                          setDateError('');
+                        }
+                        return updated;
+                      });
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date (Optional)</label>
                   <input 
                     type="date" 
-                    className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
+                    min={newEvent.start_date || undefined}
+                    className={`w-full px-5 py-3.5 rounded-2xl bg-slate-50 border font-bold text-sm transition-colors ${
+                      dateError ? 'border-rose-300 ring-2 ring-rose-400/20 bg-rose-50/20' : 'border-transparent focus:ring-2 focus:ring-blue-500'
+                    }`}
                     value={newEvent.end_date}
-                    onChange={e => setNewEvent({...newEvent, end_date: e.target.value})}
+                    onChange={e => {
+                      const newEnd = e.target.value;
+                      if (newEnd && newEvent.start_date && new Date(newEnd) < new Date(newEvent.start_date)) {
+                        setDateError('End Date cannot be earlier than Start Date.');
+                        toast.error('End Date cannot be earlier than Start Date.');
+                      } else {
+                        setDateError('');
+                      }
+                      setNewEvent(prev => ({ ...prev, end_date: newEnd }));
+                    }}
                   />
+                  {dateError && (
+                    <p className="text-xs text-rose-500 font-bold mt-1 flex items-center gap-1">
+                      <AlertCircle size={14} className="shrink-0" />
+                      <span>{dateError}</span>
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -365,10 +401,10 @@ export default function TPOEvents() {
 
               <button 
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || Boolean(dateError)}
                 className={`w-full py-4 rounded-2xl font-black text-white uppercase tracking-widest shadow-lg transition-all ${
-                  isSubmitting 
-                    ? 'bg-blue-400 cursor-not-allowed shadow-none' 
+                  isSubmitting || Boolean(dateError)
+                    ? 'bg-blue-400 cursor-not-allowed opacity-75 shadow-none' 
                     : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'
                 }`}
               >
