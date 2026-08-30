@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Lock, 
   KeyRound, 
@@ -14,7 +15,7 @@ import {
   Check,
   Shield,
   Clock,
-  Sparkles
+  ArrowRight
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -77,6 +78,18 @@ export function TPOResetPasswordModal({
     }
   }, [isOpen, initialMode]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   // Cooldown countdown timer
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -127,7 +140,7 @@ export function TPOResetPasswordModal({
       setOtpSending(true);
       const res = await api.post('/tpo/password/send-otp');
       if (res.data?.success) {
-        toast.success(res.data.message || 'Verification code sent to your registered email!');
+        toast.success(res.data.message || 'Verification code dispatched to your registered email!');
         setOtpSent(true);
         setResendCooldown(45);
         if (res.data.debugOtp) {
@@ -167,8 +180,8 @@ export function TPOResetPasswordModal({
     const pasted = e.clipboardData.getData('text').trim().replace(/[^0-9]/g, '').slice(0, 6);
     if (pasted.length > 0) {
       const newValues = [...otpValues];
-      for (let i = 0; i < pasted.length; i++) {
-        newValues[i] = pasted[i];
+      for (let i = 0; i < 6; i++) {
+        newValues[i] = pasted[i] || '';
       }
       setOtpValues(newValues);
       const targetIndex = Math.min(pasted.length, 5);
@@ -181,18 +194,18 @@ export function TPOResetPasswordModal({
     e.preventDefault();
     const fullOtp = otpValues.join('');
     if (fullOtp.length !== 6) {
-      toast.error('Please enter the 6-digit verification code sent to your email.');
+      toast.error('Please enter the full 6-digit verification code.');
       return;
     }
 
     const c = checkCriteria(otpNewPassword);
     if (!c.minLength || !c.hasUpper || !c.hasLower || !c.hasNumber || !c.hasSpecial) {
-      toast.error('Please meet all password requirements before submitting.');
+      toast.error('Please meet all password security requirements.');
       return;
     }
 
     if (otpNewPassword !== otpConfirmPassword) {
-      toast.error('Passwords do not match. Please re-confirm.');
+      toast.error('Passwords do not match. Please verify confirmation.');
       return;
     }
 
@@ -205,7 +218,7 @@ export function TPOResetPasswordModal({
       });
 
       if (res.data?.success) {
-        toast.success(res.data.message || 'Password successfully reset!');
+        toast.success(res.data.message || 'Password successfully updated!');
         if (onSuccess) onSuccess();
         onClose();
       }
@@ -226,7 +239,7 @@ export function TPOResetPasswordModal({
 
     const c = checkCriteria(directNewPassword);
     if (!c.minLength || !c.hasUpper || !c.hasLower || !c.hasNumber || !c.hasSpecial) {
-      toast.error('Please meet all password requirements before submitting.');
+      toast.error('Please meet all password security requirements.');
       return;
     }
 
@@ -265,51 +278,57 @@ export function TPOResetPasswordModal({
   const otpCrit = checkCriteria(otpNewPassword);
   const directCrit = checkCriteria(directNewPassword);
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center animate-in fade-in duration-200"
+      id="tpo-reset-password-modal-backdrop"
+      className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto transition-all"
+        id="tpo-reset-password-modal-card"
+        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] my-auto animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Banner */}
-        <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-slate-850 to-blue-950 text-white relative">
+        {/* Modal Top Header */}
+        <div className="p-5 sm:p-6 bg-slate-900 text-white relative flex-shrink-0">
           <button
+            id="close-reset-password-modal"
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Close"
+            className="absolute top-4 right-4 sm:top-5 sm:right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            title="Close modal"
           >
             <X size={16} />
           </button>
 
-          <div className="flex items-center gap-3.5 pr-8">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+          <div className="flex items-start gap-3.5 pr-8">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
               <KeyRound size={20} />
             </div>
             <div>
-              <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
-                TPO Password Security
-                <span className="px-2 py-0.5 bg-blue-500/25 border border-blue-400/30 text-blue-300 text-[10px] font-bold rounded-md uppercase tracking-wider">
-                  Verified
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  TPO Password Security
+                </h3>
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold rounded-md uppercase tracking-wider flex items-center gap-1">
+                  <ShieldCheck size={11} /> Verified Account
                 </span>
-              </h3>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Update your login credentials securely via Email OTP or current password.
+              </div>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                Update and secure your training & placement officer credentials.
               </p>
             </div>
           </div>
 
-          {/* Mode Selector Tabs */}
-          <div className="grid grid-cols-2 gap-1.5 mt-4 p-1 bg-black/25 backdrop-blur-xs rounded-xl border border-white/10">
+          {/* Segmented Mode Selector */}
+          <div className="grid grid-cols-2 gap-1 mt-4 p-1 bg-slate-800/80 rounded-xl border border-slate-700/80 text-xs font-bold">
             <button
               type="button"
+              id="mode-tab-otp"
               onClick={() => setActiveMode('otp')}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeMode === 'otp'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
             >
               <Mail size={13} />
@@ -318,31 +337,32 @@ export function TPOResetPasswordModal({
 
             <button
               type="button"
+              id="mode-tab-direct"
               onClick={() => setActiveMode('direct')}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeMode === 'direct'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
             >
               <Lock size={13} />
-              <span>Change with Old Password</span>
+              <span>Use Old Password</span>
             </button>
           </div>
         </div>
 
-        {/* Modal Body Container */}
-        <div className="p-6 max-h-[calc(85vh-140px)] overflow-y-auto">
+        {/* Modal Scrollable Body */}
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-4">
           {/* =========================================================================
               METHOD 1: RESET VIA EMAIL OTP
              ========================================================================= */}
           {activeMode === 'otp' && (
-            <form onSubmit={handleSubmitOtpReset} className="space-y-4">
-              {/* Account Email Dispatch Banner */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <form id="tpo-otp-reset-form" onSubmit={handleSubmitOtpReset} className="space-y-4">
+              {/* Account Confirmation & Send OTP Bar */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-0.5 min-w-0">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Registered Email Account
+                    Registered Target Email
                   </span>
                   <p className="text-xs font-bold text-slate-800 truncate">
                     {user?.email || 'Placement Officer'}
@@ -351,6 +371,7 @@ export function TPOResetPasswordModal({
 
                 <button
                   type="button"
+                  id="send-otp-btn"
                   onClick={handleSendOtp}
                   disabled={otpSending || resendCooldown > 0}
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
@@ -358,7 +379,7 @@ export function TPOResetPasswordModal({
                   {otpSending ? (
                     <>
                       <RefreshCw size={13} className="animate-spin" />
-                      <span>Sending...</span>
+                      <span>Sending OTP...</span>
                     </>
                   ) : resendCooldown > 0 ? (
                     <>
@@ -368,7 +389,7 @@ export function TPOResetPasswordModal({
                   ) : (
                     <>
                       <Send size={13} />
-                      <span>{otpSent ? 'Resend OTP' : 'Send Code'}</span>
+                      <span>{otpSent ? 'Resend OTP' : 'Send Verification Code'}</span>
                     </>
                   )}
                 </button>
@@ -388,10 +409,10 @@ export function TPOResetPasswordModal({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-700">
-                    Enter 6-Digit Verification Code <span className="text-rose-500">*</span>
+                    6-Digit Verification Code <span className="text-rose-500">*</span>
                   </label>
                   {otpSent && (
-                    <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
                       <CheckCircle2 size={12} /> Code Sent (10m valid)
                     </span>
                   )}
@@ -401,6 +422,7 @@ export function TPOResetPasswordModal({
                   {otpValues.map((val, idx) => (
                     <input
                       key={idx}
+                      id={`otp-box-${idx}`}
                       ref={(el) => { otpInputRefs.current[idx] = el; }}
                       type="text"
                       inputMode="numeric"
@@ -410,13 +432,13 @@ export function TPOResetPasswordModal({
                       onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                       onPaste={handleOtpPaste}
                       placeholder="•"
-                      className="w-11 h-12 sm:w-12 sm:h-13 text-center text-lg font-black font-mono bg-slate-50 border border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/10 text-slate-900 placeholder:text-slate-300"
+                      className="w-10 h-11 sm:w-12 sm:h-12 text-center text-base sm:text-lg font-black font-mono bg-slate-50 border border-slate-300 focus:border-blue-600 focus:bg-white rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500/20 text-slate-900 placeholder:text-slate-300"
                     />
                   ))}
                 </div>
                 {!otpSent && (
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Click <strong>"Send Code"</strong> above to dispatch the verification code to your email.
+                  <p className="text-[11px] text-slate-500">
+                    Click <strong>"Send Verification Code"</strong> above to receive your code via email.
                   </p>
                 )}
               </div>
@@ -433,10 +455,11 @@ export function TPOResetPasswordModal({
                 </div>
                 <div className="relative">
                   <input
+                    id="otp-new-password-input"
                     type={showOtpNewPassword ? 'text' : 'password'}
                     value={otpNewPassword}
                     onChange={(e) => setOtpNewPassword(e.target.value)}
-                    placeholder="Enter new password"
+                    placeholder="Create a strong password"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 outline-none transition-all pr-10"
                   />
                   <button
@@ -459,14 +482,15 @@ export function TPOResetPasswordModal({
               {/* Confirm Password */}
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-slate-700">
-                  Confirm Password <span className="text-rose-500">*</span>
+                  Confirm New Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
+                    id="otp-confirm-password-input"
                     type={showOtpConfirmPassword ? 'text' : 'password'}
                     value={otpConfirmPassword}
                     onChange={(e) => setOtpConfirmPassword(e.target.value)}
-                    placeholder="Re-enter new password"
+                    placeholder="Re-enter password to verify"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 outline-none transition-all pr-10"
                   />
                   <button
@@ -496,31 +520,31 @@ export function TPOResetPasswordModal({
                 )}
               </div>
 
-              {/* Criteria Pills */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              {/* Security Requirements Checklist */}
+              <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl space-y-1.5">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Requirements
+                  Password Requirements
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px] text-slate-600">
-                  <div className={`flex items-center gap-1 ${otpCrit.minLength ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${otpCrit.minLength ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={otpCrit.minLength ? 'text-emerald-600' : 'text-slate-300'} />
                     <span>8+ Chars</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${otpCrit.hasUpper ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${otpCrit.hasUpper ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={otpCrit.hasUpper ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Uppercase</span>
+                    <span>Uppercase (A-Z)</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${otpCrit.hasLower ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${otpCrit.hasLower ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={otpCrit.hasLower ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Lowercase</span>
+                    <span>Lowercase (a-z)</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${otpCrit.hasNumber ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${otpCrit.hasNumber ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={otpCrit.hasNumber ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Number</span>
+                    <span>Number (0-9)</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${otpCrit.hasSpecial ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${otpCrit.hasSpecial ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={otpCrit.hasSpecial ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Symbol</span>
+                    <span>Special symbol</span>
                   </div>
                 </div>
               </div>
@@ -529,6 +553,7 @@ export function TPOResetPasswordModal({
               <div className="pt-2 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
+                  id="cancel-otp-reset-btn"
                   onClick={onClose}
                   className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                 >
@@ -536,13 +561,14 @@ export function TPOResetPasswordModal({
                 </button>
                 <button
                   type="submit"
+                  id="submit-otp-reset-btn"
                   disabled={otpResetting}
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer"
                 >
                   {otpResetting ? (
                     <>
                       <RefreshCw size={13} className="animate-spin" />
-                      <span>Verifying & Resetting...</span>
+                      <span>Verifying Code & Resetting...</span>
                     </>
                   ) : (
                     <>
@@ -559,7 +585,7 @@ export function TPOResetPasswordModal({
               METHOD 2: CHANGE WITH OLD PASSWORD
              ========================================================================= */}
           {activeMode === 'direct' && (
-            <form onSubmit={handleSubmitDirectChange} className="space-y-4">
+            <form id="tpo-direct-change-form" onSubmit={handleSubmitDirectChange} className="space-y-4">
               {/* Current Password Field */}
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-slate-700">
@@ -567,10 +593,11 @@ export function TPOResetPasswordModal({
                 </label>
                 <div className="relative">
                   <input
+                    id="direct-current-password-input"
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter your current password"
+                    placeholder="Enter your current active password"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 outline-none transition-all pr-10"
                   />
                   <button
@@ -595,10 +622,11 @@ export function TPOResetPasswordModal({
                 </div>
                 <div className="relative">
                   <input
+                    id="direct-new-password-input"
                     type={showDirectNewPassword ? 'text' : 'password'}
                     value={directNewPassword}
                     onChange={(e) => setDirectNewPassword(e.target.value)}
-                    placeholder="Enter new password"
+                    placeholder="Create new secure password"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 outline-none transition-all pr-10"
                   />
                   <button
@@ -625,6 +653,7 @@ export function TPOResetPasswordModal({
                 </label>
                 <div className="relative">
                   <input
+                    id="direct-confirm-password-input"
                     type={showDirectConfirmPassword ? 'text' : 'password'}
                     value={directConfirmPassword}
                     onChange={(e) => setDirectConfirmPassword(e.target.value)}
@@ -658,31 +687,31 @@ export function TPOResetPasswordModal({
                 )}
               </div>
 
-              {/* Criteria Pills */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              {/* Criteria Checklist */}
+              <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl space-y-1.5">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Requirements
+                  Password Requirements
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px] text-slate-600">
-                  <div className={`flex items-center gap-1 ${directCrit.minLength ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${directCrit.minLength ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={directCrit.minLength ? 'text-emerald-600' : 'text-slate-300'} />
                     <span>8+ Chars</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${directCrit.hasUpper ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${directCrit.hasUpper ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={directCrit.hasUpper ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Uppercase</span>
+                    <span>Uppercase (A-Z)</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${directCrit.hasLower ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${directCrit.hasLower ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={directCrit.hasLower ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Lowercase</span>
+                    <span>Lowercase (a-z)</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${directCrit.hasNumber ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${directCrit.hasNumber ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={directCrit.hasNumber ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Number</span>
+                    <span>Number (0-9)</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${directCrit.hasSpecial ? 'text-emerald-600 font-bold' : ''}`}>
+                  <div className={`flex items-center gap-1 ${directCrit.hasSpecial ? 'text-emerald-700 font-bold' : ''}`}>
                     <Check size={12} className={directCrit.hasSpecial ? 'text-emerald-600' : 'text-slate-300'} />
-                    <span>Symbol</span>
+                    <span>Special symbol</span>
                   </div>
                 </div>
               </div>
@@ -691,6 +720,7 @@ export function TPOResetPasswordModal({
               <div className="pt-2 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
+                  id="cancel-direct-change-btn"
                   onClick={onClose}
                   className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                 >
@@ -698,6 +728,7 @@ export function TPOResetPasswordModal({
                 </button>
                 <button
                   type="submit"
+                  id="submit-direct-change-btn"
                   disabled={directChanging}
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer"
                 >
@@ -720,4 +751,8 @@ export function TPOResetPasswordModal({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : null;
 }
