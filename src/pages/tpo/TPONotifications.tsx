@@ -432,10 +432,11 @@ export default function TPONotifications() {
           </div>
           <a 
             href={n.attachment_url} 
-            download={n.attachment_name || 'Notice_Document'} 
+            target="_blank"
+            rel="noopener noreferrer"
             className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shrink-0 flex items-center gap-1.5"
           >
-            Download File <Download size={12} />
+            View <Eye size={12} />
           </a>
         </div>
       );

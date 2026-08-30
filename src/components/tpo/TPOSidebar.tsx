@@ -32,7 +32,7 @@ export function TPOSidebar() {
     { to: '/tpo/analytics', icon: PieChart, label: 'Placement Analytics' },
     { to: '/tpo/assessments', icon: FileText, label: 'Assessment Engine' },
     { to: '/tpo/reports', icon: FileText, label: 'Reports' },
-    { to: '/tpo/notifications', icon: Bell, label: 'Notifications' },
+    { to: '/tpo/notifications', icon: Bell, label: 'Announcements' },
     { to: '/tpo/profile', icon: UserCheck, label: 'TPO Profile' },
   ];
 
