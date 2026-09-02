@@ -453,7 +453,7 @@ export function ResumeBuilder() {
   if (!status) return null;
 
   return (
-    <div className="max-w-7xl mx-auto py-2 font-sans text-slate-800">
+    <div className="max-w-7xl mx-auto pt-0 pb-8 font-sans text-slate-800">
       <div className="w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10 border-b border-slate-200 pb-5">
           <div>

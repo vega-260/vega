@@ -138,3 +138,15 @@ html,
   scrollbar-width: none; /* Firefox */
 }
 
+
+/* Student portal: restore normal browser page scrollbars without changing other portal layouts. */
+html.student-scrollbars::-webkit-scrollbar,
+body.student-scrollbars::-webkit-scrollbar {
+  display: block;
+}
+
+html.student-scrollbars,
+body.student-scrollbars {
+  -ms-overflow-style: auto;
+  scrollbar-width: auto;
+}

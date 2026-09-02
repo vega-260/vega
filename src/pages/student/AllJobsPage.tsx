@@ -13,9 +13,13 @@ export function AllJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<{
+    location: string;
+    type: string[];
+    experience: string;
+  }>({
     location: '',
-    type: '',
+    type: [],
     experience: ''
   });
   const [profile, setProfile] = useState<any>(authProfile);
@@ -76,7 +80,7 @@ export function AllJobsPage() {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append('search', debouncedSearch);
       if (filters.location) params.append('location', filters.location);
-      if (filters.type) params.append('type', filters.type);
+      if (filters.type && filters.type.length > 0) params.append('type', filters.type.join(','));
       if (filters.experience) params.append('experience', filters.experience);
       if (studentId) params.append('studentId', studentId.toString());
 
@@ -134,7 +138,7 @@ export function AllJobsPage() {
   }, [displayedJobs, loading, profile]);
 
   return (
-    <div className="max-w-7xl mx-auto py-2 font-sans text-slate-800">
+    <div className="max-w-7xl mx-auto pt-0 pb-8 font-sans text-slate-800">
       <AnimatePresence>
         {profile && profile.completeness_score < 70 && (
            <div className="bg-orange-55 border-b border-orange-100 p-3 rounded-xl mb-4 text-center">
@@ -145,7 +149,7 @@ export function AllJobsPage() {
            </div>
         )}
       </AnimatePresence>
-      <div className="w-full mt-2">
+      <div className="w-full">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
@@ -154,7 +158,7 @@ export function AllJobsPage() {
                 <Briefcase size={22} className="text-white" />
               </div>
               <div>
-                <h1 className="text-2.5xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight leading-none">Explore Careers</h1>
+                <h1 className="text-2.5xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight leading-none">BROWSE JOBS</h1>
                 <p className="text-slate-500 font-bold text-[9px] sm:text-[10px] uppercase tracking-[0.3em] mt-2">FIND OPPORTUNITIES MATCHING YOUR PROFILE</p>
               </div>
             </div>
@@ -164,13 +168,13 @@ export function AllJobsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
            {/* Sidebar Filters */}
            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                 <div className="flex items-center gap-2 mb-6">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                 <div className="flex items-center gap-2 mb-4">
                     <Filter className="text-blue-600" size={20} />
                     <h2 className="font-bold uppercase tracking-wider text-sm">Filters</h2>
                  </div>
 
-                 <div className="space-y-4">
+                 <div className="space-y-3">
                     <div>
                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Search</label>
                        <div className="relative">
@@ -178,7 +182,7 @@ export function AllJobsPage() {
                           <input 
                              type="text" 
                              placeholder="Job title or company..."
-                             className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
+                             className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
                              value={search}
                              onChange={(e) => setSearch(e.target.value)}
                           />
@@ -188,7 +192,7 @@ export function AllJobsPage() {
                     <div>
                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Location</label>
                        <select 
-                          className="w-full px-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
                           value={filters.location}
                           onChange={(e) => setFilters({...filters, location: e.target.value})}
                        >
@@ -203,21 +207,25 @@ export function AllJobsPage() {
 
                     <div>
                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Job Type</label>
-                       <div className="space-y-2">
+                       <div className="space-y-1.5">
                           {['Full-time', 'Part-time', 'Internship', 'Remote', 'Regional Remote', 'On-site', 'Hybrid'].map(type => (
                              <label key={type} className="flex items-center gap-2 cursor-pointer group">
                                 <input 
-                                   type="radio" 
-                                   name="job_type" 
-                                   className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-slate-200"
-                                   checked={filters.type === type}
-                                   onChange={() => setFilters({...filters, type})}
+                                   type="checkbox" 
+                                   className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-200"
+                                   checked={filters.type.includes(type)}
+                                   onChange={(e) => {
+                                      const updatedTypes = e.target.checked
+                                         ? [...filters.type, type]
+                                         : filters.type.filter(t => t !== type);
+                                      setFilters({ ...filters, type: updatedTypes });
+                                   }}
                                 />
                                 <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900">{type}</span>
                              </label>
                           ))}
                           <button 
-                             onClick={() => setFilters({...filters, type: ''})}
+                             onClick={() => setFilters({ ...filters, type: [] })}
                              className="text-[10px] font-bold text-blue-600 uppercase"
                           >
                              Clear Type

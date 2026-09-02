@@ -73,7 +73,7 @@ export default function IntelligenceDashboard() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto py-2 space-y-6 font-sans text-slate-800">
+    <div className="max-w-6xl mx-auto pt-0 pb-6 space-y-6 font-sans text-slate-800">
       
       {/* Standardized Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10 pb-5 border-b border-slate-200">

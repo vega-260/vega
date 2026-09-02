@@ -105,7 +105,7 @@ export const XPStore: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-2 font-sans text-slate-800">
+    <div className="max-w-4xl mx-auto pt-0 pb-8 font-sans text-slate-800">
       <div className="w-full">
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">

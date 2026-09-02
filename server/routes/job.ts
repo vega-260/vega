@@ -28,9 +28,10 @@ router.get("/", async (req, res) => {
     // public GET endpoint makes this route cacheable and read-replica safe.
     if (process.env.NODE_ENV !== "production") await checkAndProcessJobExpirations();
 
+    const typeKey = Array.isArray(type) ? type.join(",") : (typeof type === "string" ? type : "");
     const ttl = studentId ? Number(process.env.CACHE_TTL_JOB_MATCH_SECONDS || 20) : Number(process.env.CACHE_TTL_JOBS_SECONDS || 60);
     const enrichedJobs = await cacheGetOrLoad<any[]>("jobs:list",
-      [search || "", skills || "", location || "", type || "", experience || "", studentId || "", companyId || "", status || "OPEN"],
+      [search || "", skills || "", location || "", typeKey, experience || "", studentId || "", companyId || "", status || "OPEN"],
       ttl,
       async () => {
         let query = `
@@ -47,7 +48,21 @@ router.get("/", async (req, res) => {
         if (companyId) { query += ` AND J.company_id = ?`; params.push(companyId); }
         if (search) { query += ` AND (J.title LIKE ? OR C.company_name LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
         if (location) { query += ` AND J.location LIKE ?`; params.push(`%${location}%`); }
-        if (type) { query += ` AND J.job_type = ?`; params.push(type); }
+        if (type) {
+          const types = Array.isArray(type)
+            ? type.map((t: any) => String(t).trim()).filter(Boolean)
+            : typeof type === 'string'
+              ? type.split(',').map((t: string) => t.trim()).filter(Boolean)
+              : [];
+          if (types.length === 1) {
+            query += ` AND J.job_type = ?`;
+            params.push(types[0]);
+          } else if (types.length > 1) {
+            const placeholders = types.map(() => '?').join(', ');
+            query += ` AND J.job_type IN (${placeholders})`;
+            params.push(...types);
+          }
+        }
         if (experience) { query += ` AND J.experience_level = ?`; params.push(experience); }
         // MySQL prepared statements can be sensitive to LIMIT/OFFSET bindings on
         // some server/driver combinations. Validate the value as a bounded integer

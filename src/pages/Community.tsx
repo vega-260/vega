@@ -392,7 +392,7 @@ export function Community() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-slate-100 min-h-screen">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-8 text-slate-100 min-h-screen">
       {/* 🚀 Dynamic AI Glow Title Header */}
       <div className="relative rounded-3xl p-6 sm:p-8 overflow-hidden bg-slate-950 border border-slate-900 shadow-2xl mb-10">
         <div className="absolute inset-0 bg-radial-[circle_at_bottom_right] from-blue-500/5 via-transparent to-transparent pointer-events-none" />

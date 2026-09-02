@@ -9,6 +9,15 @@ export function StudentLayout() {
   const { profile } = useAuth();
   const location = useLocation();
 
+  React.useEffect(() => {
+    document.documentElement.classList.add('student-scrollbars');
+    document.body.classList.add('student-scrollbars');
+    return () => {
+      document.documentElement.classList.remove('student-scrollbars');
+      document.body.classList.remove('student-scrollbars');
+    };
+  }, []);
+
   // If onboarding is not completed, redirect to /onboarding
   if (profile && (profile.onboarding_completed === 0 || !profile.onboarding_completed)) {
     if (location.pathname !== '/onboarding') {
@@ -24,7 +33,7 @@ export function StudentLayout() {
   }
 
   return (
-    <div className="flex bg-[#F8FAFC] min-h-screen pt-20">
+    <div className="flex bg-[#F8FAFC] min-h-screen">
       <StudentSidebar />
       <main className={`flex-1 p-4 lg:p-6 pb-12 overflow-x-hidden transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
         <Outlet />

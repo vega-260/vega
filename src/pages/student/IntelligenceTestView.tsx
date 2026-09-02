@@ -167,7 +167,7 @@ export default function IntelligenceTestView() {
         </header>
 
         {/* Question Area */}
-        <div className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-10 flex flex-col">
+        <div className="flex-1 max-w-4xl w-full mx-auto pt-4 pb-8 px-6 md:px-10 flex flex-col">
           <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-100 flex-1 flex flex-col mb-6">
             <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 block">Question {currentIdx + 1}</span>
             <h3 className="text-2xl md:text-3xl font-medium text-slate-800 leading-relaxed tracking-tight mb-10">

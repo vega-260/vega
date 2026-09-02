@@ -270,7 +270,7 @@ export function PsychometricTest() {
         )}
       </header>
 
-      <main className="flex-1 max-w-5xl mx-auto w-full p-8 flex flex-col justify-center">
+      <main className="flex-1 max-w-5xl mx-auto w-full pt-0 pb-8 px-8 flex flex-col justify-center">
         <AnimatePresence mode="wait">
           {step === 'INTRO' && (
             <motion.div 

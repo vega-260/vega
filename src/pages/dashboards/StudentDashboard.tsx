@@ -1696,7 +1696,7 @@ export function StudentDashboard() {
 
   return (
     <div className="w-full font-sans text-slate-800">
-      <div className="max-w-[1400px] mx-auto py-2">
+      <div className="max-w-[1400px] mx-auto pt-0 pb-2">
         
         {/* Bento Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 auto-rows-min">

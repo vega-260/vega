@@ -86,7 +86,7 @@ export function JobTest() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
+    <div className="max-w-3xl mx-auto px-4 pt-0 pb-12">
       <header className="flex items-center justify-between mb-10 bg-white p-6 rounded-2xl border border-slate-200 sticky top-20 z-10 shadow-sm">
         <div>
           <h2 className="text-2xl font-bold">Job Assessment</h2>

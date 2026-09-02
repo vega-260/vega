@@ -401,7 +401,7 @@ export default function CareerGapAnalyzer() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pt-0 pb-8 px-4 md:px-8">
       {/* 1. Header Frame */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-md gap-6 shadow-xl">

@@ -156,11 +156,11 @@ export function StudentInterviews() {
   const pastInterviews = interviews.filter(i => i.status !== 'Scheduled');
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 py-8" id="student-interviews-pane">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 pt-0 pb-8" id="student-interviews-pane">
       {/* Page Header banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight italic">
+          <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
             Interview <span className="text-indigo-600 font-black">Center</span>
           </h1>
           <p className="text-slate-500 font-medium text-sm">Join active placements drives, take mock interviews, and review performance report summaries.</p>

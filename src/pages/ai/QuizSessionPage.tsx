@@ -172,7 +172,7 @@ export function QuizSessionPage() {
            </div>
         </div>
       ) : (
-        <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden flex flex-col mt-10 relative">
+        <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden flex flex-col mt-2 relative">
           {/* Header (Security & Timer) */}
           <div className="bg-slate-900 px-8 py-5 flex items-center justify-between text-white">
             <div className="flex items-center gap-6">

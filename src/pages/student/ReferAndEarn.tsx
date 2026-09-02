@@ -101,7 +101,7 @@ export function ReferAndEarn() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4 font-sans text-slate-800">
+    <div className="max-w-7xl mx-auto pt-0 pb-8 px-4 font-sans text-slate-800">
       {/* Hero Header Section */}
       <div className="relative overflow-hidden bg-slate-900 text-white rounded-[2rem] p-8 md:p-12 border border-slate-800 shadow-2xl mb-10">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[100px] -mr-48 -mt-48 pointer-events-none"></div>

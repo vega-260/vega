@@ -377,7 +377,7 @@ export default function CollegeAssessments() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-10 space-y-8 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pt-0 pb-8 px-2 space-y-8 font-sans">
       
       {/* -------------------------------------------------------------
           REPORT / COMPLETED VIEW WITH AI STRENGTH RADAR

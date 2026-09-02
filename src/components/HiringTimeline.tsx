@@ -17,7 +17,12 @@ interface HistoryItem {
   notes: string;
 }
 
-export function HiringTimeline({ applicationId }: { applicationId: number }) {
+interface HiringTimelineProps {
+  applicationId: number;
+  compact?: boolean;
+}
+
+export function HiringTimeline({ applicationId, compact = false }: HiringTimelineProps) {
   const [stages, setStages] = useState<Stage[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [application, setApplication] = useState<any>(null);
@@ -53,7 +58,7 @@ export function HiringTimeline({ applicationId }: { applicationId: number }) {
   const isSelected = application?.status === 'SELECTED';
 
   return (
-    <div className="w-full mt-8 overflow-x-auto pb-4 scrollbar-hide">
+    <div className={`w-full ${compact ? 'mt-5 pb-2' : 'mt-8 pb-4'} overflow-x-auto scrollbar-hide`}>
       <div className="min-w-[600px] relative px-4">
         {/* Connection Line */}
         <div className="absolute top-4 left-8 right-8 h-1 bg-slate-100 rounded-full" />
@@ -80,7 +85,7 @@ export function HiringTimeline({ applicationId }: { applicationId: number }) {
             return (
               <div key={stage.id} className="flex flex-col items-center flex-1 z-10 px-2">
                 <div 
-                  className={`w-9 h-9 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
+                  className={`${compact ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
                     isCompleted 
                       ? "bg-emerald-500 border-emerald-50 text-white shadow-lg shadow-emerald-500/20" 
                       : isRejectedHere
@@ -90,11 +95,11 @@ export function HiringTimeline({ applicationId }: { applicationId: number }) {
                           : "bg-white border-slate-200 text-slate-300"
                   }`}
                 >
-                  {isCompleted ? <Check size={16} strokeWidth={4} /> : isRejectedHere ? <X size={16} strokeWidth={4} /> : <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+                  {isCompleted ? <Check size={compact ? 14 : 16} strokeWidth={4} /> : isRejectedHere ? <X size={compact ? 14 : 16} strokeWidth={4} /> : <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
                 </div>
 
-                <div className="mt-4 text-center">
-                  <p className={`text-[11px] font-black uppercase tracking-widest ${isCurrent || isCompleted || isRejectedHere ? 'text-slate-900' : 'text-slate-400'}`}>
+                <div className={`${compact ? 'mt-3' : 'mt-4'} text-center`}>
+                  <p className={`${compact ? 'text-[10px]' : 'text-[11px]'} font-black uppercase tracking-widest ${isCurrent || isCompleted || isRejectedHere ? 'text-slate-900' : 'text-slate-400'}`}>
                     {stage.stage_name}
                   </p>
                   <p className="text-[10px] font-bold text-slate-400 mt-0.5">

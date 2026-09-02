@@ -119,10 +119,10 @@ export function JobStageActionPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-4xl mx-auto px-6 pt-0 pb-8">
         <button 
            onClick={() => navigate("/student/dashboard")}
-           className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-all font-black text-[10px] uppercase tracking-widest mb-10"
+           className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-all font-black text-[10px] uppercase tracking-widest mb-6"
         >
           <ArrowLeft size={16} /> Back to Dashboard
         </button>
@@ -133,46 +133,46 @@ export function JobStageActionPage() {
                key="intro"
                initial={{ opacity: 0, scale: 0.98 }}
                animate={{ opacity: 1, scale: 1 }}
-               className="space-y-8"
+               className="space-y-5"
             >
                {/* Timeline Header */}
-               <div className="bg-white rounded-[40px] border border-slate-200 p-10 shadow-sm">
-                  <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Hiring Progress</h4>
-                  <HiringTimeline applicationId={Number(appId)} />
+               <div className="bg-white rounded-[28px] border border-slate-200 p-6 shadow-sm">
+                  <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Hiring Progress</h4>
+                  <HiringTimeline applicationId={Number(appId)} compact />
                </div>
 
-               <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-2xl shadow-indigo-500/5">
-                  <div className="p-12 border-b border-slate-50">
-                     <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-indigo-600 text-white rounded-2xl">
-                           {data.stage_type === 'TEST' ? <Timer size={24} /> : <Shield size={24} />}
+               <div className="bg-white rounded-[28px] border border-slate-200 overflow-hidden shadow-2xl shadow-indigo-500/5">
+                  <div className="p-7 border-b border-slate-50">
+                     <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2.5 bg-indigo-600 text-white rounded-2xl">
+                           {data.stage_type === 'TEST' ? <Timer size={20} /> : <Shield size={20} />}
                         </div>
                         <div>
-                           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">{data.stage_name}</h1>
+                           <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">{data.stage_name}</h1>
                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hiring Pipeline Step {data.stage_order}</p>
                         </div>
                      </div>
                   </div>
 
-                  <div className="p-12 space-y-8">
-                     <div className="p-8 bg-slate-50 rounded-[32px] border border-slate-100">
-                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-4">Instructions</h3>
-                        <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                  <div className="p-7 space-y-5">
+                     <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-2">Instructions</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed mb-4">
                            {data.description || "Please follow the instructions for this stage carefully to proceed further in the hiring process."}
                         </p>
                         
                         {data.stage_type === 'TEST' && (
                            <div className="space-y-4">
                               <div className="grid grid-cols-2 gap-4">
-                                 <div className="bg-white p-4 rounded-2xl border border-indigo-50 flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Clock size={18}/></div>
+                                 <div className="bg-white p-3 rounded-2xl border border-indigo-50 flex items-center gap-3">
+                                    <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Clock size={18}/></div>
                                     <div>
                                        <p className="text-[9px] font-black text-slate-400 uppercase">Duration</p>
                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-tight">{timeLeft/60} Minutes</p>
                                     </div>
                                  </div>
-                                 <div className="bg-white p-4 rounded-2xl border border-indigo-50 flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><CheckCircle size={18}/></div>
+                                 <div className="bg-white p-3 rounded-2xl border border-indigo-50 flex items-center gap-3">
+                                    <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><CheckCircle size={18}/></div>
                                     <div>
                                        <p className="text-[9px] font-black text-slate-400 uppercase">Questions</p>
                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-tight">{data.content.questions?.length || 0} MCQ</p>
@@ -181,7 +181,7 @@ export function JobStageActionPage() {
                               </div>
 
                               {data.content.schedule && (
-                                <div className="p-6 bg-indigo-600 rounded-3xl text-white shadow-xl shadow-indigo-500/20">
+                                <div className="p-4 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-500/20">
                                    <p className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-70">Scheduled Test Time</p>
                                    <div className="flex items-center gap-6">
                                       <div>
@@ -209,7 +209,7 @@ export function JobStageActionPage() {
                         )}
 
                         {data.stage_type.startsWith('INTERVIEW') && data.content.schedule && (
-                          <div className="p-6 bg-indigo-600 rounded-3xl text-white shadow-xl shadow-indigo-500/20">
+                          <div className="p-4 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-500/20">
                              <p className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-70">Scheduled Interview</p>
                              <div className="flex items-center gap-6">
                                 <div>
@@ -256,12 +256,12 @@ export function JobStageActionPage() {
                         )}
                      </div>
 
-                     <div className="flex justify-end pt-4">
+                     <div className="flex justify-end pt-2">
                         {data.stage_type === 'TEST' ? (
                           <button 
                             disabled={data.content.schedule && new Date(data.content.schedule.scheduled_at).getTime() > new Date().getTime()}
                             onClick={startTest}
-                            className="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {data.content.schedule && new Date(data.content.schedule.scheduled_at).getTime() > new Date().getTime() 
                                ? `Starts at ${new Date(data.content.schedule.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` 
@@ -271,7 +271,7 @@ export function JobStageActionPage() {
                         ) : (
                           <button 
                             onClick={() => navigate("/applied-jobs")}
-                            className="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all"
+                            className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all"
                           >
                             Understood
                           </button>
@@ -282,18 +282,18 @@ export function JobStageActionPage() {
 
                {/* History Section */}
                {timeline?.history && timeline.history.length > 0 && (
-                  <div className="bg-white rounded-[40px] border border-slate-200 p-10 shadow-sm mt-8">
-                     <div className="flex items-center gap-3 mb-8">
+                  <div className="bg-white rounded-[28px] border border-slate-200 p-6 shadow-sm mt-5">
+                     <div className="flex items-center gap-3 mb-5">
                         <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
                            <History size={16} />
                         </div>
-                        <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight">Application Activity</h4>
+                        <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Application Activity</h4>
                      </div>
-                     <div className="space-y-6">
+                     <div className="space-y-4">
                         {timeline.history.map((item: any, i: number) => {
                            const stage = timeline.stages.find((s: any) => s.id === item.stage_id);
                            return (
-                              <div key={i} className="flex gap-6 relative">
+                              <div key={i} className="flex gap-4 relative">
                                  {i !== timeline.history.length - 1 && (
                                     <div className="absolute left-4 top-8 bottom-[-24px] w-0.5 bg-slate-100" />
                                  )}
@@ -304,16 +304,16 @@ export function JobStageActionPage() {
                                  }`}>
                                     {item.action === 'REJECTED' ? <AlertTriangle size={14} /> : <CheckCircle size={14} />}
                                  </div>
-                                 <div className="flex-1 pb-6 border-b border-slate-50 last:border-0 last:pb-0">
-                                    <div className="flex items-center justify-between mb-1">
-                                       <p className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                                 <div className="flex-1 min-w-0 pb-4 border-b border-slate-50 last:border-0 last:pb-0">
+                                    <div className="flex items-start justify-between gap-3 mb-1">
+                                       <p className="min-w-0 break-words text-sm font-black text-slate-800 uppercase tracking-tight">
                                           {item.action === 'REJECTED' ? 'Application Rejected' : (stage?.stage_name || item.action)}
                                        </p>
-                                       <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                       <span className="shrink-0 text-[10px] font-bold text-slate-400 uppercase">
                                           {new Date(item.created_at).toLocaleDateString()}
                                        </span>
                                     </div>
-                                    <p className="text-xs text-slate-500 leading-relaxed">{item.notes}</p>
+                                    <p className="text-xs text-slate-500 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.notes}</p>
                                  </div>
                               </div>
                            );

@@ -46,7 +46,7 @@ export function XPWallet() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto py-4 px-2 font-sans text-slate-850">
+    <div className="max-w-7xl mx-auto pt-0 pb-8 px-2 font-sans text-slate-850">
       <div className="w-full space-y-8">
         
         {/* Dynamic Header Block with Glowing Elements */}

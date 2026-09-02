@@ -150,7 +150,7 @@ export function CodingAnalyticsDashboard() {
   // Flow A: No profiles linked yet. Show the beautifully engineered setup & link page first.
   if (profiles.length === 0) {
     return (
-      <div className="min-h-screen bg-zinc-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
+      <div className="min-h-screen bg-zinc-50 pt-0 pb-12 px-4 sm:px-6 lg:px-8 font-sans">
         <div className="max-w-4xl mx-auto space-y-10">
           
           {/* Creative Display Header */}
@@ -388,7 +388,7 @@ export function CodingAnalyticsDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-20 pt-8 font-sans">
+    <div className="min-h-screen bg-zinc-50 pt-0 pb-20 font-sans">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         
         {/* Header Section */}

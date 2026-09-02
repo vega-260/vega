@@ -38,7 +38,7 @@ export function QuizHistoryPage() {
   if (loading) return <div className="p-12 text-center font-bold">Loading Engine Data...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12">
+    <div className="max-w-5xl mx-auto px-4 pt-0 pb-12">
       <div className="mb-10 flex items-center justify-between">
         <div>
            <div className="flex items-center gap-3 mb-2">

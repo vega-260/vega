@@ -195,13 +195,13 @@ export function AppliedJobsPage() {
   const selectedApp = filteredApps.find(a => a.id === selectedAppId) || filteredApps[0];
 
   return (
-    <div className="max-w-7xl mx-auto py-2 font-sans text-slate-800">
+    <div className="max-w-7xl mx-auto pt-0 pb-8 font-sans text-slate-800">
       <div className="w-full px-2">
         
         {/* Header - Only show if not in mobile detailed mode */}
         {(!showMobileDetail || !selectedApp) && (
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-             <div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center mb-10">
+             <div className="lg:col-span-4">
                 <div className="flex items-center gap-3">
                    <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 shrink-0">
                       <Briefcase size={22} className="text-white" />
@@ -212,7 +212,7 @@ export function AppliedJobsPage() {
                    </div>
                 </div>
              </div>
-             <div className="relative w-full md:w-80">
+             <div className="relative w-full lg:col-span-8">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input 
                    type="text" 
@@ -441,7 +441,7 @@ export function AppliedJobsPage() {
                                <span className="text-[10px] font-bold text-slate-500">Live Stage Updates</span>
                             </div>
 
-                            <HiringTimeline applicationId={selectedApp.id} />
+                            <HiringTimeline applicationId={selectedApp.id} compact />
 
                             <div className="mt-4 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
                                <p className="text-xs text-slate-500 font-medium">Keep your workspace items prepared. The average review takes roughly 48 hours.</p>

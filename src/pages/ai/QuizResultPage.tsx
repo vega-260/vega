@@ -33,7 +33,7 @@ export function QuizResultPage() {
   const isPass = quiz.percentage >= 60;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12">
+    <div className="max-w-5xl mx-auto px-4 pt-0 pb-12">
       
       {/* Header Score Card */}
       <div className={`rounded-3xl p-8 mb-12 shadow-2xl overflow-hidden relative ${isPass ? 'bg-gradient-to-br from-emerald-600 to-emerald-900 text-white' : 'bg-gradient-to-br from-amber-500 to-amber-700 text-white'}`}>

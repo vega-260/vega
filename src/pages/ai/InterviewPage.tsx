@@ -510,7 +510,7 @@ export function InterviewPage() {
   }, [messages, user?.id, navigate]);
 
   return (
-    <div className="max-w-6xl mx-auto py-2 font-sans text-slate-800">
+    <div className="max-w-6xl mx-auto pt-0 pb-8 font-sans text-slate-800">
       <AnimatePresence mode="wait">
       {isRefreshScreenActive ? (
         <motion.div 
