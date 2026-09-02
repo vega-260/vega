@@ -48,7 +48,9 @@ export function createApp() {
     next();
   }, express.static("uploads"));
 
-  if (!env.isProduction && !fs.existsSync("./uploads")) fs.mkdirSync("./uploads");
+  if (!fs.existsSync("./uploads")) {
+    fs.mkdirSync("./uploads", { recursive: true });
+  }
   registerApiRoutes(app);
   return app;
 }

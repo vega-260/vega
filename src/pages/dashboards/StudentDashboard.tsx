@@ -12,6 +12,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import { UserAvatar } from "../../components/common/UserAvatar.tsx";
 
 function AIMentorWidget({ profile, analytics, applications }: { profile: any, analytics: any, applications: any[] }) {
   const { t } = useLanguage();
@@ -383,6 +384,7 @@ function ActiveInterviewsBanner({ interviews }: { interviews: any[] }) {
 
 export function ProfileCompactCard({ profile }: { profile: any }) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const score = profile?.completeness_score || 0;
 
   // Compute status for each section based on the db schema criteria
@@ -468,13 +470,14 @@ export function ProfileCompactCard({ profile }: { profile: any }) {
          <div className="relative mb-2">
            <div className={`w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr ${score >= 100 ? 'from-emerald-400 to-teal-500' : 'from-indigo-500 via-purple-500 to-pink-500'} shadow-md relative z-10 overflow-hidden shrink-0`}>
              <div className="w-full h-full rounded-full bg-white p-[1.5px] overflow-hidden">
-               {profile?.profile_photo_url ? (
-                 <img src={profile.profile_photo_url.startsWith('http') ? profile.profile_photo_url : `${api.defaults.baseURL?.replace('/api', '')}${profile.profile_photo_url}`} referrerPolicy="no-referrer" className="w-full h-full object-cover rounded-full" />
-               ) : (
-                 <div className="w-full h-full rounded-full bg-indigo-50 flex items-center justify-center">
-                   <FileUser size={28} className="text-indigo-400" />
-                 </div>
-               )}
+               <UserAvatar 
+                 src={profile?.profile_photo_url}
+                 name={profile?.full_name}
+                 email={user?.email}
+                 alt={profile?.full_name || "Student Avatar"}
+                 className="w-full h-full"
+                 textClassName="text-base"
+               />
              </div>
            </div>
            

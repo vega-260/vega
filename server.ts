@@ -21,7 +21,14 @@ import { clearDependencyHealthCache } from "./server/health/dependencyHealth.ts"
 
 async function configureFrontend(app: ReturnType<typeof createApp>) {
   if (!env.isProduction) {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa", optimizeDeps: { force: true } });
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+      },
+      appType: "spa",
+    });
     app.use(vite.middlewares);
     return;
   }

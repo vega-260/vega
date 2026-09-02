@@ -4,16 +4,20 @@ import {
   LayoutDashboard, 
   Briefcase, 
   FileText, 
-  UserCircle,
+  FileEdit,
+  FileSearch,
+  Bot,
+  TrendingUp,
   Award,
   Sparkles,
   BrainCircuit,
+  HelpCircle,
   BarChart3,
   Code2,
   X,
   LogOut,
   ShieldCheck,
-  Users,
+  GraduationCap,
   ChevronLeft,
   ChevronRight,
   Gift,
@@ -23,6 +27,7 @@ import { useLanguage } from '../../context/LanguageContext.tsx';
 import { useSidebar } from '../../context/SidebarContext.tsx';
 import { useAuth } from '../../context/AuthContext.tsx';
 import api from '../../services/api.ts';
+import { UserAvatar } from '../common/UserAvatar.tsx';
 
 export function StudentSidebar() {
   const { t } = useLanguage();
@@ -88,23 +93,23 @@ export function StudentSidebar() {
     ...(profile?.college_id ? [{
       title: 'Campus Portal',
       items: [
-        { to: '/student/college', icon: Users, label: 'My College Hub' },
+        { to: '/student/college', icon: GraduationCap, label: 'My College Hub' },
       ]
     }] : []),
     {
       title: 'Preparation',
       items: [
-        { to: '/resume-builder', icon: UserCircle, label: t('resume_nav') },
-        { to: '/resume-analysis', icon: Sparkles, label: 'Resume Analysis' },
-        { to: '/interview', icon: Sparkles, label: t('ai_mock') },
-        { to: '/career-gap', icon: Sparkles, label: 'AI Gap Analyzer™' },
+        { to: '/resume-builder', icon: FileEdit, label: t('resume_nav') },
+        { to: '/resume-analysis', icon: FileSearch, label: 'Resume Analysis' },
+        { to: '/interview', icon: Bot, label: t('ai_mock') },
+        { to: '/career-gap', icon: TrendingUp, label: 'AI Gap Analyzer™' },
         { to: '/student/mock-history', icon: BarChart3, label: t('performance_archives') },
       ]
     },
     {
       title: 'Assessments',
       items: [
-        { to: '/ai-quiz', icon: BrainCircuit, label: t('ai_quiz') },
+        { to: '/ai-quiz', icon: HelpCircle, label: t('ai_quiz') },
         { to: '/student/intelligence', icon: BrainCircuit, label: 'Intelligence Test' },
         { to: '/coding-analytics', icon: Code2, label: 'Coding Analytics' },
       ]
@@ -117,11 +122,6 @@ export function StudentSidebar() {
       ]
     }
   ];
-
-  // Resolve profile photo from backend database or fallback
-  const profilePhoto = profile?.profile_photo_url 
-    ? (profile.profile_photo_url.startsWith('http') ? profile.profile_photo_url : `${api.defaults.baseURL?.replace('/api', '')}${profile.profile_photo_url}`)
-    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`;
 
   // XP level calculations helper
   const currentXP = xpBalance;
@@ -167,11 +167,13 @@ export function StudentSidebar() {
             <div className="relative group/avatar cursor-pointer">
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 p-[1.5px] transition-transform duration-300 group-hover/avatar:scale-105 shadow-[0_0_12px_rgba(99,102,241,0.2)]">
                 <div className="w-full h-full rounded-[7px] overflow-hidden bg-slate-950">
-                  <img 
-                    src={profilePhoto} 
-                    alt="Profile" 
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
+                  <UserAvatar 
+                    src={profile?.profile_photo_url} 
+                    name={profile?.full_name}
+                    email={user?.email}
+                    alt={profile?.full_name || "Profile"}
+                    className="w-full h-full"
+                    shape="rounded"
                   />
                 </div>
               </div>
@@ -210,11 +212,13 @@ export function StudentSidebar() {
                 <div className="relative">
                   <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-[1.5px] shadow-[0_0_12px_rgba(99,102,241,0.15)]">
                     <div className="w-full h-full rounded-[10px] overflow-hidden bg-slate-950">
-                      <img 
-                        src={profilePhoto} 
-                        alt="Profile" 
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
+                      <UserAvatar 
+                        src={profile?.profile_photo_url} 
+                        name={profile?.full_name}
+                        email={user?.email}
+                        alt={profile?.full_name || "Profile"}
+                        className="w-full h-full"
+                        shape="rounded-lg"
                       />
                     </div>
                   </div>

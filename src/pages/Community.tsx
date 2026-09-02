@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../services/api.ts";
 import { useAuth } from "../context/AuthContext.tsx";
+import { UserAvatar } from "../components/common/UserAvatar.tsx";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -844,14 +845,13 @@ export function Community() {
 
                       {/* LinkedIn Header: Avatar + Info */}
                       <div className="flex items-start gap-3 mb-4 pr-16">
-                        <div className="w-11 h-11 rounded-full bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0">
-                          <img 
-                            src={post.student_photo || post.creatorPhoto || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${post.creatorName || 'user'}`} 
-                            alt="Contributor Profile" 
-                            referrerPolicy="no-referrer" 
-                            className="w-full h-full object-cover" 
-                          />
-                        </div>
+                        <UserAvatar 
+                          src={post.student_photo || post.creatorPhoto} 
+                          name={post.creatorName}
+                          alt="Contributor Profile" 
+                          className="w-11 h-11 border border-slate-800 shrink-0"
+                          textClassName="text-sm font-bold"
+                        />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                             <span className="font-extrabold text-sm text-slate-100 hover:text-blue-400 transition-colors cursor-pointer">{post.creatorName}</span>
@@ -1089,9 +1089,13 @@ export function Community() {
                                 commentsByPost[post.id].map((comm: any) => (
                                   <div key={comm.id} className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-850 space-y-1">
                                     <div className="flex items-center gap-2">
-                                      <div className="w-5 h-5 rounded-full overflow-hidden border border-slate-700">
-                                        <img src={comm.authorPhoto || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${comm.authorName || 'user_comment'}`} referrerPolicy="no-referrer" alt="Author avatar" />
-                                      </div>
+                                      <UserAvatar 
+                                        src={comm.authorPhoto} 
+                                        name={comm.authorName}
+                                        alt="Author avatar" 
+                                        className="w-5 h-5 border border-slate-700 shrink-0"
+                                        textClassName="text-[8px]"
+                                      />
                                       <span className="text-[10px] font-extrabold text-slate-200">{comm.authorName}</span>
                                       <span className="text-[9px] font-bold text-slate-500">{new Date(comm.created_at).toLocaleDateString()}</span>
                                     </div>

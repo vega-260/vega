@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import api from "../../../services/api.ts";
-import { AlertCircle, CheckCircle, Pencil, X } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2, Pencil, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 // Shared profile types and UI primitives extracted from the route page.
@@ -140,13 +140,14 @@ export const SectionCard = ({
   </div>
 );
 
-export const EditModal = ({ title, isOpen, onClose, onSave, children, isSaveDisabled }: { 
+export const EditModal = ({ title, isOpen, onClose, onSave, children, isSaveDisabled, isSaving }: { 
   title: string, 
   isOpen: boolean, 
   onClose: () => void, 
   onSave: () => void,
   children: React.ReactNode,
-  isSaveDisabled?: boolean
+  isSaveDisabled?: boolean,
+  isSaving?: boolean,
 }) => (
   <AnimatePresence>
     {isOpen && (
@@ -155,7 +156,9 @@ export const EditModal = ({ title, isOpen, onClose, onSave, children, isSaveDisa
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={() => {
+            if (!isSaving) onClose();
+          }}
           className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
         />
         <motion.div 
@@ -166,24 +169,50 @@ export const EditModal = ({ title, isOpen, onClose, onSave, children, isSaveDisa
         >
           <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">{title}</h2>
-            <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600"><X size={24} /></button>
+            <button 
+              onClick={() => {
+                if (!isSaving) onClose();
+              }} 
+              disabled={isSaving}
+              className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <X size={24} />
+            </button>
           </div>
           <div className="p-10 max-h-[70vh] overflow-y-auto">
             {children}
           </div>
           <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50/50">
             <button 
-              onClick={onClose}
-              className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+              onClick={() => {
+                if (!isSaving) onClose();
+              }}
+              disabled={isSaving}
+              className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button 
-              onClick={onSave}
-              disabled={isSaveDisabled}
-              className={`flex-1 py-4 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all ${isSaveDisabled ? 'bg-slate-300 shadow-none cursor-not-allowed text-slate-500' : 'bg-blue-600 shadow-blue-500/20 hover:bg-blue-700'}`}
+              onClick={() => {
+                if (!isSaving && !isSaveDisabled) {
+                  onSave();
+                }
+              }}
+              disabled={isSaveDisabled || isSaving}
+              className={`flex-1 py-4 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${
+                isSaveDisabled || isSaving 
+                  ? 'bg-slate-300 shadow-none cursor-not-allowed text-slate-500' 
+                  : 'bg-blue-600 shadow-blue-500/20 hover:bg-blue-700'
+              }`}
             >
-              Save Changes
+              {isSaving ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </button>
           </div>
         </motion.div>

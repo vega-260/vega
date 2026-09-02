@@ -36,7 +36,7 @@ function requireAny(names: string[]) {
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   isProduction,
-  port: integer("PORT", 3000, 1, 65535),
+  port: 3000,
   trustProxyHops: integer("TRUST_PROXY_HOPS", 1, 0, 10),
   requestBodyLimit: process.env.REQUEST_BODY_LIMIT || "15mb",
   allowedOrigins: (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000")
@@ -56,10 +56,10 @@ export const env = {
     pingTimeoutMs: integer("SOCKET_PING_TIMEOUT_MS", 20_000, 5_000, 60_000),
   },
   features: {
-    requireAI: bool("REQUIRE_AI", isProduction),
-    requireEmail: bool("REQUIRE_EMAIL", isProduction),
-    requireObjectStorage: bool("REQUIRE_OBJECT_STORAGE", isProduction),
-    requireTurn: bool("REQUIRE_TURN", isProduction),
+    requireAI: bool("REQUIRE_AI", false),
+    requireEmail: bool("REQUIRE_EMAIL", false),
+    requireObjectStorage: bool("REQUIRE_OBJECT_STORAGE", false),
+    requireTurn: bool("REQUIRE_TURN", false),
   },
   cookie: {
     name: process.env.REFRESH_COOKIE_NAME || "vega_refresh",

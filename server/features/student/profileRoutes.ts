@@ -139,7 +139,107 @@ router.put("/profile/:userId/section/:section", authenticate, authorize(["STUDEN
     if (profiles.length === 0) return res.status(404).json({ success: false, message: "Profile not found" });
     const studentId = profiles[0].id;
 
-const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
+    const parseDate = (d: any): string | null => {
+      if (!d) return null;
+      const s = String(d).trim();
+      if (!s || s === 'null' || s === 'undefined' || s === 'Invalid Date') return null;
+
+      // If already YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+      // If MM/DD/YYYY or DD/MM/YYYY or MM-DD-YYYY
+      const parts = s.split(/[\/\-]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) { // YYYY/MM/DD
+          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        }
+        if (parts[2].length === 4) { // MM/DD/YYYY or DD/MM/YYYY
+          const year = parts[2];
+          const p1 = parseInt(parts[0], 10);
+          const p2 = parseInt(parts[1], 10);
+          if (p1 > 12) { // DD/MM/YYYY
+            return `${year}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+          } else { // MM/DD/YYYY
+            return `${year}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+          }
+        }
+      }
+
+      try {
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString().split('T')[0];
+        }
+      } catch {
+        // fallback
+      }
+
+      return s.split('T')[0] || null;
+    };
+
+    const isValidUrl = (urlString?: string | null): boolean => {
+      if (!urlString) return true;
+      const trimmed = String(urlString).trim();
+      if (!trimmed) return true;
+      if (/\s/.test(trimmed)) return false;
+      const urlPattern = /^(https?:\/\/)?((([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)\.)+[a-zA-Z]{2,}|localhost)(:\d+)?(\/[^\s]*)?$/i;
+      if (!urlPattern.test(trimmed)) return false;
+      try {
+        const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+        const parsed = new URL(withProtocol);
+        return (parsed.protocol === "http:" || parsed.protocol === "https:") && Boolean(parsed.hostname);
+      } catch {
+        return false;
+      }
+    };
+
+    const isValidGrade = (gradeStr?: string | null): boolean => {
+      if (!gradeStr) return true;
+      const trimmed = String(gradeStr).trim();
+      if (!trimmed) return true;
+
+      // Reject URLs or web addresses
+      if (
+        trimmed.includes("://") ||
+        /^https?:\/\//i.test(trimmed) ||
+        /www\./i.test(trimmed) ||
+        /\.(com|org|net|edu|gov|io|co|in|app|dev|me|ai|tech|online|site)(\/|$|\?)/i.test(trimmed)
+      ) {
+        return false;
+      }
+
+      if (trimmed.length > 50) return false;
+
+      // Letter grades
+      const letterGradeRegex = /^(?:grade\s*[:\-]?\s*)?(A\+{1,2}|A\*|A\-|A|B\+|B\-|B|C\+|C\-|C|D\+|D\-|D|E|F|O|S)$/i;
+      if (letterGradeRegex.test(trimmed)) return true;
+
+      // Academic classifications
+      const standingRegex = /^(?:grade\s*[:\-]?\s*)?(first class with distinction|first class with honours|first class|second class|third class|distinction|first division|second division|third division|pass class|pass|passed|merit|honours|honors|satisfactory|outstanding|excellent|very good|good)$/i;
+      if (standingRegex.test(trimmed)) return true;
+
+      // Percentage
+      const percentageRegex = /^(?:(?:percentage|score|marks)\s*[:\-]?\s*)?(100(?:\.0{1,2})?|[0-9]{1,2}(?:\.[0-9]{1,2})?)\s*%(?:age)?$/i;
+      if (percentageRegex.test(trimmed)) return true;
+
+      // Fraction / scale
+      const fractionMatch = trimmed.match(/^(?:(?:cgpa|gpa|grade|score|marks)\s*[:\-]?\s*)?(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)(?:\s*(?:cgpa|gpa|marks|%))?$/i);
+      if (fractionMatch) {
+        const score = parseFloat(fractionMatch[1]);
+        const total = parseFloat(fractionMatch[2]);
+        if (!isNaN(score) && !isNaN(total) && total > 0 && score <= total && score >= 0) return true;
+        return false;
+      }
+
+      // Numeric GPA / CGPA / Score (0 to 100)
+      const numericMatch = trimmed.match(/^(?:(cgpa|gpa|grade|score|marks|percentage)\s*[:\-]?\s*)?(\d+(?:\.\d+)?)(?:\s*(cgpa|gpa|marks|%|percent))?$/i);
+      if (numericMatch) {
+        const num = parseFloat(numericMatch[2]);
+        if (!isNaN(num) && num >= 0 && num <= 100) return true;
+      }
+
+      return false;
+    };
 
     if (section === 'personal') {
       const dob = parseDate(data.dob);
@@ -217,6 +317,17 @@ const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
       await db.query(`UPDATE student_profiles SET resume_url = ? WHERE id = ?`, [data.resumeUrl, studentId]);
     }
     else if (section === 'education') {
+      if (Array.isArray(data.education)) {
+        for (const edu of data.education) {
+          if (edu.grade && String(edu.grade).trim() && !isValidGrade(edu.grade)) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Invalid Grade format for "${edu.degree || 'Education'}". Please enter a valid grade, percentage, or CGPA (e.g. 9.8 CGPA, 92%, or A+).` 
+            });
+          }
+        }
+      }
+
       // Transactional replace for simplicity in this dev environment
       await db.query("DELETE FROM student_education WHERE student_id = ?", [studentId]);
       let matchedCollegeId = null;
@@ -232,7 +343,7 @@ const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
           await db.query(`
             INSERT INTO student_education (student_id, institution, degree, field_of_study, start_date, end_date, grade, description)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `, [studentId, edu.institution, edu.degree, edu.field_of_study, startDate, endDate, edu.grade, edu.description || ""]);
+          `, [studentId, String(edu.institution || '').trim(), String(edu.degree || '').trim(), edu.field_of_study ? String(edu.field_of_study).trim() : "", startDate, endDate, edu.grade ? String(edu.grade).trim() : "", edu.description ? String(edu.description).trim() : ""]);
 
           if (!primaryEdu) {
             primaryEdu = edu;
@@ -240,8 +351,12 @@ const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
         }
 
         // Try dynamically matching institutional names with colleges registered in college_master
-        if (primaryEdu) {
-          const instName = primaryEdu.institution.trim().toLowerCase();
+        const degreeOrHigherEdu = data.education.find((e: any) => 
+          e.degree && !["High School", "10th", "SSC", "Metric", "Matriculation"].includes(e.degree) && e.institution
+        ) || primaryEdu;
+
+        if (degreeOrHigherEdu && degreeOrHigherEdu.institution) {
+          const instName = String(degreeOrHigherEdu.institution).trim().toLowerCase();
           const [collegesList]: any = await db.query("SELECT id, college_name FROM college_master WHERE status = 'ACTIVE'");
           
           const matched = collegesList.find((c: any) => {
@@ -257,7 +372,11 @@ const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
         }
       }
 
-      const eduJson = primaryEdu ? { department: primaryEdu.field_of_study || 'General', year: 'Final Year' } : null;
+      const collegeEduForJson = data.education?.find((e: any) => 
+        e.degree && !["High School", "10th", "SSC", "Metric", "Matriculation"].includes(e.degree)
+      ) || primaryEdu;
+
+      const eduJson = collegeEduForJson ? { department: collegeEduForJson.field_of_study || 'General', year: 'Final Year' } : null;
       if (matchedCollegeId) {
         await db.query(
           "UPDATE student_profiles SET college_id = ?, education_json = ? WHERE id = ?",
@@ -265,7 +384,7 @@ const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
         );
       } else {
         await db.query(
-          "UPDATE student_profiles SET college_id = NULL, education_json = ? WHERE id = ?",
+          "UPDATE student_profiles SET education_json = ? WHERE id = ?",
           [eduJson ? JSON.stringify(eduJson) : null, studentId]
         );
       }
@@ -273,56 +392,86 @@ const parseDate = (d: any) => d ? String(d).split('T')[0] : null;
     else if (section === 'projects') {
       await db.query("DELETE FROM student_projects WHERE student_id = ?", [studentId]);
       if (Array.isArray(data.projects)) {
+        const seen = new Set<string>();
         for (const proj of data.projects) {
-          if (!proj.title) continue;
+          if (!proj.title?.trim()) continue;
+          const dedupKey = `${proj.title.trim().toLowerCase()}||${proj.link?.trim() || ''}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+
           await db.query(`
             INSERT INTO student_projects (student_id, title, description, tech_stack, link, github_link)
             VALUES (?, ?, ?, ?, ?, ?)
-          `, [studentId, proj.title, proj.description || "", proj.techStack || "", proj.link || "", proj.githubLink || ""]);
+          `, [studentId, proj.title.trim(), proj.description?.trim() || "", proj.techStack?.trim() || "", proj.link?.trim() || "", proj.githubLink?.trim() || ""]);
         }
       }
     }
     else if (section === 'experience') {
       await db.query("DELETE FROM student_experience WHERE student_id = ?", [studentId]);
       if (Array.isArray(data.experience)) {
+        const seen = new Set<string>();
         for (const exp of data.experience) {
-          if (!exp.company || !exp.role) continue;
+          if (!exp.company?.trim() || !exp.role?.trim()) continue;
           
           const startDate = parseDate(exp.start_date);
           const endDate = parseDate(exp.end_date);
+          const dedupKey = `${exp.company.trim().toLowerCase()}||${exp.role.trim().toLowerCase()}||${startDate || ''}||${endDate || ''}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+
           await db.query(`
             INSERT INTO student_experience (student_id, company, role, location, start_date, end_date, is_current, description)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `, [studentId, exp.company, exp.role, exp.location || "", startDate, endDate, exp.isCurrent ? 1 : 0, exp.description || ""]);
+          `, [studentId, exp.company.trim(), exp.role.trim(), exp.location?.trim() || "", startDate, endDate, exp.isCurrent ? 1 : 0, exp.description?.trim() || ""]);
         }
       }
     }
     else if (section === 'certifications') {
-      await db.query("DELETE FROM student_certifications WHERE student_id = ?", [studentId]);
       if (Array.isArray(data.certifications)) {
         for (const cert of data.certifications) {
-          if (!cert.name || !cert.issuingOrganization) continue;
+          if (cert.credentialUrl && cert.credentialUrl.trim() && !isValidUrl(cert.credentialUrl)) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Invalid Credential URL format for "${cert.name || 'Certification'}". Please enter a valid URL (e.g., https://example.com/certificate/123).` 
+            });
+          }
+        }
+      }
+      await db.query("DELETE FROM student_certifications WHERE student_id = ?", [studentId]);
+      if (Array.isArray(data.certifications)) {
+        const seen = new Set<string>();
+        for (const cert of data.certifications) {
+          if (!cert.name?.trim() || !cert.issuingOrganization?.trim()) continue;
           
           const issueDate = parseDate(cert.issueDate);
           const expiryDate = parseDate(cert.expiryDate);
+          const dedupKey = `${cert.name.trim().toLowerCase()}||${cert.issuingOrganization.trim().toLowerCase()}||${issueDate || ''}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+
           await db.query(`
             INSERT INTO student_certifications (student_id, name, issuing_organization, issue_date, expiry_date, credential_id, credential_url)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `, [studentId, cert.name, cert.issuingOrganization, issueDate, expiryDate, cert.credentialId || "", cert.credentialUrl || ""]);
+          `, [studentId, cert.name.trim(), cert.issuingOrganization.trim(), issueDate, expiryDate, cert.credentialId?.trim() || "", cert.credentialUrl ? cert.credentialUrl.trim() : ""]);
         }
       }
     }
     else if (section === 'extracurricular') {
       await db.query("DELETE FROM extracurricular_activities WHERE user_id = ?", [userId]);
       if (Array.isArray(data.extracurriculars)) {
+        const seen = new Set<string>();
         for (const act of data.extracurriculars) {
-          if (!act.title || !act.category) continue;
+          if (!act.title?.trim() || !act.category?.trim()) continue;
           
           const activityDate = parseDate(act.activity_date);
+          const dedupKey = `${act.category.trim().toLowerCase()}||${act.title.trim().toLowerCase()}||${activityDate || ''}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+
           await db.query(`
             INSERT INTO extracurricular_activities (user_id, category, title, description, organization_name, participation_level, achievement_rank, activity_date, certificate_url)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [userId, act.category, act.title, act.description || "", act.organization_name || "", act.participation_level || "Member", act.achievement_rank || "", activityDate, act.certificate_url || ""]);
+          `, [userId, act.category.trim(), act.title.trim(), act.description?.trim() || "", act.organization_name?.trim() || "", act.participation_level?.trim() || "Member", act.achievement_rank?.trim() || "", activityDate, act.certificate_url?.trim() || ""]);
         }
       }
     }

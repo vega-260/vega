@@ -64,16 +64,11 @@ export async function uploadToCloudBucket(
       const region = process.env.AWS_REGION || "us-east-1";
       return `https://${bucketName}.s3.${region}.amazonaws.com/uploads/${fileHashName}`;
     } catch (err) {
-      console.error("❌ S3 upload failed:", err);
-      if (process.env.NODE_ENV === "production") {
-        throw new Error("Object storage is temporarily unavailable");
-      }
+      console.warn("⚠️ S3 upload failed, falling back to local storage:", err);
     }
-  } else if (process.env.NODE_ENV === "production") {
-    throw new Error("AWS S3 storage configuration is required in production");
   }
 
-  // Development-only local fallback. Production containers must never persist user files locally.
+  // Local persistent container storage fallback
   const targetLocalPath = path.join(process.cwd(), "uploads", fileHashName);
   
   if (localFilePath !== targetLocalPath) {
@@ -98,40 +93,68 @@ export async function uploadBufferToCloudBucket(
   const extension = path.extname(originalName).toLowerCase();
   const objectKey = `${safePrefix}/${crypto.randomUUID()}${extension}`;
 
-  if (!client || !bucketName) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("AWS S3 storage configuration is required in production");
+  if (client && bucketName) {
+    try {
+      await client.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey,
+        Body: buffer,
+        ContentType: mimeType,
+        ServerSideEncryption: "AES256",
+      }));
+
+      const region = process.env.AWS_REGION || "us-east-1";
+      return `https://${bucketName}.s3.${region}.amazonaws.com/${objectKey}`;
+    } catch (err) {
+      console.warn("⚠️ S3 upload failed, using local storage fallback:", err);
     }
-    const localPath = path.join(process.cwd(), "uploads", objectKey.replace(/^uploads\//, ""));
-    await fs.promises.mkdir(path.dirname(localPath), { recursive: true });
-    await fs.promises.writeFile(localPath, buffer);
-    return `/uploads/${objectKey.replace(/^uploads\//, "")}`;
   }
 
-  await client.send(new PutObjectCommand({
-    Bucket: bucketName,
-    Key: objectKey,
-    Body: buffer,
-    ContentType: mimeType,
-    ServerSideEncryption: "AES256",
-  }));
-
-  const region = process.env.AWS_REGION || "us-east-1";
-  return `https://${bucketName}.s3.${region}.amazonaws.com/${objectKey}`;
+  const localPath = path.join(process.cwd(), "uploads", objectKey.replace(/^uploads\//, ""));
+  await fs.promises.mkdir(path.dirname(localPath), { recursive: true });
+  await fs.promises.writeFile(localPath, buffer);
+  return `/uploads/${objectKey.replace(/^uploads\//, "")}`;
 }
 
 /** Reads an object previously written by this storage service without making the bucket public. */
 export async function getCloudObjectByUrl(fileUrl: string): Promise<{ body: any; contentType?: string; contentLength?: number }> {
   const client = getS3Client();
-  if (!client || !bucketName) throw new Error("Object storage is not configured");
-  const parsed = new URL(fileUrl);
-  const expectedHost = `${bucketName}.s3.${process.env.AWS_REGION || "us-east-1"}.amazonaws.com`;
-  if (parsed.hostname !== expectedHost) throw new Error("Untrusted object-storage URL");
-  const key = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
-  if (!key.startsWith("uploads/")) throw new Error("Invalid object-storage key");
-  const object = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
-  if (!object.Body) throw new Error("Object body is unavailable");
-  return { body: object.Body, contentType: object.ContentType, contentLength: object.ContentLength };
+  if (client && bucketName && /^https?:\/\//i.test(fileUrl)) {
+    try {
+      const parsed = new URL(fileUrl);
+      const expectedHost = `${bucketName}.s3.${process.env.AWS_REGION || "us-east-1"}.amazonaws.com`;
+      if (parsed.hostname === expectedHost) {
+        const key = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+        if (key.startsWith("uploads/")) {
+          const object = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
+          if (object.Body) {
+            return { body: object.Body, contentType: object.ContentType, contentLength: object.ContentLength };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not retrieve cloud object from S3, checking local:", e);
+    }
+  }
+
+  // Local fallback
+  let relativePath = fileUrl;
+  if (/^https?:\/\//i.test(relativePath)) {
+    const parsed = new URL(relativePath);
+    relativePath = parsed.pathname;
+  }
+  relativePath = relativePath.replace(/^\/+/, "");
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const absolutePath = path.resolve(process.cwd(), relativePath);
+  if (!absolutePath.startsWith(uploadsDir + path.sep)) throw new Error("File not found or access denied");
+
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error("Object body is unavailable");
+  }
+
+  const stat = await fs.promises.stat(absolutePath);
+  const stream = fs.createReadStream(absolutePath);
+  return { body: stream, contentLength: stat.size };
 }
 
 

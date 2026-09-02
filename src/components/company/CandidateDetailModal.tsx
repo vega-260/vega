@@ -13,6 +13,7 @@ import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, 
   ResponsiveContainer
 } from 'recharts';
+import { UserAvatar } from '../common/UserAvatar.tsx';
 
 interface CandidateDetailModalProps {
   candidate: any;
@@ -85,13 +86,15 @@ export function CandidateDetailModal({ candidate, onClose }: CandidateDetailModa
            <div className="flex justify-between items-start">
               <div className="flex items-center gap-6">
                  <div className="w-20 h-20 rounded-3xl bg-white border border-slate-200 p-1 shadow-xl relative overflow-hidden group">
-                    {candidate.profile_photo_url ? (
-                      <img src={candidate.profile_photo_url} className="w-full h-full object-cover rounded-2xl group-hover:scale-110 transition-transform" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-3xl font-black text-blue-600 bg-blue-50 rounded-2xl">
-                         {candidate.full_name?.[0]}
-                      </div>
-                    )}
+                    <UserAvatar 
+                      src={candidate.profile_photo_url}
+                      name={candidate.full_name}
+                      email={candidate.email}
+                      alt={candidate.full_name}
+                      className="w-full h-full group-hover:scale-110 transition-transform"
+                      shape="rounded-2xl"
+                      textClassName="text-2xl"
+                    />
                  </div>
                  <div>
                     <div className="flex items-center gap-3 mb-1">

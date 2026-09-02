@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldAlert, Award, Mail, History } from 'lucide-react';
+import { UserAvatar } from '../common/UserAvatar.tsx';
 
 interface CandidateTableProps {
   applicants: any[];
@@ -80,15 +81,17 @@ export function CandidateTable({ applicants, onViewCandidate, onOpenHistory }: C
                   {/* Candidate Profile */}
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-lg overflow-hidden border-2 shadow-sm group-hover:scale-110 transition-transform ${
-                        violationCount > 0 ? 'border-red-200' : 'border-slate-50'
-                      }`}>
-                        {app.profile_photo_url ? (
-                          <img src={app.profile_photo_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          app.full_name?.[0]?.toUpperCase() || 'C'
-                        )}
-                      </div>
+                      <UserAvatar
+                        src={app.profile_photo_url}
+                        name={app.full_name}
+                        email={app.email}
+                        alt={app.full_name || 'Candidate'}
+                        className={`w-12 h-12 border-2 shadow-sm group-hover:scale-110 transition-transform ${
+                          violationCount > 0 ? 'border-red-200' : 'border-slate-50'
+                        }`}
+                        shape="rounded-2xl"
+                        textClassName="text-base"
+                      />
                       <div>
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{app.full_name}</p>

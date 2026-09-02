@@ -4,6 +4,8 @@ import api from "../services/api.ts";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ConsentModal } from "../components/ConsentModal.tsx";
+import { UserAvatar } from "../components/common/UserAvatar.tsx";
+import { isValidUrl, isValidGrade } from "../utils/validation.ts";
 import { 
   User, Mail, Phone, MapPin, Calendar, 
   Briefcase, GraduationCap, Award, FileText, 
@@ -37,6 +39,7 @@ export function StudentProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [consentOpen, setConsentOpen] = useState(localStorage.getItem("consent_profile") !== "true");
 
@@ -116,6 +119,34 @@ export function StudentProfile() {
     }
   };
 
+  const formatDateForInput = (d: any): string => {
+    if (!d) return "";
+    const s = String(d).trim();
+    if (!s || s === 'null' || s === 'undefined' || s === 'Invalid Date') return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if (s.includes('T')) return s.split('T')[0];
+    const parts = s.split(/[\/\-]/);
+    if (parts.length === 3) {
+      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      if (parts[2].length === 4) {
+        const year = parts[2];
+        const p1 = parseInt(parts[0], 10);
+        const p2 = parseInt(parts[1], 10);
+        if (p1 > 12) return `${year}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+        return `${year}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+      }
+    }
+    try {
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+      }
+    } catch {
+      // fallback
+    }
+    return "";
+  };
+
   const handleEdit = (section: string) => {
     let initialData = {};
     const p = profile || {};
@@ -127,7 +158,7 @@ export function StudentProfile() {
         contact: p.contact || "",
         location: p.location || "",
         address: p.address || "",
-        dob: p.dob || "",
+        dob: p.dob ? formatDateForInput(p.dob) : "",
         gender: p.gender || "",
         profilePhotoUrl: p.profile_photo_url || "",
         country: p.country || ""
@@ -159,24 +190,24 @@ export function StudentProfile() {
       const degree = eduList.find((e: any) => e.degree && !isHighSchool(e.degree) && !isInter(e.degree) && !isDiploma(e.degree)) || {};
 
       setSchoolInst(school.institution || "");
-      setSchoolStart(school.start_date ? school.start_date.split('T')[0] : "");
-      setSchoolEnd(school.end_date ? school.end_date.split('T')[0] : "");
+      setSchoolStart(formatDateForInput(school.start_date));
+      setSchoolEnd(formatDateForInput(school.end_date));
       setSchoolGrade(school.grade || "");
 
       const hasInt = eduList.some((e: any) => isInter(e.degree));
       setHasInter(hasInt);
       setInterInst(inter.institution || "");
       setInterStream(inter.field_of_study || "");
-      setInterStart(inter.start_date ? inter.start_date.split('T')[0] : "");
-      setInterEnd(inter.end_date ? inter.end_date.split('T')[0] : "");
+      setInterStart(formatDateForInput(inter.start_date));
+      setInterEnd(formatDateForInput(inter.end_date));
       setInterGrade(inter.grade || "");
 
       const hasDipl = eduList.some((e: any) => isDiploma(e.degree));
       setHasDiploma(hasDipl);
       setDiplInst(diploma.institution || "");
       setDiplBranch(diploma.field_of_study || "");
-      setDiplStart(diploma.start_date ? diploma.start_date.split('T')[0] : "");
-      setDiplEnd(diploma.end_date ? diploma.end_date.split('T')[0] : "");
+      setDiplStart(formatDateForInput(diploma.start_date));
+      setDiplEnd(formatDateForInput(diploma.end_date));
       setDiplGrade(diploma.grade || "");
 
       const hasDeg = eduList.some((e: any) => e.degree && !isHighSchool(e.degree) && !isInter(e.degree) && !isDiploma(e.degree));
@@ -184,8 +215,8 @@ export function StudentProfile() {
       setDegreeInst(degree.institution || "");
       setDegreeName(degree.degree || "B.Tech");
       setDegreeBranch(degree.field_of_study || "");
-      setDegreeStart(degree.start_date ? degree.start_date.split('T')[0] : "");
-      setDegreeEnd(degree.end_date ? degree.end_date.split('T')[0] : "");
+      setDegreeStart(formatDateForInput(degree.start_date));
+      setDegreeEnd(formatDateForInput(degree.end_date));
       setDegreeGrade(degree.grade || "");
     } else if (section === 'projects') {
       initialData = { projects: p.projects || [] };
@@ -228,6 +259,8 @@ export function StudentProfile() {
   };
 
   const saveSection = async () => {
+    if (isSaving) return;
+
     if (activeModal === 'personal') {
       if (!editData.fullName?.trim()) return toast.error("Full Name is required");
       if (!editData.contact?.trim()) return toast.error("Contact Number is required");
@@ -256,6 +289,9 @@ export function StudentProfile() {
       if (new Date(schoolStart) > new Date(schoolEnd)) {
         return toast.error("High School end date cannot be before start date");
       }
+      if (schoolGrade && schoolGrade.trim() && !isValidGrade(schoolGrade)) {
+        return toast.error("Please enter a valid Grade/Percentage/CGPA for High School (e.g. 9.8 CGPA, 92%, or A+). URLs and invalid text are not accepted.");
+      }
 
       if (hasInter) {
         if (!interInst.trim()) return toast.error("College/School name is required for Intermediate");
@@ -264,6 +300,9 @@ export function StudentProfile() {
         if (!interEnd) return toast.error("End Date is required for Intermediate");
         if (new Date(interStart) > new Date(interEnd)) {
           return toast.error("Intermediate end date cannot be before start date");
+        }
+        if (interGrade && interGrade.trim() && !isValidGrade(interGrade)) {
+          return toast.error("Please enter a valid Grade/Percentage for Intermediate (e.g. 88% or 8.8 CGPA). URLs and invalid text are not accepted.");
         }
       }
 
@@ -275,6 +314,9 @@ export function StudentProfile() {
         if (new Date(diplStart) > new Date(diplEnd)) {
           return toast.error("Diploma end date cannot be before start date");
         }
+        if (diplGrade && diplGrade.trim() && !isValidGrade(diplGrade)) {
+          return toast.error("Please enter a valid Grade/Percentage for Diploma (e.g. 9.1 CGPA or 85%). URLs and invalid text are not accepted.");
+        }
       }
 
       if (hasDegree) {
@@ -285,6 +327,9 @@ export function StudentProfile() {
         if (!degreeEnd) return toast.error("End Date is required for Degree");
         if (new Date(degreeStart) > new Date(degreeEnd)) {
           return toast.error("Degree end date cannot be before start date");
+        }
+        if (degreeGrade && degreeGrade.trim() && !isValidGrade(degreeGrade)) {
+          return toast.error("Please enter a valid Grade/Percentage/CGPA for Degree (e.g. 9.15 CGPA or 87%). URLs and invalid text are not accepted.");
         }
       }
 
@@ -333,12 +378,18 @@ export function StudentProfile() {
 
       editData.education = builtList;
     } else if (activeModal === 'projects') {
-      for (const proj of editData.projects) {
+      for (const proj of (editData.projects || [])) {
         if (!proj.title?.trim()) return toast.error("Project Title is required for all entries");
         if (!proj.description?.trim()) return toast.error("Project Description is required for all entries");
+        if (proj.link && proj.link.trim() && !isValidUrl(proj.link)) {
+          return toast.error("Please enter a valid Live / Demo Link URL");
+        }
+        if (proj.githubLink && proj.githubLink.trim() && !isValidUrl(proj.githubLink)) {
+          return toast.error("Please enter a valid GitHub Link URL");
+        }
       }
     } else if (activeModal === 'experience') {
-      for (const exp of editData.experience) {
+      for (const exp of (editData.experience || [])) {
         if (!exp.role?.trim()) return toast.error("Role is required for all entries");
         if (!exp.company?.trim()) return toast.error("Company is required for all entries");
         if (!exp.isCurrent && exp.start_date && exp.end_date && new Date(exp.start_date) > new Date(exp.end_date)) {
@@ -346,22 +397,52 @@ export function StudentProfile() {
         }
       }
     } else if (activeModal === 'certifications') {
-      for (const cert of editData.certifications) {
+      for (const cert of (editData.certifications || [])) {
         if (!cert.name?.trim()) return toast.error("Certification Name is required");
         if (!cert.issuingOrganization?.trim()) return toast.error("Issuing Organization is required");
+        if (cert.credentialUrl && cert.credentialUrl.trim() && !isValidUrl(cert.credentialUrl)) {
+          return toast.error(`Please enter a valid Credential URL for "${cert.name || 'Certification'}" (e.g., https://example.com/certificate/123)`);
+        }
+      }
+    } else if (activeModal === 'extracurricular') {
+      for (const act of (editData.extracurriculars || [])) {
+        if (act.certificate_url && act.certificate_url.trim() && !isValidUrl(act.certificate_url)) {
+          return toast.error("Please enter a valid Certificate / Proof URL");
+        }
       }
     }
 
+    const currentModal = activeModal;
+    setIsSaving(true);
     try {
-      const { data } = await api.put(`/students/profile/${user?.id}/section/${activeModal}`, editData);
+      const payloadToSend = currentModal === 'education' ? { education: editData.education } : editData;
+      const { data } = await api.put(`/students/profile/${user?.id}/section/${currentModal}`, payloadToSend);
       if (data.success) {
         await fetchProfile();
         setActiveModal(null);
-        toast.success(`${activeModal.charAt(0).toUpperCase() + activeModal.slice(1)} updated!`);
+        const sectionLabels: Record<string, string> = {
+          personal: 'Personal Information',
+          preferences: 'Career Preferences',
+          summary: 'Profile Summary',
+          skills: 'Key Skills',
+          education: 'Education History',
+          projects: 'Projects',
+          experience: 'Internships & Work',
+          certifications: 'Certifications',
+          extracurricular: 'Extracurricular & Leadership',
+          resume: 'Resume'
+        };
+        const sectionTitle = (currentModal && sectionLabels[currentModal]) || 
+                             (currentModal ? currentModal.charAt(0).toUpperCase() + currentModal.slice(1) : 'Profile');
+        toast.success(`${sectionTitle} saved successfully!`);
+      } else {
+        toast.error(data.message || "Failed to save changes");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Failed to save changes");
+      toast.error(e?.response?.data?.message || "Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -440,13 +521,14 @@ export function StudentProfile() {
             <div className="bg-white rounded-[40px] p-10 shadow-xl shadow-slate-200/50 border border-white text-center relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-blue-600 to-indigo-700 -z-10" />
               <div className="w-32 h-32 rounded-[40px] bg-white p-2 mx-auto mb-6 shadow-xl relative mt-4 group">
-                <img 
-                  src={profile?.profile_photo_url 
-                    ? (profile.profile_photo_url.startsWith('http') ? profile.profile_photo_url : `${api.defaults.baseURL?.replace('/api', '')}${profile.profile_photo_url}`)
-                    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} 
-                  alt="Avatar" 
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-[32px]"
+                <UserAvatar 
+                  src={profile?.profile_photo_url} 
+                  name={profile?.full_name}
+                  email={user?.email}
+                  alt="Avatar"
+                  className="w-full h-full rounded-[32px]"
+                  textClassName="text-3xl"
+                  shape="rounded-3xl"
                 />
                 <input 
                   type="file" 
@@ -730,8 +812,14 @@ export function StudentProfile() {
                       <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">{cert.name}</h4>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{cert.issuingOrganization}</p>
                     </div>
-                    {cert.credentialUrl && (
-                      <a href={cert.credentialUrl} target="_blank" className="p-2 hover:bg-white rounded-lg text-blue-600 transition-all">
+                    {cert.credentialUrl && isValidUrl(cert.credentialUrl) && (
+                      <a 
+                        href={cert.credentialUrl.startsWith('http') ? cert.credentialUrl : `https://${cert.credentialUrl}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="p-2 hover:bg-white rounded-lg text-blue-600 transition-all"
+                        title="View Credential"
+                      >
                         <ExternalLink size={16} />
                       </a>
                     )}
@@ -821,6 +909,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'personal'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
         <div className="space-y-6">
           <div>
@@ -928,6 +1017,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'preferences'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
         <div className="space-y-6">
           <div>
@@ -1024,6 +1114,7 @@ export function StudentProfile() {
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
         isSaveDisabled={(editData.summary || "").trim().length < 50 || (editData.summary || "").trim().length > 5000}
+        isSaving={isSaving}
       >
         <div className="space-y-4">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
@@ -1069,12 +1160,13 @@ export function StudentProfile() {
           setShowStudentSkillsDropdown(false);
           setStudentSkillsActiveIndex(-1);
         }} 
-        onSave={() => {
-          saveSection();
+        onSave={async () => {
+          await saveSection();
           setStudentSkillInput("");
           setShowStudentSkillsDropdown(false);
           setStudentSkillsActiveIndex(-1);
         }}
+        isSaving={isSaving}
       >
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2 mb-4 min-h-[60px] p-4 bg-slate-50 rounded-2xl border border-slate-100">
@@ -1236,8 +1328,9 @@ export function StudentProfile() {
         isOpen={activeModal === 'education'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
-        <div className="space-y-8 max-h-[70vh] overflow-y-auto pr-2">
+        <div className="space-y-8">
           
           {/* High School Section */}
           <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-200 shadow-sm">
@@ -1276,14 +1369,30 @@ export function StudentProfile() {
                 />
               </div>
               <div className="col-span-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Grade / Percentage / CGPA</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Grade / Percentage / CGPA</label>
+                  {schoolGrade && schoolGrade.trim() && !isValidGrade(schoolGrade) && (
+                    <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                      <AlertCircle size={10} /> Invalid Grade
+                    </span>
+                  )}
+                </div>
                 <input 
                   type="text" 
-                  placeholder="e.g. 9.8 CGPA or 92%"
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs"
+                  placeholder="e.g. 9.8 CGPA, 92%, or A+"
+                  className={`w-full px-4 py-3 bg-white border rounded-xl font-bold transition-all text-xs ${
+                    schoolGrade && schoolGrade.trim() && !isValidGrade(schoolGrade)
+                      ? 'border-red-300 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-red-900 bg-red-50/20'
+                      : 'border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800'
+                  }`}
                   value={schoolGrade}
                   onChange={(e) => setSchoolGrade(e.target.value)}
                 />
+                {schoolGrade && schoolGrade.trim() && !isValidGrade(schoolGrade) && (
+                  <p className="mt-1 text-[11px] font-semibold text-red-500">
+                    Please enter a valid grade/score (e.g. 9.8 CGPA, 92%, 8.5/10, or A+). URLs and arbitrary text like "ABC" are not accepted.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1346,14 +1455,30 @@ export function StudentProfile() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Grade / Percentage</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Grade / Percentage</label>
+                    {interGrade && interGrade.trim() && !isValidGrade(interGrade) && (
+                      <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                        <AlertCircle size={10} /> Invalid Grade
+                      </span>
+                    )}
+                  </div>
                   <input 
                     type="text" 
                     placeholder="e.g. 88% or 8.8 CGPA"
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs"
+                    className={`w-full px-4 py-3 bg-white border rounded-xl font-bold transition-all text-xs ${
+                      interGrade && interGrade.trim() && !isValidGrade(interGrade)
+                        ? 'border-red-300 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-red-900 bg-red-50/20'
+                        : 'border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800'
+                    }`}
                     value={interGrade}
                     onChange={(e) => setInterGrade(e.target.value)}
                   />
+                  {interGrade && interGrade.trim() && !isValidGrade(interGrade) && (
+                    <p className="mt-1 text-[11px] font-semibold text-red-500">
+                      Please enter a valid grade/score (e.g. 88%, 8.8 CGPA, or A+). URLs and arbitrary text like "ABC" are not accepted.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1417,14 +1542,30 @@ export function StudentProfile() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Grade / Percentage</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Grade / Percentage</label>
+                    {diplGrade && diplGrade.trim() && !isValidGrade(diplGrade) && (
+                      <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                        <AlertCircle size={10} /> Invalid Grade
+                      </span>
+                    )}
+                  </div>
                   <input 
                     type="text" 
                     placeholder="e.g. 9.1 CGPA or 85%"
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs"
+                    className={`w-full px-4 py-3 bg-white border rounded-xl font-bold transition-all text-xs ${
+                      diplGrade && diplGrade.trim() && !isValidGrade(diplGrade)
+                        ? 'border-red-300 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-red-900 bg-red-50/20'
+                        : 'border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800'
+                    }`}
                     value={diplGrade}
                     onChange={(e) => setDiplGrade(e.target.value)}
                   />
+                  {diplGrade && diplGrade.trim() && !isValidGrade(diplGrade) && (
+                    <p className="mt-1 text-[11px] font-semibold text-red-500">
+                      Please enter a valid grade/score (e.g. 9.1 CGPA, 85%, or A+). URLs and arbitrary text like "ABC" are not accepted.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1498,14 +1639,30 @@ export function StudentProfile() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Grade / Percentage / CGPA</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Grade / Percentage / CGPA</label>
+                    {degreeGrade && degreeGrade.trim() && !isValidGrade(degreeGrade) && (
+                      <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                        <AlertCircle size={10} /> Invalid Grade
+                      </span>
+                    )}
+                  </div>
                   <input 
                     type="text" 
                     placeholder="e.g. 9.15 CGPA or 87%"
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs"
+                    className={`w-full px-4 py-3 bg-white border rounded-xl font-bold transition-all text-xs ${
+                      degreeGrade && degreeGrade.trim() && !isValidGrade(degreeGrade)
+                        ? 'border-red-300 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-red-900 bg-red-50/20'
+                        : 'border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800'
+                    }`}
                     value={degreeGrade}
                     onChange={(e) => setDegreeGrade(e.target.value)}
                   />
+                  {degreeGrade && degreeGrade.trim() && !isValidGrade(degreeGrade) && (
+                    <p className="mt-1 text-[11px] font-semibold text-red-500">
+                      Please enter a valid grade/score (e.g. 9.15 CGPA, 87%, or A+). URLs and arbitrary text like "ABC" are not accepted.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1520,6 +1677,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'projects'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
         <div className="space-y-8">
           {editData.projects?.map((proj: any, index: number) => (
@@ -1620,6 +1778,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'experience'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
         <div className="space-y-8">
           {editData.experience?.map((exp: any, index: number) => (
@@ -1734,6 +1893,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'resume'} 
         onClose={() => setActiveModal(null)} 
         onSave={() => setActiveModal(null)}
+        isSaving={isSaving}
       >
         <div className="space-y-6">
           <div className="p-10 border-4 border-dashed border-slate-100 rounded-[40px] flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 transition-all group relative overflow-hidden">
@@ -1775,6 +1935,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'certifications'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
         <div className="space-y-6">
           {editData.certifications?.map((cert: any, index: number) => (
@@ -1843,17 +2004,34 @@ export function StudentProfile() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Credential URL</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Credential URL</label>
+                    {cert.credentialUrl && cert.credentialUrl.trim() && !isValidUrl(cert.credentialUrl) && (
+                      <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                        <AlertCircle size={10} /> Invalid URL format
+                      </span>
+                    )}
+                  </div>
                   <input 
-                    type="text" 
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
-                    value={cert.credentialUrl}
+                    type="url" 
+                    placeholder="https://example.com/certificate/123"
+                    className={`w-full px-4 py-3 bg-white border rounded-xl font-bold transition-all ${
+                      cert.credentialUrl && cert.credentialUrl.trim() && !isValidUrl(cert.credentialUrl)
+                        ? 'border-red-300 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-red-900 bg-red-50/20'
+                        : 'border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800'
+                    }`}
+                    value={cert.credentialUrl || ""}
                     onChange={(e) => {
                       const newList = [...editData.certifications];
                       newList[index].credentialUrl = e.target.value;
                       setEditData({...editData, certifications: newList});
                     }}
                   />
+                  {cert.credentialUrl && cert.credentialUrl.trim() && !isValidUrl(cert.credentialUrl) && (
+                    <p className="mt-1 text-[11px] font-semibold text-red-500">
+                      Please enter a valid URL (e.g., https://example.com/certificate/123). Plain text is not accepted.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1873,6 +2051,7 @@ export function StudentProfile() {
         isOpen={activeModal === 'extracurricular'} 
         onClose={() => setActiveModal(null)} 
         onSave={saveSection}
+        isSaving={isSaving}
       >
         <div className="space-y-6">
           {editData.extracurriculars?.map((activity: any, index: number) => (

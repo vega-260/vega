@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { UserAvatar } from './common/UserAvatar';
 import { 
   Bell, 
   Search, 
@@ -281,22 +282,15 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
             aria-label="User profile menu"
           >
             {/* User Avatar with Image or Initial Letter */}
-            <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center font-black text-white text-sm shadow-sm transition-transform group-hover:scale-105 shrink-0 ${
-              portalType === 'TPO'
-                ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20'
-                : 'bg-gradient-to-tr from-slate-900 to-indigo-900 shadow-indigo-950/20'
-            }`}>
-              {profilePhoto ? (
-                <img
-                  src={profilePhoto}
-                  alt={displayName}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <span>{initialLetter}</span>
-              )}
-            </div>
+            <UserAvatar 
+              src={profilePhoto}
+              name={displayName}
+              email={user?.email}
+              alt={displayName}
+              className="w-10 h-10 shadow-sm transition-transform group-hover:scale-105 shrink-0"
+              shape="rounded-xl"
+              textClassName="text-sm font-black"
+            />
 
             {/* User Info Texts */}
             <div className="text-left hidden md:block max-w-[160px]">
