@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && npm run build:server && npm run build:worker && npm run build:migrate",
-    "start": "node dist/server.cjs",
+    "start": "node dist/migrate.cjs && node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
