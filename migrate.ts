@@ -134,7 +134,7 @@ async function migrate() {
   }
 }
 
-migrate().catch((error) => {
+migrate().then(() => process.exit(0)).catch((error) => {
   console.error("Database migration failed:", error);
   process.exit(1);
 });

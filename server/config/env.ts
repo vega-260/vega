@@ -36,7 +36,7 @@ function requireAny(names: string[]) {
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   isProduction,
-  port: 3000,
+  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
   trustProxyHops: integer("TRUST_PROXY_HOPS", 1, 0, 10),
   requestBodyLimit: process.env.REQUEST_BODY_LIMIT || "15mb",
   allowedOrigins: (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000")
