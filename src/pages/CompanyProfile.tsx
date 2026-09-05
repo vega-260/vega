@@ -143,6 +143,7 @@ export function CompanyProfile() {
   const [completeness, setCompleteness] = useState(0);
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<string | null>(null);
   const [deletingDocType, setDeletingDocType] = useState<string | null>(null);
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -276,14 +277,17 @@ export function CompanyProfile() {
 
     if (file.size > 5 * 1024 * 1024) {
       alert("File size exceeds 5MB limit");
+      e.target.value = "";
       return;
     }
 
+    setUploadingDocType(type);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
       if (type === 'logo') {
         setFormData(prev => ({ ...prev, logo_url: base64 }));
+        setUploadingDocType(null);
       } else {
         try {
           const { data } = await api.post(`/companies/profile/${user?.id}/documents`, {
@@ -293,18 +297,33 @@ export function CompanyProfile() {
           if (data.success) {
             setDocuments(prev => {
               const others = prev.filter(d => d.doc_type !== type);
-              return [...others, { doc_type: type, status: 'PENDING' }];
+              return [...others, { doc_type: type, status: 'PENDING', doc_url: base64 }];
             });
-            setCompleteness(data.score);
+            if (data.score !== undefined) {
+              setCompleteness(data.score);
+            }
             if (data.newStatus) {
               updateProfile({ ...profile, status: data.newStatus });
             }
             alert("Document uploaded successfully!");
+          } else {
+            alert(data.message || "Failed to upload document");
           }
-        } catch (err) {
-          alert("Failed to upload document");
+        } catch (err: any) {
+          console.error("Document upload failed:", err);
+          const errorMsg = err.response?.data?.message || "Failed to upload document";
+          alert(errorMsg);
+        } finally {
+          setUploadingDocType(null);
+          if (e.target) {
+            e.target.value = "";
+          }
         }
       }
+    };
+    reader.onerror = () => {
+      alert("Failed to read file");
+      setUploadingDocType(null);
     };
     reader.readAsDataURL(file);
   };
@@ -497,24 +516,29 @@ export function CompanyProfile() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20">
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
+    <div className="w-full pb-16">
+      {/* Top Action & Status Bar */}
+      <div className="max-w-5xl mx-auto mb-8">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-5 px-7 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <ArrowLeft size={20} className="text-slate-600" />
+            <button 
+              onClick={() => navigate(-1)} 
+              className="p-2.5 hover:bg-slate-100 rounded-2xl text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+              title="Go Back"
+            >
+              <ArrowLeft size={20} />
             </button>
             <div>
                <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight">Company Hub</h1>
-               <div className="flex items-center gap-2">
+               <div className="flex items-center gap-2 mt-0.5">
                   <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <motion.div animate={{ width: `${completeness}%` }} className="h-full bg-blue-600" />
                   </div>
-                  <span className="text-[10px] font-black text-blue-600 uppercase">{completeness}% Complete</span>
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide">{completeness}% Complete</span>
                </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
              {isEditing && (profile?.status === 'APPROVED' || profile?.status === 'PENDING' || profile?.status === 'PENDING_REVERIFICATION') && (
                <button 
                  onClick={() => setIsEditing(false)}
@@ -528,9 +552,10 @@ export function CompanyProfile() {
                  <button 
                    onClick={() => handleSave()}
                    disabled={saving}
-                   className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-50 cursor-pointer"
+                   className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2 shadow-sm"
                  >
-                   Save Progress
+                   <Save size={15} className="text-slate-400" />
+                   {saving ? "Saving..." : "Save Progress"}
                  </button>
                  {completeness >= 80 && profile?.status !== 'PENDING' && profile?.status !== 'APPROVED' && (
                    <button 
@@ -551,9 +576,9 @@ export function CompanyProfile() {
              )}
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-5xl mx-auto px-6 mt-12">
+      <div className="max-w-5xl mx-auto px-1 sm:px-4">
         {/* Verification Status Banner */}
         {profile?.status !== 'APPROVED' && (
           <div className="mb-8 p-6 bg-amber-50/70 border border-amber-200/60 rounded-3xl backdrop-blur-sm shadow-sm flex items-start gap-4">
@@ -1046,42 +1071,52 @@ export function CompanyProfile() {
                          {formData.country === "India" ? (
                            <>
                              <DocUpload 
-                               label="GST Certificate" 
-                               required 
-                               active={documents.some(d => d.doc_type === 'GST Certificate')} 
-                               onUpload={(e) => handleFileChange(e, 'GST Certificate')}
-                               onDelete={() => handleDocDelete('GST Certificate')}
-                             />
+                                label="GST Certificate" 
+                                required 
+                                active={documents.some(d => d.doc_type === "GST Certificate")} 
+                                isUploading={uploadingDocType === "GST Certificate"}
+                                isDeleting={deletingDocType === "GST Certificate"}
+                                onUpload={(e: any) => handleFileChange(e, "GST Certificate")}
+                                onDelete={() => handleDocDelete("GST Certificate")}
+                              />
                              <DocUpload 
-                               label="Registration Cert" 
-                               required 
-                               active={documents.some(d => d.doc_type === 'Business Registration Certificate')} 
-                               onUpload={(e) => handleFileChange(e, 'Business Registration Certificate')}
-                               onDelete={() => handleDocDelete('Business Registration Certificate')}
-                             />
+                                label="Registration Cert" 
+                                required 
+                                active={documents.some(d => d.doc_type === "Business Registration Certificate")} 
+                                isUploading={uploadingDocType === "Business Registration Certificate"}
+                                isDeleting={deletingDocType === "Business Registration Certificate"}
+                                onUpload={(e: any) => handleFileChange(e, "Business Registration Certificate")}
+                                onDelete={() => handleDocDelete("Business Registration Certificate")}
+                              />
                              <DocUpload 
-                               label="PAN Card Copy" 
-                               active={documents.some(d => d.doc_type === 'PAN Card')} 
-                               onUpload={(e) => handleFileChange(e, 'PAN Card')}
-                               onDelete={() => handleDocDelete('PAN Card')}
-                             />
+                                label="PAN Card Copy" 
+                                active={documents.some(d => d.doc_type === "PAN Card")} 
+                                isUploading={uploadingDocType === "PAN Card"}
+                                isDeleting={deletingDocType === "PAN Card"}
+                                onUpload={(e: any) => handleFileChange(e, "PAN Card")}
+                                onDelete={() => handleDocDelete("PAN Card")}
+                              />
                              <DocUpload 
-                               label="Incorporation Cert" 
-                               active={documents.some(d => d.doc_type === 'Incorporation Certificate')} 
-                               onUpload={(e) => handleFileChange(e, 'Incorporation Certificate')}
-                               onDelete={() => handleDocDelete('Incorporation Certificate')}
-                             />
+                                label="Incorporation Cert" 
+                                active={documents.some(d => d.doc_type === "Incorporation Certificate")} 
+                                isUploading={uploadingDocType === "Incorporation Certificate"}
+                                isDeleting={deletingDocType === "Incorporation Certificate"}
+                                onUpload={(e: any) => handleFileChange(e, "Incorporation Certificate")}
+                                onDelete={() => handleDocDelete("Incorporation Certificate")}
+                              />
                            </>
                          ) : (
                            (FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"]).requiredDocs.map((docType) => (
                              <DocUpload 
-                               key={docType}
-                               label={docType} 
-                               required 
-                               active={documents.some(d => d.doc_type === docType)} 
-                               onUpload={(e) => handleFileChange(e, docType)}
-                               onDelete={() => handleDocDelete(docType)}
-                             />
+                                key={docType}
+                                label={docType} 
+                                required 
+                                active={documents.some(d => d.doc_type === docType)} 
+                                isUploading={uploadingDocType === docType}
+                                isDeleting={deletingDocType === docType}
+                                onUpload={(e: any) => handleFileChange(e, docType)}
+                                onDelete={() => handleDocDelete(docType)}
+                              />
                            ))
                          )}
                        </div>
@@ -1107,21 +1142,31 @@ export function CompanyProfile() {
                        <ChevronLeft size={16} /> Back
                      </button>
                      
-                     {step < 5 ? (
+                     <div className="flex items-center gap-3">
                        <button 
-                         onClick={() => setStep(step + 1)}
-                         className="flex items-center gap-3 bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all cursor-pointer"
+                         type="button"
+                         onClick={() => handleSave()}
+                         disabled={saving}
+                         className="px-6 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2 shadow-sm"
                        >
-                         Continue <ChevronRight size={16} />
+                         <Save size={15} className="text-slate-400" /> {saving ? "Saving..." : "Save Progress"}
                        </button>
-                     ) : (
-                       <button 
-                         onClick={handleSubmitVerification}
-                         className="flex items-center gap-3 bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all cursor-pointer"
-                       >
-                         Submit to Admin <CheckCircle2 size={16} />
-                       </button>
-                     ) }
+                       {step < 5 ? (
+                         <button 
+                           onClick={() => setStep(step + 1)}
+                           className="flex items-center gap-3 bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all cursor-pointer"
+                         >
+                           Continue <ChevronRight size={16} />
+                         </button>
+                       ) : (
+                         <button 
+                           onClick={handleSubmitVerification}
+                           className="flex items-center gap-3 bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all cursor-pointer"
+                         >
+                           Submit to Admin <CheckCircle2 size={16} />
+                         </button>
+                       ) }
+                     </div>
                   </div>
                 </motion.div>
               </AnimatePresence>
@@ -1192,7 +1237,7 @@ export function CompanyProfile() {
             </div>
           )}
         </AnimatePresence>
-      </main>
+      </div>
     </div>
   );
 }
@@ -1239,7 +1284,7 @@ function Select({ label, value, onChange, options, icon }: any) {
   );
 }
 
-function DocUpload({ label, required, active, isDeleting, onUpload, onDelete }: any) {
+function DocUpload({ label, required, active, isDeleting, isUploading, onUpload, onDelete }: any) {
   return (
     <div className={`p-6 rounded-3xl border-2 transition-all group ${active ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-100 hover:border-blue-400 hover:bg-white border-dashed'}`}>
        <div className="flex items-center justify-between mb-4">
@@ -1247,7 +1292,12 @@ function DocUpload({ label, required, active, isDeleting, onUpload, onDelete }: 
              <FileText size={20} />
           </div>
           <div className="flex items-center gap-2">
-             {required ? (
+             {isUploading ? (
+               <span className="flex items-center gap-1 text-[9px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                 <span className="w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin inline-block" />
+                 Uploading...
+               </span>
+             ) : required ? (
                active ? (
                  <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Uploaded</span>
                ) : (
@@ -1258,7 +1308,7 @@ function DocUpload({ label, required, active, isDeleting, onUpload, onDelete }: 
              )}
              {active && onDelete && (
                <button 
-                 disabled={isDeleting}
+                 disabled={isDeleting || isUploading}
                  onClick={onDelete}
                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                  title="Delete Document"
@@ -1273,20 +1323,25 @@ function DocUpload({ label, required, active, isDeleting, onUpload, onDelete }: 
           </div>
        </div>
        <h4 className="font-bold text-slate-800 text-sm">{label}</h4>
-       {active ? (
+       {isUploading ? (
+         <div className="mt-3 flex items-center gap-2 text-blue-600 font-bold text-[10px] uppercase">
+           <span className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin inline-block" />
+           Uploading document...
+         </div>
+       ) : active ? (
          <div className="mt-3 flex items-center justify-between">
            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[10px] uppercase">
               <CheckCircle2 size={12} /> Uploaded Successfully
            </div>
            <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest cursor-pointer hover:underline">
               Replace
-              <input type="file" className="hidden" accept=".pdf" onChange={onUpload} />
+              <input type="file" className="hidden" accept=".pdf" disabled={isUploading || isDeleting} onChange={onUpload} />
            </label>
          </div>
        ) : (
          <label className="mt-3 block text-[10px] font-black text-blue-600 uppercase tracking-widest cursor-pointer hover:underline">
             Click to upload PDF
-            <input type="file" className="hidden" accept=".pdf" onChange={onUpload} />
+            <input type="file" className="hidden" accept=".pdf" disabled={isUploading || isDeleting} onChange={onUpload} />
          </label>
        )}
     </div>

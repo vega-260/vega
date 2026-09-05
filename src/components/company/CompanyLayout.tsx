@@ -140,7 +140,7 @@ export function CompanyLayout() {
         isSidebarCollapsed ? 'ml-20 max-w-[calc(100vw-80px)]' : 'ml-72 max-w-[calc(100vw-288px)]'
       }`}>
         {/* Unified Sticky Header & Banner Container */}
-        <div className="sticky top-0 z-30 flex flex-col w-full">
+        <div className="sticky top-0 z-50 flex flex-col w-full">
           {/* Top Navigation */}
           <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100/50 px-12 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-8 flex-1">
@@ -162,8 +162,8 @@ export function CompanyLayout() {
 
                 {isSearching && searchQuery.trim() !== '' && (
                   <>
-                    <div className="fixed inset-x-0 bottom-0 top-[96px] z-40 cursor-default" onClick={() => setIsSearching(false)} />
-                    <div className="absolute top-full left-0 right-0 mt-3 bg-white border border-slate-100/80 rounded-2xl shadow-2xl p-4 z-50 max-h-[380px] overflow-y-auto space-y-4">
+                    <div className="fixed inset-x-0 bottom-0 top-[96px] z-[60] cursor-default" onClick={() => setIsSearching(false)} />
+                    <div className="absolute top-full left-0 right-0 mt-3 bg-white border border-slate-100/80 rounded-2xl shadow-2xl p-4 z-[70] max-h-[380px] overflow-y-auto space-y-4">
                       {/* Active Jobs Matches */}
                       <div>
                         <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2 px-2">
@@ -295,12 +295,12 @@ export function CompanyLayout() {
                 <AnimatePresence>
                    {showProfileMenu && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                        <div className="fixed inset-0 z-[60]" onClick={() => setShowProfileMenu(false)} />
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 10 }}
-                          className="absolute right-0 mt-3 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl p-2 z-50 space-y-1"
+                          className="absolute right-0 mt-3 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl p-2 z-[70] space-y-1"
                         >
                           <button
                             onClick={() => {

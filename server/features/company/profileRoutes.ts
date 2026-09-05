@@ -14,7 +14,19 @@ const calculateCompleteness = (profile: any, docs: any[]) => {
 };
 router.get("/profile/:userId", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireSelfParam("userId"), async (req, res) => {
   try {
-    const [profiles]: any = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [req.params.userId]);
+    let [profiles]: any = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [req.params.userId]);
+    if (!profiles[0]) {
+      const [userRow]: any = await db.query("SELECT email FROM users WHERE id = ?", [req.params.userId]);
+      if (userRow && userRow.length > 0) {
+        const email = userRow[0].email || "";
+        const defaultName = email ? email.split("@")[0] : "Company";
+        await db.query(
+          "INSERT INTO company_profiles (user_id, company_name, company_email, country, status, completeness_score) VALUES (?, ?, ?, 'India', 'PENDING', 0)",
+          [req.params.userId, defaultName, email]
+        );
+        [profiles] = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [req.params.userId]);
+      }
+    }
     if (!profiles[0]) {
       return res.json({ success: true, data: null });
     }
@@ -192,27 +204,39 @@ router.post("/profile/:userId/documents", authenticate, authorize(["COMPANY", "A
   const { doc_type, doc_url } = req.body;
   const userId = req.params.userId;
 
+  if (!doc_type || !doc_url) {
+    return res.status(400).json({ success: false, message: "Document type and document content are required." });
+  }
+
   try {
-    const [profiles]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [userId]);
-    if (!profiles[0]) return res.status(404).json({ success: false, message: "Profile not found" });
+    let [profiles]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [userId]);
+    if (!profiles[0]) {
+      const [userRow]: any = await db.query("SELECT email FROM users WHERE id = ?", [userId]);
+      const email = userRow?.[0]?.email || "";
+      const defaultName = email ? email.split("@")[0] : "Company";
+      await db.query(
+        "INSERT INTO company_profiles (user_id, company_name, company_email, country, status, completeness_score) VALUES (?, ?, ?, 'India', 'PENDING', 0)",
+        [userId, defaultName, email]
+      );
+      [profiles] = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [userId]);
+    }
 
     const companyId = profiles[0].id;
 
     // Check if document of this type already exists, if so delete/replace
-    // For now, we allow multiple if needed, but let's replace for same type for cleaner UI
-    await db.query("DELETE FROM company_documents WHERE company_id = ? AND doc_type = ?", [companyId, doc_type]);
+    await db.query("DELETE FROM company_documents WHERE company_id = ? AND (doc_type = ? OR LOWER(doc_type) = LOWER(?))", [companyId, doc_type, doc_type]);
     
     await db.query("INSERT INTO company_documents (company_id, doc_type, doc_url) VALUES (?, ?, ?)", [companyId, doc_type, doc_url]);
 
     // Recalculate score
     const [refProf]: any = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [userId]);
-    const [refDocs]: any = await db.query("SELECT * FROM company_documents WHERE company_id = ?", [refProf[0].id]);
+    const [refDocs]: any = await db.query("SELECT * FROM company_documents WHERE company_id = ?", [companyId]);
     const score = calculateCompleteness(refProf[0], refDocs);
     await db.query("UPDATE company_profiles SET completeness_score = ? WHERE user_id = ?", [score, userId]);
 
-    res.json({ success: true, message: "Document uploaded successfully", score });
+    res.json({ success: true, message: "Document uploaded successfully", score, documents: refDocs });
   } catch (error) {
-    console.error(error);
+    console.error("Document upload failed:", error);
     res.status(500).json({ success: false, message: "Document upload failed" });
   }
 });

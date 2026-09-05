@@ -113,8 +113,8 @@ export async function deleteCompanyVerificationDocument(params: DeleteDocumentPa
   const isSubmitted = Number(companyProfile.is_submitted) === 1 || companyProfile.is_submitted === true;
 
   const lockedCompanyStatuses = ["SUBMITTED", "PENDING", "UNDER_REVIEW", "APPROVED", "VERIFIED"];
-  if (isSubmitted || lockedCompanyStatuses.includes(companyStatus)) {
-    const isEditable = !isSubmitted && ["DRAFT", "REJECTED", "UNSUBMITTED", "PENDING_REVERIFICATION", "NOT_SUBMITTED"].includes(companyStatus);
+  if (isSubmitted && lockedCompanyStatuses.includes(companyStatus)) {
+    const isEditable = ["DRAFT", "REJECTED", "UNSUBMITTED", "PENDING_REVERIFICATION", "NOT_SUBMITTED"].includes(companyStatus);
     if (!isEditable) {
       return {
         success: false,
