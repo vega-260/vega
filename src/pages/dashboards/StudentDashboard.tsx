@@ -97,9 +97,14 @@ function AIMentorWidget({ profile, analytics, applications }: { profile: any, an
         >
           {insight.action}
         </Link>
-        <button className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white backdrop-blur-md">
+        <Link 
+          to="/career-gap"
+          id="view-roadmap-btn"
+          data-testid="view-roadmap-btn"
+          className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white backdrop-blur-md text-center flex items-center justify-center cursor-pointer hover:scale-[1.02] active:scale-[0.98] duration-200"
+        >
           {t('view_roadmap')}
-        </button>
+        </Link>
       </div>
     </div>
   );

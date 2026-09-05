@@ -5,11 +5,11 @@ import { LanguageProvider } from "./context/LanguageContext.tsx";
 import { AccessibilityProvider } from "./context/AccessibilityContext.tsx";
 import { SidebarProvider } from "./context/SidebarContext.tsx";
 import { Navbar } from "./components/Navbar.tsx";
-import { Toaster } from "react-hot-toast";
+import { Toaster, ToastBar, toast, useToasterStore } from "react-hot-toast";
 import { AIFloatingCompanion } from "./components/ai/AIFloatingCompanion.tsx";
 import { ActivityTracker } from "./components/ActivityTracker.tsx";
 import { motion } from "motion/react";
-import { Loader2, Sparkles, Cpu } from "lucide-react";
+import { Loader2, Sparkles, Cpu, X } from "lucide-react";
 
 // Synchronous core/public pages
 import { Home } from "./pages/Home.tsx";
@@ -188,39 +188,89 @@ function PrivateRoute({ children, role }: { children: any, role?: string }) {
 
 import CollegeUpdates from './pages/student/CollegeUpdates.tsx';
 
+// Limits concurrent stacked toasts to prevent screen obstruction
+const TOAST_LIMIT = 3;
+function ToastLimiter() {
+  const { toasts } = useToasterStore();
+
+  React.useEffect(() => {
+    toasts
+      .filter((t) => t.visible)
+      .filter((_, i) => i >= TOAST_LIMIT)
+      .forEach((t) => toast.dismiss(t.id));
+  }, [toasts]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
         <AccessibilityProvider>
+          <ToastLimiter />
           <Toaster 
             position="top-right" 
+            gutter={8}
             containerStyle={{ zIndex: 9999999 }}
             toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#0f172a',
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: '13px',
-                borderRadius: '12px',
-                padding: '12px 16px',
-                boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)'
-              },
+              duration: 3500,
               success: {
+                duration: 3000,
                 iconTheme: {
                   primary: '#10b981',
                   secondary: '#ffffff',
                 },
               },
               error: {
+                duration: 4000,
                 iconTheme: {
                   primary: '#ef4444',
                   secondary: '#ffffff',
                 },
               },
+              style: {
+                background: '#0f172a',
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '13px',
+                borderRadius: '12px',
+                padding: '10px 14px',
+                boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)',
+                maxWidth: '380px',
+              },
             }}
-          />
+          >
+            {(t) => (
+              <ToastBar toast={t}>
+                {({ icon, message }) => (
+                  <div 
+                    className="flex items-center gap-2.5 w-full cursor-pointer select-none"
+                    onClick={() => toast.dismiss(t.id)}
+                    title="Click to dismiss"
+                  >
+                    <span className="shrink-0 flex items-center">{icon}</span>
+                    <div className="flex-1 text-xs font-semibold leading-snug break-words">
+                      {message}
+                    </div>
+                    {t.type !== 'loading' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast.dismiss(t.id);
+                        }}
+                        className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors ml-1 shrink-0"
+                        aria-label="Dismiss notification"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </ToastBar>
+            )}
+          </Toaster>
       <Router>
         <ActivityTracker />
         <SidebarProvider>
@@ -265,6 +315,7 @@ export default function App() {
               <Route path="/student/intelligence" element={<IntelligenceDashboard />} />
               <Route path="/student/intelligence/:type" element={<IntelligenceTestView />} />
               <Route path="/career-gap" element={<CareerGapAnalyzer />} />
+              <Route path="/roadmap" element={<Navigate to="/career-gap" replace />} />
               <Route path="/student/college-assessments" element={<CollegeAssessments />} />
               <Route path="/test/:jobId" element={<JobTest />} />
               <Route path="/profile" element={<StudentProfile />} />

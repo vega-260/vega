@@ -108,11 +108,11 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
   return (
     <div className="max-w-5xl mx-auto w-full bg-white rounded-[32px] shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col md:flex-row">
       
-      {/* Left Sidebar Layout for Stepper (desktop only) */}
-      <div className="md:w-76 bg-slate-50 p-8 border-b md:border-b-0 md:border-r border-slate-100 flex flex-col justify-between shrink-0">
+      {/* Left Sidebar Layout for Stepper */}
+      <div className="w-full md:w-76 bg-slate-50 p-5 md:p-8 border-b md:border-b-0 md:border-r border-slate-100 flex flex-col justify-between shrink-0">
         <div>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/25">
+          <div className="flex items-center gap-3 mb-6 md:mb-8">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/25 shrink-0">
               <Sparkles size={18} />
             </div>
             <div>
@@ -121,14 +121,19 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-3 md:space-y-6" id="ai-evaluator-stages">
             {STEP_LABELS.map((item, idx) => {
               const num = idx + 1;
               const isCompleted = step > num;
               const isActive = step === num;
               return (
-                <div key={num} className="flex items-center gap-3.5 group">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+                <div 
+                  key={num} 
+                  id={`evaluator-stage-${num}`}
+                  data-testid={`evaluator-stage-${num}`}
+                  className="flex items-center gap-3.5 group cursor-default"
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${
                     isCompleted 
                       ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' 
                       : isActive 
@@ -137,11 +142,15 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                   }`}>
                     {isCompleted ? <Check size={14} className="stroke-[3]" /> : <span className="text-xs font-black">{num}</span>}
                   </div>
-                  <div className="hidden md:block">
-                    <p className={`text-[11px] font-black uppercase tracking-wider leading-none mb-0.5 ${isActive ? 'text-indigo-600' : isCompleted ? 'text-slate-600' : 'text-slate-400'}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-[11px] sm:text-xs font-black uppercase tracking-wider leading-none mb-1 ${
+                      isActive ? 'text-indigo-600' : isCompleted ? 'text-slate-700' : 'text-slate-500'
+                    }`}>
                       {item.label}
                     </p>
-                    <p className="text-[10px] font-bold text-slate-400 leading-none">{item.desc}</p>
+                    <p className="text-[10px] font-semibold text-slate-400 leading-tight">
+                      {item.desc}
+                    </p>
                   </div>
                 </div>
               );
@@ -156,7 +165,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
       </div>
 
       {/* Main Form Area */}
-      <div className="flex-1 flex flex-col justify-between min-h-[520px]">
+      <div className="flex-1 flex flex-col justify-between min-h-0 md:min-h-[520px]">
         
         {/* Top Progress Bar for Mobile */}
         <div className="flex md:hidden bg-slate-50 border-b border-slate-100">
@@ -166,7 +175,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
         </div>
 
         {/* Dynamic Step Content */}
-        <div className="p-8 md:p-12 flex-1 flex flex-col justify-center">
+        <div className="p-5 sm:p-8 md:p-12 flex-1 flex flex-col justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -176,6 +185,12 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               transition={{ duration: 0.25 }}
               className="w-full"
             >
+              {/* Stage indicator badge visible in question area */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-150 text-indigo-700 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                  Stage {step} of 6 • {STEP_LABELS[step - 1]?.label}
+                </span>
+              </div>
               {/* STEP 1: Role & Company */}
               {step === 1 && (
                 <div>
@@ -520,7 +535,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
         </div>
 
         {/* Form Bottom Controller */}
-        <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center rounded-b-[32px]">
+        <div className="p-4 sm:p-6 md:p-8 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center rounded-b-[32px]">
           <button 
             onClick={() => setStep(prev => Math.max(1, prev - 1))}
             className={`px-5 py-2.5 font-black uppercase text-[11px] tracking-wider text-slate-400 hover:text-slate-700 transition-colors cursor-pointer rounded-xl ${
@@ -530,6 +545,8 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
             Back
           </button>
           <button 
+            id="onboarding-next-btn"
+            data-testid="onboarding-next-btn"
             onClick={handleNext}
             disabled={
               (step === 1 && !profile.role) ||
@@ -540,8 +557,8 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
             }
             className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[11px] tracking-widest rounded-xl disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-indigo-600/15 cursor-pointer hover:translate-x-0.5 active:scale-95"
           >
-            <span>{step === 6 ? "PROCEED TO REAL-TIME PREP" : "CONTINUE ONBOARDING"}</span> 
-            {step === 6 ? <Sparkles size={14} className="animate-spin text-indigo-200. " /> : <ArrowRight size={14} />}
+            <span className="text-white font-extrabold">{step === 6 ? "SUBMIT & PROCEED TO PREP" : "CONTINUE ONBOARDING"}</span> 
+            {step === 6 ? <Sparkles size={14} className="animate-spin text-indigo-200" /> : <ArrowRight size={14} className="text-white" />}
           </button>
         </div>
       </div>

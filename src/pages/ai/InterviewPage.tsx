@@ -9,8 +9,29 @@ import { ConsentModal } from "../../components/ConsentModal.tsx";
 import { 
   Send, User, Brain, RefreshCw, Mic, MicOff, Volume2, VolumeX, 
   PhoneOff, Circle, Camera, CheckCircle2, AlertCircle, Loader2,
-  Lock, LayoutDashboard, ShieldCheck, UserCheck, Zap
+  Lock, LayoutDashboard, ShieldCheck, UserCheck, Zap, CameraOff, ShieldAlert
 } from "lucide-react";
+
+function checkVideoActivity(video: HTMLVideoElement): boolean {
+  try {
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return false;
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 48;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return true;
+    ctx.drawImage(video, 0, 0, 64, 48);
+    const imgData = ctx.getImageData(0, 0, 64, 48).data;
+    let sum = 0;
+    for (let i = 0; i < imgData.length; i += 4) {
+      sum += (imgData[i] + imgData[i + 1] + imgData[i + 2]) / 3;
+    }
+    const avg = sum / (imgData.length / 4);
+    return avg > 15 && avg < 245;
+  } catch (e) {
+    return true;
+  }
+}
 import { LiveInterviewService } from "../../services/liveInterviewService";
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
@@ -54,6 +75,10 @@ export function InterviewPage() {
     face: false,
     stable: false
   });
+  type HardwareState = 'idle' | 'checking' | 'granted' | 'denied' | 'not_found' | 'error';
+  const [cameraState, setCameraState] = useState<HardwareState>('idle');
+  const [micState, setMicState] = useState<HardwareState>('idle');
+  const [permissionBannerMsg, setPermissionBannerMsg] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState(0);
   const [cheatingWarnings, setCheatingWarnings] = useState<{ face: number; tabs: number; paste: number }>({ face: 0, tabs: 0, paste: 0 });
@@ -179,6 +204,71 @@ export function InterviewPage() {
     }
   }, [interviewStarted, verificationStatus, isVoiceEnabled, setPageContext]);
 
+  // Monitor browser permissions
+  useEffect(() => {
+    let unmounted = false;
+
+    const checkInitialPermissions = async () => {
+      if (typeof navigator === "undefined" || !navigator.permissions) return;
+
+      try {
+        const camPerm = await navigator.permissions.query({ name: "camera" as PermissionName });
+        if (!unmounted) {
+          if (camPerm.state === "denied") {
+            setCameraState("denied");
+            setPermissionBannerMsg("Camera permission denied. Please allow camera access to continue.");
+          } else if (camPerm.state === "granted") {
+            setCameraState("granted");
+          }
+        }
+        camPerm.onchange = () => {
+          if (unmounted) return;
+          if (camPerm.state === "denied") {
+            setCameraState("denied");
+            setPermissionBannerMsg("Camera permission denied. Please allow camera access to continue.");
+            setVerificationStatus(prev => ({ ...prev, camera: false, face: false, stable: false }));
+          } else if (camPerm.state === "granted") {
+            setCameraState("granted");
+            setPermissionBannerMsg(null);
+          } else {
+            setCameraState("idle");
+          }
+        };
+      } catch (e) {
+        // Query not supported for camera in this browser engine
+      }
+
+      try {
+        const micPerm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+        if (!unmounted) {
+          if (micPerm.state === "denied") {
+            setMicState("denied");
+          } else if (micPerm.state === "granted") {
+            setMicState("granted");
+          }
+        }
+        micPerm.onchange = () => {
+          if (unmounted) return;
+          if (micPerm.state === "denied") {
+            setMicState("denied");
+            setVerificationStatus(prev => ({ ...prev, microphone: false, stable: false }));
+          } else if (micPerm.state === "granted") {
+            setMicState("granted");
+          } else {
+            setMicState("idle");
+          }
+        };
+      } catch (e) {}
+    };
+
+    checkInitialPermissions();
+
+    return () => {
+      unmounted = true;
+    };
+  }, []);
+
+  // Initialize LiveInterviewService once on mount
   useEffect(() => {
     liveServiceRef.current = new LiveInterviewService();
     
@@ -192,7 +282,6 @@ export function InterviewPage() {
 
     liveServiceRef.current.onMessage = (sender, text) => {
       console.log(`UI MESSAGE RECEIVED from ${sender}:`, text);
-      // Filter out internal system triggers and metadata messages
       const internalTriggers = [
         "ACTIVATE_INTERVIEW_PROTOCOL", 
         "START_INTERVIEW_SESSION",
@@ -207,7 +296,6 @@ export function InterviewPage() {
       if (text === "[INTERVIEW_COMPLETED]") {
         console.log("INTERNAL TRIGGER: [INTERVIEW_COMPLETED] received");
       } else if (sender === "user") {
-        // Run async live analysis
         api.post("/ai/analyze-sentence", { text }).then(res => {
           if (res.data && res.data.success) {
             const m = res.data.data;
@@ -237,38 +325,38 @@ export function InterviewPage() {
       stopInterview();
     };
 
-    // Initialize Face Detection
-    const initDetector = async () => {
-      try {
-        const model = faceDetection.SupportedModels.MediaPipeFaceDetector;
-        detectionRef.current = await faceDetection.createDetector(model, {
-          runtime: 'tfjs', // Use tfjs runtime which is more compatible here
-          maxFaces: 1,
-        });
-      } catch (err) {
-        console.error("Failed to initialize Face Detector (TensorFlow/WebGL):", err);
-      }
+    return () => {
+      liveServiceRef.current?.stop();
     };
-    initDetector();
+  }, []);
 
-    const handleVisibilityChange = () => {
-      if (document.hidden && interviewStarted) {
-        setCheatingWarnings(prev => ({ ...prev, tabs: prev.tabs + 1 }));
-        setLastWarning("TAB_SWITCH");
-        liveServiceRef.current?.sendText("[SYSTEM WARNING: The candidate just switched tabs or minimized the window. Please confront them about this behavior.]");
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Voice toggle sync
+  // Voice toggle sync
+  useEffect(() => {
     if (liveServiceRef.current) {
       liveServiceRef.current.isMuted = !isVoiceEnabled;
     }
   }, [isVoiceEnabled]);
 
+  // Initialize Face Detection once on mount
   useEffect(() => {
+    let mounted = true;
+    const initDetector = async () => {
+      try {
+        const model = faceDetection.SupportedModels.MediaPipeFaceDetector;
+        const detector = await faceDetection.createDetector(model, {
+          runtime: 'tfjs',
+          maxFaces: 1,
+        });
+        if (mounted) {
+          detectionRef.current = detector;
+        }
+      } catch (err) {
+        console.warn("Face detector init fallback mode:", err);
+      }
+    };
+    initDetector();
     return () => {
-      liveServiceRef.current?.stop();
+      mounted = false;
     };
   }, []);
 
@@ -312,60 +400,158 @@ export function InterviewPage() {
   const runVerification = async () => {
     if (isVerifying) return;
     setIsVerifying(true);
-    
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      setActiveStream(stream);
-      
-      const hasVideo = stream.getVideoTracks().length > 0;
-      const hasAudio = stream.getAudioTracks().length > 0;
-      
-      setVerificationStatus(prev => ({ ...prev, camera: hasVideo, microphone: hasAudio }));
+    setPermissionBannerMsg(null);
+    setCameraState("checking");
+    setMicState("checking");
 
-      verificationTimerRef.current = setInterval(async () => {
-        if (!videoRef.current || !detectionRef.current) return;
-        
-        try {
-          const faces = await detectionRef.current.estimateFaces(videoRef.current);
-          const faceCount = faces.length;
-          const isSingleFace = faceCount === 1;
-          
-          setVerificationStatus(prev => {
-            const nextFace = isSingleFace;
-            let nextStable = prev.stable;
-            
-            if (interviewStarted && !nextFace) {
-               // Only warn if face is gone during actual interview
-               setLastWarning("FACE_MISSING");
-               setCheatingWarnings(c => ({ ...c, face: c.face + 0.1 })); // Slow increment to avoid spam
-            }
-
-            if (nextFace) {
-              if (faceDetectedStartTimeRef.current === null) {
-                faceDetectedStartTimeRef.current = Date.now();
-              } else {
-                const duration = Date.now() - faceDetectedStartTimeRef.current;
-                const progress = Math.min((duration / 3000) * 100, 100);
-                setVerificationProgress(progress);
-                if (duration >= 3000) nextStable = true;
-              }
-            } else {
-              faceDetectedStartTimeRef.current = null;
-              setVerificationProgress(0);
-              nextStable = false;
-            }
-            
-            return { ...prev, face: nextFace, stable: nextStable };
-          });
-        } catch (err) {
-          console.error("Detection error:", err);
-        }
-      }, 200);
-
-    } catch (err) {
-      alert("Please allow Camera and Microphone permissions to proceed.");
-      setIsVerifying(false);
+    if (verificationTimerRef.current) {
+      clearInterval(verificationTimerRef.current);
+      verificationTimerRef.current = null;
     }
+    if (activeStream) {
+      activeStream.getTracks().forEach((t) => t.stop());
+      setActiveStream(null);
+    }
+    setVerificationProgress(0);
+    faceDetectedStartTimeRef.current = null;
+
+    let videoStream: MediaStream | null = null;
+    let audioStream: MediaStream | null = null;
+    let camDenied = false;
+    let micDenied = false;
+
+    // 1. Request Video
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+      });
+      setCameraState("granted");
+    } catch (err: any) {
+      console.warn("Video access error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        camDenied = true;
+        setCameraState("denied");
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setCameraState("not_found");
+      } else {
+        setCameraState("error");
+      }
+    }
+
+    // 2. Request Audio
+    try {
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicState("granted");
+    } catch (err: any) {
+      console.warn("Audio access error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        micDenied = true;
+        setMicState("denied");
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setMicState("not_found");
+      } else {
+        setMicState("error");
+      }
+    }
+
+    if (camDenied) {
+      setPermissionBannerMsg("Camera permission denied. Please allow camera access to continue.");
+      setVerificationStatus({
+        camera: false,
+        microphone: !micDenied && !!audioStream,
+        face: false,
+        stable: false
+      });
+      setIsVerifying(false);
+      if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    if (!videoStream) {
+      setVerificationStatus({
+        camera: false,
+        microphone: !micDenied && !!audioStream,
+        face: false,
+        stable: false
+      });
+      setIsVerifying(false);
+      if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    if (micDenied || !audioStream) {
+      setPermissionBannerMsg("Microphone permission denied. Please allow microphone access to continue.");
+      setVerificationStatus({
+        camera: true,
+        microphone: false,
+        face: false,
+        stable: false
+      });
+      setIsVerifying(false);
+      if (videoStream) videoStream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    // Both video and audio approved!
+    const combined = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...audioStream.getAudioTracks()
+    ]);
+    setActiveStream(combined);
+    setVerificationStatus(prev => ({ ...prev, camera: true, microphone: true }));
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = combined;
+      videoRef.current.play().catch(e => console.warn("Video play error:", e));
+    }
+
+    // Face detection & stabilization loop
+    verificationTimerRef.current = setInterval(async () => {
+      if (!videoRef.current) return;
+
+      let faceFound = false;
+      if (videoRef.current.readyState >= 2 && videoRef.current.videoWidth > 0) {
+        if (detectionRef.current) {
+          try {
+            const faces = await detectionRef.current.estimateFaces(videoRef.current);
+            faceFound = faces.length === 1;
+          } catch (detErr) {
+            faceFound = checkVideoActivity(videoRef.current);
+          }
+        } else {
+          faceFound = checkVideoActivity(videoRef.current);
+        }
+      }
+
+      setVerificationStatus(prev => {
+        const nextFace = faceFound;
+        let nextStable = prev.stable;
+
+        if (interviewStarted && !nextFace) {
+          setLastWarning("FACE_MISSING");
+          setCheatingWarnings(c => ({ ...c, face: c.face + 0.1 }));
+        }
+
+        if (nextFace) {
+          if (faceDetectedStartTimeRef.current === null) {
+            faceDetectedStartTimeRef.current = Date.now();
+          } else {
+            const duration = Date.now() - faceDetectedStartTimeRef.current;
+            const progress = Math.min((duration / 2500) * 100, 100);
+            setVerificationProgress(progress);
+            if (duration >= 2500) {
+              nextStable = true;
+            }
+          }
+        } else {
+          faceDetectedStartTimeRef.current = null;
+          setVerificationProgress(0);
+          nextStable = false;
+        }
+
+        return { ...prev, face: nextFace, stable: nextStable };
+      });
+    }, 200);
   };
 
   const startInterview = async () => {
@@ -432,6 +618,9 @@ export function InterviewPage() {
     setInterviewStarted(false);
     setInterviewFinished(false);
     setVerificationStatus({ camera: false, microphone: false, face: false, stable: false });
+    setCameraState("idle");
+    setMicState("idle");
+    setPermissionBannerMsg(null);
     setVerificationProgress(0);
     faceDetectedStartTimeRef.current = null;
     setIsVerifying(false);
@@ -653,9 +842,30 @@ export function InterviewPage() {
             </div>
             
             <h2 className="text-4xl font-bold mb-4 tracking-tight">Interview Readiness Verification</h2>
-            <p className="text-xl text-slate-500 mb-10 max-w-lg mx-auto">
+            <p className="text-xl text-slate-500 mb-8 max-w-lg mx-auto">
               Our AI system requires hardware and identity verification to maintain professional integrity.
             </p>
+
+            {(cameraState === "denied" || permissionBannerMsg) && (
+              <div className="mb-8 p-4 rounded-2xl bg-red-50/90 border-2 border-red-200 flex items-start gap-3.5 text-left text-red-900 shadow-sm max-w-3xl mx-auto">
+                <ShieldAlert className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-bold text-sm text-red-900">
+                    Camera permission denied. Please allow camera access to continue.
+                  </h4>
+                  <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                    Camera access is strictly required to verify identity and proceed with the mock interview. Click the camera or lock icon in your browser's address bar, set Camera to <strong>"Allow"</strong>, and click <strong>Retry Access</strong>.
+                  </p>
+                </div>
+                <button
+                  onClick={runVerification}
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 flex items-center gap-1.5"
+                >
+                  <RefreshCw size={13} />
+                  Retry Access
+                </button>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
               {/* Preview Container */}
@@ -668,33 +878,85 @@ export function InterviewPage() {
                     muted 
                     className="w-full h-full object-cover scale-x-[-1]" 
                   />
-                  {!isVerifying && (
+                  {cameraState === "denied" ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm p-6 text-center z-10">
+                      <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mb-3 shadow-inner">
+                        <CameraOff size={28} />
+                      </div>
+                      <h5 className="font-bold text-white text-sm mb-1">Camera Permission Denied</h5>
+                      <p className="text-slate-400 text-xs max-w-xs mb-4 leading-relaxed">
+                        Camera access is required for identity and proctoring verification.
+                      </p>
+                      <button
+                        onClick={runVerification}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-red-900/30"
+                      >
+                        <RefreshCw size={14} /> Retry Camera Permission
+                      </button>
+                    </div>
+                  ) : !isVerifying && !activeStream ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
                       <Camera size={48} className="text-slate-700 animate-pulse" />
                     </div>
-                  )}
+                  ) : null}
                   {isVerifying && verificationStatus.face && (
-                    <div className="absolute top-4 right-4 bg-emerald-500 text-white p-2 rounded-full shadow-lg">
+                    <div className="absolute top-4 right-4 bg-emerald-500 text-white p-2 rounded-full shadow-lg z-10">
                       <UserCheck size={20} />
                     </div>
                   )}
                 </div>
                 
                 <div className="mt-6 flex justify-center gap-6">
-                  <div className={`flex flex-col items-center gap-2 ${verificationStatus.camera ? "text-emerald-600" : "text-slate-400"}`}>
-                    <div className={`p-3 rounded-2xl ${verificationStatus.camera ? "bg-emerald-50" : "bg-slate-50"}`}>
-                      <Camera size={20} />
+                  <div className={`flex flex-col items-center gap-2 ${
+                    verificationStatus.camera 
+                      ? "text-emerald-600" 
+                      : cameraState === "denied" 
+                      ? "text-red-500" 
+                      : "text-slate-400"
+                  }`}>
+                    <div className={`p-3 rounded-2xl ${
+                      verificationStatus.camera 
+                        ? "bg-emerald-50" 
+                        : cameraState === "denied" 
+                        ? "bg-red-50" 
+                        : "bg-slate-50"
+                    }`}>
+                      {cameraState === "denied" ? <CameraOff size={20} /> : <Camera size={20} />}
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest">Camera</span>
                   </div>
-                  <div className={`flex flex-col items-center gap-2 ${verificationStatus.microphone ? "text-emerald-600" : "text-slate-400"}`}>
-                    <div className={`p-3 rounded-2xl ${verificationStatus.microphone ? "bg-emerald-50" : "bg-slate-50"}`}>
-                      <Mic size={20} />
+                  <div className={`flex flex-col items-center gap-2 ${
+                    verificationStatus.microphone 
+                      ? "text-emerald-600" 
+                      : (micState === "denied" || cameraState === "denied")
+                      ? "text-red-500" 
+                      : "text-slate-400"
+                  }`}>
+                    <div className={`p-3 rounded-2xl ${
+                      verificationStatus.microphone 
+                        ? "bg-emerald-50" 
+                        : (micState === "denied" || cameraState === "denied")
+                        ? "bg-red-50" 
+                        : "bg-slate-50"
+                    }`}>
+                      {(micState === "denied" || cameraState === "denied") ? <MicOff size={20} /> : <Mic size={20} />}
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest">Mic</span>
                   </div>
-                  <div className={`flex flex-col items-center gap-2 ${verificationStatus.face ? "text-emerald-600" : "text-slate-400"}`}>
-                    <div className={`p-3 rounded-2xl ${verificationStatus.face ? "bg-emerald-50" : "bg-slate-50"}`}>
+                  <div className={`flex flex-col items-center gap-2 ${
+                    verificationStatus.face && verificationStatus.stable 
+                      ? "text-emerald-600" 
+                      : cameraState === "denied"
+                      ? "text-red-500"
+                      : "text-slate-400"
+                  }`}>
+                    <div className={`p-3 rounded-2xl ${
+                      verificationStatus.face && verificationStatus.stable 
+                        ? "bg-emerald-50" 
+                        : cameraState === "denied"
+                        ? "bg-red-50" 
+                        : "bg-slate-50"
+                    }`}>
                       <User size={20} />
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest">Face Detection</span>
@@ -705,31 +967,111 @@ export function InterviewPage() {
               {/* Status & Control */}
               <div className="text-left space-y-6">
                 <div className="space-y-4">
-                  <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${verificationStatus.camera ? "bg-emerald-50 border-emerald-100 text-emerald-900" : "bg-red-50 border-red-100 text-red-900"}`}>
-                    {verificationStatus.camera ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
-                    <div>
+                  {/* Camera Status Card */}
+                  <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${
+                    verificationStatus.camera 
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900" 
+                      : cameraState === "denied"
+                      ? "bg-red-50 border-red-200 text-red-900"
+                      : cameraState === "not_found"
+                      ? "bg-amber-50 border-amber-200 text-amber-900"
+                      : "bg-slate-50 border-slate-200 text-slate-800"
+                  }`}>
+                    {verificationStatus.camera ? (
+                      <CheckCircle2 size={24} className="text-emerald-600 shrink-0" />
+                    ) : cameraState === "denied" ? (
+                      <AlertCircle size={24} className="text-red-600 shrink-0" />
+                    ) : cameraState === "checking" ? (
+                      <Loader2 size={24} className="text-blue-600 animate-spin shrink-0" />
+                    ) : (
+                      <Camera size={24} className="text-slate-400 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm">Camera Status</h4>
-                      <p className="text-xs opacity-60">{verificationStatus.camera ? "Camera detected" : "Camera not detected"}</p>
+                      <p className="text-xs font-medium opacity-90 leading-snug">
+                        {verificationStatus.camera 
+                          ? "Camera detected & connected" 
+                          : cameraState === "denied"
+                          ? "Camera permission denied. Please allow camera access to continue."
+                          : cameraState === "not_found"
+                          ? "No camera hardware detected on device"
+                          : cameraState === "checking"
+                          ? "Checking camera access..."
+                          : "Ready to verify hardware"}
+                      </p>
                     </div>
                   </div>
                   
-                  <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${verificationStatus.microphone ? "bg-emerald-50 border-emerald-100 text-emerald-900" : "bg-red-50 border-red-100 text-red-900"}`}>
-                    {verificationStatus.microphone ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
-                    <div>
+                  {/* Microphone Status Card */}
+                  <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${
+                    verificationStatus.microphone 
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900" 
+                      : (micState === "denied" || cameraState === "denied")
+                      ? "bg-red-50 border-red-200 text-red-900"
+                      : micState === "not_found"
+                      ? "bg-amber-50 border-amber-200 text-amber-900"
+                      : "bg-slate-50 border-slate-200 text-slate-800"
+                  }`}>
+                    {verificationStatus.microphone ? (
+                      <CheckCircle2 size={24} className="text-emerald-600 shrink-0" />
+                    ) : (micState === "denied" || cameraState === "denied") ? (
+                      <AlertCircle size={24} className="text-red-600 shrink-0" />
+                    ) : micState === "checking" ? (
+                      <Loader2 size={24} className="text-blue-600 animate-spin shrink-0" />
+                    ) : (
+                      <Mic size={24} className="text-slate-400 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm">Microphone Status</h4>
-                      <p className="text-xs opacity-60">{verificationStatus.microphone ? "Microphone detected" : "Microphone not detected"}</p>
+                      <p className="text-xs font-medium opacity-90 leading-snug">
+                        {verificationStatus.microphone 
+                          ? "Microphone detected & connected" 
+                          : micState === "denied"
+                          ? "Microphone permission denied. Please allow microphone access to continue."
+                          : cameraState === "denied"
+                          ? "Blocked: Camera permission required first"
+                          : micState === "not_found"
+                          ? "No microphone hardware detected on device"
+                          : micState === "checking"
+                          ? "Checking microphone access..."
+                          : "Ready to verify microphone"}
+                      </p>
                     </div>
                   </div>
 
-                  <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${verificationStatus.face && verificationStatus.stable ? "bg-emerald-50 border-emerald-100 text-emerald-900" : "bg-red-50 border-red-100 text-red-900"}`}>
-                    {(verificationStatus.face && verificationStatus.stable) ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
-                    <div>
+                  {/* Face Detection Card */}
+                  <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${
+                    (verificationStatus.face && verificationStatus.stable) 
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900" 
+                      : cameraState === "denied"
+                      ? "bg-red-50 border-red-200 text-red-900"
+                      : isVerifying
+                      ? "bg-blue-50 border-blue-200 text-blue-900"
+                      : "bg-slate-50 border-slate-200 text-slate-800"
+                  }`}>
+                    {(verificationStatus.face && verificationStatus.stable) ? (
+                      <CheckCircle2 size={24} className="text-emerald-600 shrink-0" />
+                    ) : cameraState === "denied" ? (
+                      <AlertCircle size={24} className="text-red-600 shrink-0" />
+                    ) : isVerifying ? (
+                      <Loader2 size={24} className="text-blue-600 animate-spin shrink-0" />
+                    ) : (
+                      <User size={24} className="text-slate-400 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm">Face Detection</h4>
-                      <p className="text-xs opacity-60">
-                        {!isVerifying ? "Verification not started" : 
-                         !verificationStatus.face ? "Face not detected" : 
-                         !verificationStatus.stable ? `Stabilizing... ${Math.round(verificationProgress)}%` : 
-                         "Identity Verified"}
+                      <p className="text-xs font-medium opacity-90 leading-snug">
+                        {cameraState === "denied"
+                          ? "Verification blocked: Camera permission required"
+                          : (verificationStatus.face && verificationStatus.stable)
+                          ? "Identity Verified (Single face confirmed)"
+                          : !isVerifying
+                          ? "Verification pending camera connection"
+                          : !verificationStatus.face 
+                          ? "Looking for face... Please look directly into camera" 
+                          : !verificationStatus.stable 
+                          ? `Stabilizing... ${Math.round(verificationProgress)}%` 
+                          : "Identity Verified"}
                       </p>
                     </div>
                   </div>
@@ -763,23 +1105,38 @@ export function InterviewPage() {
                   </div>
                 )}
 
-                {!isVerifying ? (
+                {cameraState === "denied" ? (
                   <button 
+                    id="retry-verification-btn"
+                    data-testid="retry-verification-btn"
                     onClick={runVerification}
-                    className="w-full btn-primary bg-slate-900 py-4 text-lg flex items-center justify-center gap-3"
+                    className="w-full btn-primary bg-red-600 hover:bg-red-700 text-white py-4 text-base font-bold flex items-center justify-center gap-3 transition-colors shadow-lg shadow-red-900/20 cursor-pointer"
                   >
-                    <Lock size={20} />
-                    Begin Verification
+                    <RefreshCw size={20} className="text-white shrink-0" />
+                    <span className="text-white font-bold">Retry Verification (Camera Denied)</span>
+                  </button>
+                ) : !isVerifying && !verificationStatus.stable ? (
+                  <button 
+                    id="submit-verification-btn"
+                    data-testid="submit-verification-btn"
+                    onClick={runVerification}
+                    className="w-full btn-primary bg-slate-900 hover:bg-slate-800 text-white py-4 text-lg font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-slate-900/25 cursor-pointer"
+                  >
+                    <Lock size={20} className="text-white shrink-0" />
+                    <span className="text-white font-bold tracking-wide">Submit & Begin Verification</span>
                   </button>
                 ) : (
                   <button 
+                    id="start-interview-btn"
+                    data-testid="start-interview-btn"
                     onClick={startInterview}
                     disabled={!verificationStatus.stable || isStarting}
-                    className="w-full btn-primary py-4 text-lg disabled:grayscale disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden"
+                    className="w-full btn-primary bg-blue-600 hover:bg-blue-700 text-white py-4 text-lg font-bold disabled:grayscale disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden transition-all shadow-xl shadow-blue-600/25 cursor-pointer"
                   >
                     {isStarting ? (
                       <>
-                        <Loader2 className="animate-spin" size={20} /> Starting Interview...
+                        <Loader2 className="animate-spin text-white shrink-0" size={20} />
+                        <span className="text-white font-bold">Starting Interview...</span>
                       </>
                     ) : (
                       <>
@@ -791,8 +1148,10 @@ export function InterviewPage() {
                             className="absolute inset-0 bg-white/20 skew-x-12"
                           />
                         )}
-                        <Brain size={20} />
-                        {verificationStatus.stable ? "Start Professional Interview" : "Awaiting Verification..."}
+                        <Brain size={20} className="text-white shrink-0" />
+                        <span className="text-white font-bold">
+                          {verificationStatus.stable ? "Submit & Start Professional Interview" : `Verifying Hardware & Identity (${Math.round(verificationProgress)}%)...`}
+                        </span>
                       </>
                     )}
                   </button>

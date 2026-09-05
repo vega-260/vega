@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ConsentModal } from "../components/ConsentModal.tsx";
 import { UserAvatar } from "../components/common/UserAvatar.tsx";
-import { isValidUrl, isValidGrade } from "../utils/validation.ts";
+import { isValidUrl, isValidGrade, normalizeUrl } from "../utils/validation.ts";
 import { 
   User, Mail, Phone, MapPin, Calendar, 
   Briefcase, GraduationCap, Award, FileText, 
@@ -406,8 +406,11 @@ export function StudentProfile() {
       }
     } else if (activeModal === 'extracurricular') {
       for (const act of (editData.extracurriculars || [])) {
-        if (act.certificate_url && act.certificate_url.trim() && !isValidUrl(act.certificate_url)) {
-          return toast.error("Please enter a valid Certificate / Proof URL");
+        if (act.certificate_url && act.certificate_url.trim()) {
+          if (!isValidUrl(act.certificate_url)) {
+            return toast.error("Please enter a valid Certificate / Proof URL");
+          }
+          act.certificate_url = normalizeUrl(act.certificate_url);
         }
       }
     }
@@ -851,7 +854,13 @@ export function StudentProfile() {
                       <p className="text-xs text-slate-600 line-clamp-2">{activity.description}</p>
                     </div>
                     {activity.certificate_url && (
-                      <a href={activity.certificate_url} target="_blank" className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 text-blue-600 transition-all shrink-0 self-start sm:self-center flex items-center justify-center">
+                      <a 
+                        href={activity.certificate_url.startsWith('http') || activity.certificate_url.startsWith('/') ? activity.certificate_url : `https://${activity.certificate_url}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 text-blue-600 transition-all shrink-0 self-start sm:self-center flex items-center justify-center"
+                        title="View Certificate / Proof"
+                      >
                         <ExternalLink size={18} />
                       </a>
                     )}
@@ -2128,7 +2137,7 @@ export function StudentProfile() {
                     }}
                   />
                 </div>
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Achievement / Rank</label>
                   <input 
                     type="text" 
@@ -2142,32 +2151,92 @@ export function StudentProfile() {
                     }}
                   />
                 </div>
-                <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Certificate (PDF/Image)</label>
-                  <input 
-                    type="file" 
-                    accept="application/pdf,image/*"
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const formData = new FormData();
-                      formData.append("certificate", file);
-                      try {
-                        const { data } = await api.post(`/students/upload-certificate/${user?.id}`, formData, {
-                          headers: { "Content-Type": "multipart/form-data" }
-                        });
-                        const newList = [...editData.extracurriculars];
-                        newList[index].certificate_url = data.certificateUrl;
-                        setEditData({...editData, extracurriculars: newList});
-                        toast.success("Certificate uploaded!");
-                      } catch (err: any) {
-                        toast.error(err.response?.data?.message || "Failed to upload");
-                      }
-                    }}
-                  />
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">
+                      Certificate / Proof URL or Document
+                    </label>
+                    {activity.certificate_url && activity.certificate_url.trim() && !isValidUrl(activity.certificate_url) && (
+                      <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                        <AlertCircle size={10} /> Invalid URL format
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <input 
+                        type="url" 
+                        placeholder="https://example.com/certificate or upload file"
+                        className={`w-full px-4 py-3 bg-white border rounded-xl font-bold transition-all text-xs ${
+                          activity.certificate_url && activity.certificate_url.trim() && !isValidUrl(activity.certificate_url)
+                            ? 'border-red-300 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-red-900 bg-red-50/20'
+                            : 'border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800'
+                        }`}
+                        value={activity.certificate_url || ""}
+                        onChange={(e) => {
+                          const newList = [...editData.extracurriculars];
+                          newList[index].certificate_url = e.target.value;
+                          setEditData({...editData, extracurriculars: newList});
+                        }}
+                      />
+                    </div>
+                    <label className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition-all flex items-center justify-center gap-2 shrink-0 border border-slate-200">
+                      <Upload size={14} />
+                      <span>Choose File</span>
+                      <input 
+                        type="file" 
+                        accept="application/pdf,image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const formData = new FormData();
+                          formData.append("certificate", file);
+                          try {
+                            const { data } = await api.post(`/students/upload-certificate/${user?.id}`, formData, {
+                              headers: { "Content-Type": "multipart/form-data" }
+                            });
+                            const newList = [...editData.extracurriculars];
+                            newList[index].certificate_url = data.certificateUrl;
+                            setEditData({...editData, extracurriculars: newList});
+                            toast.success("Certificate uploaded!");
+                          } catch (err: any) {
+                            toast.error(err.response?.data?.message || "Failed to upload");
+                          } finally {
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   {activity.certificate_url && (
-                    <a href={activity.certificate_url} target="_blank" className="text-[10px] text-blue-600 font-bold mt-2 inline-block uppercase tracking-widest">View Uploaded Certificate</a>
+                    <div className="flex items-center justify-between p-2.5 bg-blue-50/60 rounded-xl border border-blue-100 text-xs mt-1.5">
+                      <a 
+                        href={activity.certificate_url.startsWith('http') || activity.certificate_url.startsWith('/') ? activity.certificate_url : `https://${activity.certificate_url}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 font-bold hover:underline flex items-center gap-1.5 truncate max-w-[80%]"
+                      >
+                        <ExternalLink size={13} className="shrink-0" />
+                        <span className="truncate">View Uploaded Certificate / Proof</span>
+                      </a>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newList = [...editData.extracurriculars];
+                          newList[index].certificate_url = "";
+                          setEditData({...editData, extracurriculars: newList});
+                        }}
+                        className="text-slate-400 hover:text-red-500 font-bold text-[11px] px-2 py-1 rounded hover:bg-white transition-all cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  {activity.certificate_url && activity.certificate_url.trim() && !isValidUrl(activity.certificate_url) && (
+                    <p className="mt-1 text-[11px] font-semibold text-red-500">
+                      Please enter a valid URL (e.g., https://example.com/certificate) or upload a valid certificate file.
+                    </p>
                   )}
                 </div>
               </div>

@@ -3,9 +3,13 @@
  */
 
 /**
- * Validates whether a given string is a valid web URL.
- * Accepts full URLs (http://, https://) as well as domain-prefixed URLs (e.g., www.example.com, example.com/path).
- * Returns true if empty (to allow optional fields), but false if invalid text is provided.
+ * Validates whether a given string is a valid web URL or uploaded asset URL.
+ * Accepts:
+ * - Full URLs (http://, https://)
+ * - Domain-prefixed URLs (e.g., drive.google.com, www.example.com, example.com/path?foo=bar)
+ * - Local/relative uploaded file paths (e.g., /uploads/certificates/..., /api/...)
+ * - Data or blob URIs (blob:..., data:...)
+ * Returns true if empty/null (to allow optional fields), but false if invalid text is provided.
  */
 export function isValidUrl(urlString?: string | null): boolean {
   if (!urlString) return true;
@@ -17,29 +21,54 @@ export function isValidUrl(urlString?: string | null): boolean {
     return false;
   }
 
-  // Domain regex requiring at least one dot and a 2+ char TLD, or localhost
-  const urlPattern = /^(https?:\/\/)?((([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)\.)+[a-zA-Z]{2,}|localhost)(:\d+)?(\/[^\s]*)?$/i;
-  if (!urlPattern.test(trimmed)) {
+  // Allow relative asset paths from local uploads or API endpoints or blob/data URLs
+  if (
+    trimmed.startsWith('/uploads/') ||
+    trimmed.startsWith('/api/') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
+  ) {
+    return true;
+  }
+
+  // Reject strings starting with single slashes that aren't uploads/api or invalid chars
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
     return false;
   }
 
   try {
     const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     const parsed = new URL(withProtocol);
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && Boolean(parsed.hostname);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    if (!parsed.hostname) return false;
+
+    // Check valid hostname: localhost, IPv4/IPv6, or standard domain name with valid TLD
+    const isLocalhost = parsed.hostname === 'localhost';
+    const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(parsed.hostname) || parsed.hostname.startsWith('[');
+    // Domain name must have at least one period separating name and TLD (e.g. google.com, drive.google.com)
+    const hasValidDomain = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(parsed.hostname);
+
+    return isLocalhost || isIp || hasValidDomain;
   } catch {
     return false;
   }
 }
 
 /**
- * Ensures a URL starts with http:// or https:// if provided.
+ * Ensures a URL starts with http:// or https:// if provided (unless it is a local upload path or blob/data URL).
  */
 export function normalizeUrl(urlString?: string | null): string {
   if (!urlString) return "";
   const trimmed = urlString.trim();
   if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (
+    /^https?:\/\//i.test(trimmed) || 
+    trimmed.startsWith('/') || 
+    trimmed.startsWith('blob:') || 
+    trimmed.startsWith('data:')
+  ) {
+    return trimmed;
+  }
   return `https://${trimmed}`;
 }
 

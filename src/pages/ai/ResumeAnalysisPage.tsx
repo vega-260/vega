@@ -117,7 +117,7 @@ export function ResumeAnalysisPage() {
       return;
     }
     setSelectedFile(file);
-    toast.success(`Selected file: ${file.name}`);
+    toast.success(`Selected file: ${file.name}`, { id: "resume-file-selection", duration: 3000 });
   };
 
   const handleAnalyze = async () => {
@@ -125,6 +125,8 @@ export function ResumeAnalysisPage() {
       toast.error("Please select or drop a resume file (PDF or DOCX).");
       return;
     }
+
+    toast.dismiss("resume-file-selection");
 
     if (!user?.id) {
       toast.error("User authentication session expired. Please sign in again.");
@@ -166,7 +168,7 @@ export function ResumeAnalysisPage() {
 
       if (res.data?.success && res.data?.data) {
         setAnalysis(res.data.data);
-        toast.success("VEGA AI Resume Intelligence Analysis Complete!");
+        toast.success("VEGA AI Resume Intelligence Analysis Complete!", { id: "resume-analysis-status", duration: 3500 });
         setSelectedFile(null);
         fetchHistory();
       } else {

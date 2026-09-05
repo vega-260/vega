@@ -34,6 +34,11 @@
   @apply px-8 py-4 bg-slate-900 text-white font-black uppercase tracking-widest text-[10px] rounded-[1.5rem] hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xl shadow-slate-900/10 flex items-center justify-center gap-3;
 }
 
+.btn-primary {
+  @apply px-6 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all duration-200 shadow-lg shadow-slate-900/10 flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer;
+  color: #ffffff !important;
+}
+
 .ai-gradient {
   @apply bg-gradient-to-br from-premium-purple via-blue-600 to-premium-blue;
 }

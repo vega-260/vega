@@ -79,7 +79,13 @@ export function JobTest() {
            </div>
            <h2 className="text-3xl font-bold mb-4">Assessment Completed</h2>
            <p className="text-slate-500 mb-8">Your results have been sent to the company. They will contact you if shortlisted.</p>
-           <button onClick={() => navigate("/student")} className="btn-primary w-full py-4">Return to Dashboard</button>
+           <button 
+             id="return-dashboard-btn"
+             onClick={() => navigate("/student")} 
+             className="btn-primary w-full py-4 text-white font-bold bg-slate-900 hover:bg-slate-800 transition-all cursor-pointer"
+           >
+             Return to Dashboard
+           </button>
         </motion.div>
       </div>
     );
@@ -122,8 +128,9 @@ export function JobTest() {
 
         <div className="pt-8 flex justify-end">
           <button 
+            id="submit-assessment-btn"
             onClick={handleSubmit}
-            className="btn-primary px-12 py-4 text-lg"
+            className="btn-primary px-12 py-4 text-lg text-white font-bold bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all cursor-pointer"
           >
             Submit Assessment
           </button>

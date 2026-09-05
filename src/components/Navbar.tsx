@@ -279,291 +279,469 @@ export function Navbar() {
         </div>
 
         {/* Desktop Navigation & Actions */}
-        <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3">
-          {/* Language Switcher */}
-          <div className="relative" ref={langMenuRef}>
-            <button 
-              onClick={() => setShowLangMenu(!showLangMenu)}
-              className="h-9 px-3 bg-slate-50 text-slate-700 rounded-full hover:bg-slate-100 hover:text-blue-600 transition-all flex items-center gap-1.5 border border-slate-200/80 shadow-xs"
-            >
-              <Languages size={16} />
-              <span className="text-xs font-black uppercase tracking-widest hidden sm:block">{language}</span>
-            </button>
-            
-            <AnimatePresence>
-              {showLangMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 overflow-hidden z-50"
-                >
-                  <button 
-                    onClick={() => { setLanguage('en'); setShowLangMenu(false); }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${language === 'en' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    English {language === 'en' && <CheckCircle size={14} />}
-                  </button>
-                  <button 
-                    onClick={() => { setLanguage('mr'); setShowLangMenu(false); }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${language === 'mr' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    मराठी {language === 'mr' && <CheckCircle size={14} />}
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {!user ? (
-            <div className="flex items-center gap-3">
-              <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
-                {t('login')}
-              </Link>
-              <Link to="/register" className="bg-blue-600 text-white py-2 px-5 rounded-xl text-sm font-semibold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/20 transition-all duration-300">
-                {t('get_started')}
-              </Link>
-            </div>
-          ) : (
-            <>
-              {/* Desktop Links */}
-              <div className="hidden md:flex items-center gap-4">
-                {user.role === "COMPANY" && (
-                  <Link to="/company" className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors">
-                    {t('hiring_portal')}
-                  </Link>
-                )}
-
-                {user.role === "TPO" && (
-                  <Link to="/tpo" className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5 bg-blue-50 px-3.5 py-1.5 rounded-xl border border-blue-100 shadow-sm shadow-blue-500/10">
-                    <LayoutDashboard size={16} /> TPO Dashboard
-                  </Link>
-                )}
-
-                {(user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
-                  <Link to="/admin" className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1.5">
-                    <Shield size={16} /> {t('admin_panel')}
-                  </Link>
-                )}
-              </div>
-
-              {/* Reports Modal Portal */}
+        {user && user.role === "STUDENT" ? (
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1 bg-white/90 backdrop-blur-md rounded-full border border-slate-200/80 shadow-xs">
+            {/* Language Switcher */}
+            <div className="relative" ref={langMenuRef}>
+              <button 
+                onClick={() => setShowLangMenu(!showLangMenu)}
+                className="h-8.5 px-2.5 sm:px-3 bg-slate-50 text-slate-700 rounded-full hover:bg-slate-100 hover:text-blue-600 transition-all flex items-center gap-1.5 border border-slate-200/80 shadow-xs cursor-pointer"
+                title="Switch Language"
+              >
+                <Languages size={15} className="text-slate-500" />
+                <span className="text-xs font-black uppercase tracking-widest hidden sm:block">{language}</span>
+              </button>
+              
               <AnimatePresence>
-                {selectedReport && (
-                  <ReportModal 
-                    report={selectedReport} 
-                    onClose={() => setSelectedReport(null)} 
-                  />
+                {showLangMenu && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 overflow-hidden z-50"
+                  >
+                    <button 
+                      onClick={() => { setLanguage('en'); setShowLangMenu(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${language === 'en' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      English {language === 'en' && <CheckCircle size={14} />}
+                    </button>
+                    <button 
+                      onClick={() => { setLanguage('mr'); setShowLangMenu(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${language === 'mr' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      मराठी {language === 'mr' && <CheckCircle size={14} />}
+                    </button>
+                  </motion.div>
                 )}
               </AnimatePresence>
+            </div>
 
-              {/* Notifications */}
-              <div className="relative" ref={notificationsMenuRef}>
-                <button 
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="w-9 h-9 flex items-center justify-center text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/80 transition-colors relative focus:outline-none shadow-xs"
-                  aria-label="Toggle notifications"
-                >
-                  <Bell size={18} />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
+            {/* Notifications */}
+            <div className="relative" ref={notificationsMenuRef}>
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="w-8.5 h-8.5 flex items-center justify-center text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/80 transition-colors relative focus:outline-none shadow-xs cursor-pointer"
+                aria-label="Toggle notifications"
+              >
+                <Bell size={16} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white shadow-sm">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
 
-                <AnimatePresence>
-                  {showNotifications && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 origin-top-right"
-                    >
-                      {/* Header */}
-                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                            {unreadCount} Unread
-                          </p>
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 origin-top-right"
+                  >
+                    {/* Header */}
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                          {unreadCount} Unread
+                        </p>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllAsRead}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all bg-transparent border-none cursor-pointer p-0"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    {/* List */}
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                      {loadingNotifications && notifications.length === 0 ? (
+                        <div className="p-8 text-center flex flex-col items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+                          <p className="text-xs text-slate-500 mt-2">Loading notifications...</p>
                         </div>
-                        {unreadCount > 0 && (
-                          <button
-                            onClick={markAllAsRead}
-                            className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all bg-transparent border-none cursor-pointer p-0"
-                          >
-                            Mark all read
-                          </button>
-                        )}
-                      </div>
-
-                      {/* List */}
-                      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                        {loadingNotifications && notifications.length === 0 ? (
-                          <div className="p-8 text-center flex flex-col items-center justify-center">
-                            <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-                            <p className="text-xs text-slate-500 mt-2">Loading notifications...</p>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-8 text-center flex flex-col items-center justify-center">
+                          <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mb-3">
+                            <Bell className="w-5 h-5 text-slate-400" />
                           </div>
-                        ) : notifications.length === 0 ? (
-                          <div className="p-8 text-center flex flex-col items-center justify-center">
-                            <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mb-3">
-                              <Bell className="w-5 h-5 text-slate-400" />
-                            </div>
-                            <p className="text-sm font-bold text-slate-800">No Notifications</p>
-                            <p className="text-xs text-slate-400 mt-1">We'll alert you when there's an update!</p>
-                          </div>
-                        ) : (
-                          notifications.map((n) => {
-                            const details = getNotificationIcon(n.type);
-                            const IconComp = details.icon;
-                            return (
-                              <div
-                                key={n.id}
-                                onClick={() => n.is_read ? null : markAsRead(n.id)}
-                                className={`p-4 flex gap-3 hover:bg-slate-50/80 transition-colors cursor-pointer text-left relative ${!n.is_read ? 'bg-blue-50/10' : ''}`}
-                              >
-                                <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${details.bg}`}>
-                                  <IconComp size={16} />
-                                </div>
-                                <div className="flex-1 min-w-0 pr-2">
-                                  <div className="flex items-start justify-between gap-2 mb-0.5">
-                                    <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
-                                    <p className="text-[9px] font-semibold text-slate-400 shrink-0 uppercase tracking-wider">
-                                      {formatTime(n.created_at)}
-                                    </p>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed break-words">{n.message}</p>
-                                </div>
-                                {!n.is_read && (
-                                  <div className="absolute top-1/2 -translate-y-1/2 right-3 w-1.5 h-1.5 bg-blue-600 rounded-full" />
-                                )}
+                          <p className="text-sm font-bold text-slate-800">No Notifications</p>
+                          <p className="text-xs text-slate-400 mt-1">We'll alert you when there's an update!</p>
+                        </div>
+                      ) : (
+                        notifications.map((n) => {
+                          const details = getNotificationIcon(n.type);
+                          const IconComp = details.icon;
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => n.is_read ? null : markAsRead(n.id)}
+                              className={`p-4 flex gap-3 hover:bg-slate-50/80 transition-colors cursor-pointer text-left relative ${!n.is_read ? 'bg-blue-50/10' : ''}`}
+                            >
+                              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${details.bg}`}>
+                                <IconComp size={16} />
                               </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                              <div className="flex-1 min-w-0 pr-2">
+                                <div className="flex items-start justify-between gap-2 mb-0.5">
+                                  <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
+                                  <p className="text-[9px] font-semibold text-slate-400 shrink-0 uppercase tracking-wider">
+                                    {formatTime(n.created_at)}
+                                  </p>
+                                </div>
+                                <p className="text-[11px] text-slate-500 font-medium leading-relaxed break-words">{n.message}</p>
+                              </div>
+                              {!n.is_read && (
+                                <div className="absolute top-1/2 -translate-y-1/2 right-3 w-1.5 h-1.5 bg-blue-600 rounded-full" />
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Refer & Earn Button */}
+            <Link 
+              to="/refer-and-earn" 
+              className="h-8.5 hidden sm:flex items-center gap-1.5 px-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/20 text-emerald-700 font-bold text-xs rounded-full transition-all group shadow-xs cursor-pointer whitespace-nowrap"
+            >
+              <Gift size={13} className="text-emerald-600 group-hover:scale-110 transition-transform duration-200" />
+              <span>Refer & Earn</span>
+            </Link>
+
+            {/* VEGA Rewards Center/Balance Badge */}
+            <Link 
+              to="/xp-store" 
+              className="h-8.5 hidden sm:flex items-center gap-2 px-3 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white rounded-full transition-all group shadow-xs cursor-pointer whitespace-nowrap"
+            >
+              <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 shadow-[0_0_6px_rgba(251,191,36,0.5)]">
+                <Zap size={9} className="text-amber-950 fill-amber-950" />
               </div>
+              <span className="text-xs font-black tracking-widest text-white uppercase pr-0.5">
+                {xpBalance !== null ? `${xpBalance} XP` : "Store"}
+              </span>
+            </Link>
 
-              {/* Refer & Earn Button */}
-              {user.role === "STUDENT" && (
-                <Link 
-                  to="/refer-and-earn" 
-                  className="h-9 hidden sm:flex items-center gap-1.5 px-3.5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/20 text-emerald-700 font-bold text-xs rounded-full transition-all group shadow-sm shadow-emerald-100/50"
-                >
-                  <Gift size={13} className="text-emerald-600 group-hover:scale-110 transition-transform duration-200" />
-                  <span>Refer & Earn</span>
-                </Link>
-              )}
+            {/* User Pill Button */}
+            <div className="relative" ref={userMenuRef}>
+              <button 
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="h-8.5 flex items-center gap-2 py-0.5 pl-3 pr-1 border border-slate-200 rounded-full hover:border-slate-300 hover:shadow-xs transition-all bg-white cursor-pointer"
+              >
+                <span className="text-xs font-bold text-slate-700 hidden sm:block max-w-[110px] truncate">
+                  {profile?.full_name ? profile.full_name : user.email?.split('@')[0]}
+                </span>
+                <div className="relative">
+                  <UserAvatar 
+                    src={profile?.profile_photo_url || null}
+                    name={profile?.full_name ? profile.full_name : user.email?.split('@')[0]}
+                    email={user.email}
+                    alt="Profile"
+                    className="w-6.5 h-6.5 border border-slate-200"
+                    textClassName="text-[9px]"
+                  />
+                  {!user.is_verified && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
+                      <Shield size={7} />
+                    </div>
+                  )}
+                </div>
+              </button>
 
-              {/* VEGA Rewards Center/Balance Badge */}
-              {user.role === "STUDENT" && (
-                <Link 
-                  to="/xp-store" 
-                  className="h-9 hidden sm:flex items-center gap-2 px-3.5 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white rounded-full transition-all group shadow-sm"
-                >
-                  <div className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]">
-                    <Zap size={10} className="text-amber-950 fill-amber-950" />
-                  </div>
-                  <span className="text-xs font-black tracking-widest text-white uppercase pr-0.5">
-                    {xpBalance !== null ? `${xpBalance} XP` : "Store"}
-                  </span>
-                </Link>
-              )}
+              {/* Desktop User Dropdown */}
+              <AnimatePresence>
+                {showUserMenu && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 overflow-hidden z-50"
+                  >
+                    <div className="p-3 border-b border-slate-100 mb-2">
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t('signed_in_as')}</p>
+                      <p className="text-sm font-bold text-slate-900 truncate">{user.email}</p>
+                    </div>
 
-              {/* User Pill Button */}
-              <div className="relative" ref={userMenuRef}>
-                <button 
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="h-9 flex items-center gap-2 py-1 pl-3.5 pr-1 border border-slate-200 rounded-full hover:border-slate-300 hover:shadow-sm transition-all bg-white"
-                >
-                  <span className="text-xs font-bold text-slate-700 hidden sm:block max-w-[120px] truncate">
-                    {user?.role === "STUDENT" && profile?.full_name ? profile.full_name : user.email?.split('@')[0]}
-                  </span>
-                  <div className="relative">
-                    <UserAvatar 
-                      src={user?.role === "STUDENT" ? profile?.profile_photo_url : null}
-                      name={user?.role === "STUDENT" && profile?.full_name ? profile.full_name : user.email?.split('@')[0]}
-                      email={user.email}
-                      alt="Profile"
-                      className="w-7 h-7 border border-slate-200"
-                      textClassName="text-[10px]"
-                    />
                     {!user.is_verified && (
-                      <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
-                        <Shield size={8} />
-                      </div>
+                      <Link 
+                        to={`/verify-email?email=${encodeURIComponent(user.email)}`}
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors mx-1 mb-2"
+                      >
+                        <Shield size={16} className="text-amber-500" />
+                        {t('verify_account')}
+                      </Link>
+                    )}
+
+                    <Link to="/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
+                      <User size={16} /> {t('view_profile')}
+                    </Link>
+                    <Link to="/student" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
+                      <LayoutDashboard size={16} /> {t('dashboard')}
+                    </Link>
+                    <Link to="/xp-wallet" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
+                      <Gift size={16} /> Refer and Earn XP
+                    </Link>
+
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors mt-1"
+                    >
+                      <LogOut size={16} /> {t('sign_out')}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3">
+            {/* Language Switcher */}
+            <div className="relative" ref={langMenuRef}>
+              <button 
+                onClick={() => setShowLangMenu(!showLangMenu)}
+                className="h-9 px-3 bg-slate-50 text-slate-700 rounded-full hover:bg-slate-100 hover:text-blue-600 transition-all flex items-center gap-1.5 border border-slate-200/80 shadow-xs cursor-pointer"
+              >
+                <Languages size={16} />
+                <span className="text-xs font-black uppercase tracking-widest hidden sm:block">{language}</span>
+              </button>
+              
+              <AnimatePresence>
+                {showLangMenu && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 overflow-hidden z-50"
+                  >
+                    <button 
+                      onClick={() => { setLanguage('en'); setShowLangMenu(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${language === 'en' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      English {language === 'en' && <CheckCircle size={14} />}
+                    </button>
+                    <button 
+                      onClick={() => { setLanguage('mr'); setShowLangMenu(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${language === 'mr' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      मराठी {language === 'mr' && <CheckCircle size={14} />}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {!user ? (
+              <div className="flex items-center gap-3">
+                <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+                  {t('login')}
+                </Link>
+                <Link to="/register" className="bg-blue-600 text-white py-2 px-5 rounded-xl text-sm font-semibold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/20 transition-all duration-300">
+                  {t('get_started')}
+                </Link>
+              </div>
+            ) : (
+              <>
+                {/* Desktop Links */}
+                {(user.role === "COMPANY" || user.role === "TPO" || user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
+                  <div className="hidden md:flex items-center gap-4">
+                    {user.role === "COMPANY" && (
+                      <Link to="/company" className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors">
+                        {t('hiring_portal')}
+                      </Link>
+                    )}
+
+                    {user.role === "TPO" && (
+                      <Link to="/tpo" className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5 bg-blue-50 px-3.5 py-1.5 rounded-xl border border-blue-100 shadow-sm shadow-blue-500/10">
+                        <LayoutDashboard size={16} /> TPO Dashboard
+                      </Link>
+                    )}
+
+                    {(user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
+                      <Link to="/admin" className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1.5">
+                        <Shield size={16} /> {t('admin_panel')}
+                      </Link>
                     )}
                   </div>
-                </button>
+                )}
 
-                {/* Desktop User Dropdown */}
-                <AnimatePresence>
-                  {showUserMenu && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute top-full right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 overflow-hidden z-50"
-                    >
-                      <div className="p-3 border-b border-slate-100 mb-2">
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t('signed_in_as')}</p>
-                        <p className="text-sm font-bold text-slate-900 truncate">{user.email}</p>
-                      </div>
+                {/* Notifications */}
+                <div className="relative" ref={notificationsMenuRef}>
+                  <button 
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="w-9 h-9 flex items-center justify-center text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/80 transition-colors relative focus:outline-none shadow-xs cursor-pointer"
+                    aria-label="Toggle notifications"
+                  >
+                    <Bell size={18} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
 
-                      {!user.is_verified && (
-                        <Link 
-                          to={`/verify-email?email=${encodeURIComponent(user.email)}`}
-                          onClick={() => setShowUserMenu(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors mx-1 mb-2"
-                        >
-                          <Shield size={16} className="text-amber-500" />
-                          {t('verify_account')}
-                        </Link>
-                      )}
-
-                      {user.role === "STUDENT" && (
-                        <>
-                          <Link to="/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
-                            <User size={16} /> {t('view_profile')}
-                          </Link>
-                          <Link to="/student" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
-                            <LayoutDashboard size={16} /> {t('dashboard')}
-                          </Link>
-                          <Link to="/xp-wallet" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
-                            <Gift size={16} /> Refer and Earn XP
-                          </Link>
-                        </>
-                      )}
-
-                      {user.role === "COMPANY" && (
-                        <Link to="/company/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
-                          <Building size={16} /> {t('company_profile')}
-                        </Link>
-                      )}
-
-                      <button 
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors mt-1"
+                  <AnimatePresence>
+                    {showNotifications && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 origin-top-right"
                       >
-                        <LogOut size={16} /> {t('sign_out')}
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                        {/* Header */}
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                              {unreadCount} Unread
+                            </p>
+                          </div>
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllAsRead}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all bg-transparent border-none cursor-pointer p-0"
+                            >
+                              Mark all read
+                            </button>
+                          )}
+                        </div>
 
-              {/* Mobile Menu Toggle Button */}
-              {user.role !== "STUDENT" && (
+                        {/* List */}
+                        <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                          {loadingNotifications && notifications.length === 0 ? (
+                            <div className="p-8 text-center flex flex-col items-center justify-center">
+                              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+                              <p className="text-xs text-slate-500 mt-2">Loading notifications...</p>
+                            </div>
+                          ) : notifications.length === 0 ? (
+                            <div className="p-8 text-center flex flex-col items-center justify-center">
+                              <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mb-3">
+                                <Bell className="w-5 h-5 text-slate-400" />
+                              </div>
+                              <p className="text-sm font-bold text-slate-800">No Notifications</p>
+                              <p className="text-xs text-slate-400 mt-1">We'll alert you when there's an update!</p>
+                            </div>
+                          ) : (
+                            notifications.map((n) => {
+                              const details = getNotificationIcon(n.type);
+                              const IconComp = details.icon;
+                              return (
+                                <div
+                                  key={n.id}
+                                  onClick={() => n.is_read ? null : markAsRead(n.id)}
+                                  className={`p-4 flex gap-3 hover:bg-slate-50/80 transition-colors cursor-pointer text-left relative ${!n.is_read ? 'bg-blue-50/10' : ''}`}
+                                >
+                                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${details.bg}`}>
+                                    <IconComp size={16} />
+                                  </div>
+                                  <div className="flex-1 min-w-0 pr-2">
+                                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                                      <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
+                                      <p className="text-[9px] font-semibold text-slate-400 shrink-0 uppercase tracking-wider">
+                                        {formatTime(n.created_at)}
+                                      </p>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed break-words">{n.message}</p>
+                                  </div>
+                                  {!n.is_read && (
+                                    <div className="absolute top-1/2 -translate-y-1/2 right-3 w-1.5 h-1.5 bg-blue-600 rounded-full" />
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* User Pill Button */}
+                <div className="relative" ref={userMenuRef}>
+                  <button 
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="h-9 flex items-center gap-2 py-1 pl-3.5 pr-1 border border-slate-200 rounded-full hover:border-slate-300 hover:shadow-sm transition-all bg-white cursor-pointer"
+                  >
+                    <span className="text-xs font-bold text-slate-700 hidden sm:block max-w-[120px] truncate">
+                      {user.email?.split('@')[0]}
+                    </span>
+                    <div className="relative">
+                      <UserAvatar 
+                        src={null}
+                        name={user.email?.split('@')[0]}
+                        email={user.email}
+                        alt="Profile"
+                        className="w-7 h-7 border border-slate-200"
+                        textClassName="text-[10px]"
+                      />
+                      {!user.is_verified && (
+                        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
+                          <Shield size={8} />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Desktop User Dropdown */}
+                  <AnimatePresence>
+                    {showUserMenu && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-full right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 overflow-hidden z-50"
+                      >
+                        <div className="p-3 border-b border-slate-100 mb-2">
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t('signed_in_as')}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate">{user.email}</p>
+                        </div>
+
+                        {!user.is_verified && (
+                          <Link 
+                            to={`/verify-email?email=${encodeURIComponent(user.email)}`}
+                            onClick={() => setShowUserMenu(false)}
+                            className="flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors mx-1 mb-2"
+                          >
+                            <Shield size={16} className="text-amber-500" />
+                            {t('verify_account')}
+                          </Link>
+                        )}
+
+                        {user.role === "COMPANY" && (
+                          <Link to="/company/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-xl transition-colors">
+                            <Building size={16} /> {t('company_profile')}
+                          </Link>
+                        )}
+
+                        <button 
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors mt-1"
+                        >
+                          <LogOut size={16} /> {t('sign_out')}
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Mobile Menu Toggle Button */}
                 <button 
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="md:hidden flex items-center justify-center p-2.5 text-slate-700 hover:bg-slate-100 rounded-xl transition-all duration-200 focus:outline-none"
+                  className="md:hidden flex items-center justify-center p-2.5 text-slate-700 hover:bg-slate-100 rounded-xl transition-all duration-200 focus:outline-none cursor-pointer"
                   aria-label="Toggle Menu"
                 >
                   <div className="w-5 h-4 flex flex-col justify-between relative">
@@ -584,11 +762,21 @@ export function Navbar() {
                     />
                   </div>
                 </button>
-              )}
-            </>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Reports Modal Portal */}
+      <AnimatePresence>
+        {selectedReport && (
+          <ReportModal 
+            report={selectedReport} 
+            onClose={() => setSelectedReport(null)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Mobile Navigation Drawer */}
       <AnimatePresence>
