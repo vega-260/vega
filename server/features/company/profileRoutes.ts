@@ -1,17 +1,8 @@
 import express from "express";
 import db from "../../db.ts";
 import { authenticate, authorize, requireSelfParam } from "../../middleware/auth.ts";
-import { deleteCompanyVerificationDocument } from "../../services/companyDocumentService.ts";
+import { calculateCompleteness, deleteCompanyVerificationDocument } from "../../services/companyDocumentService.ts";
 const router = express.Router();
-
-const calculateCompleteness = (profile: any, docs: any[]) => {
-  let score = 0;
-  if (profile.company_name) score += 5; if (profile.logo_url) score += 5; if (profile.website) score += 5; if (profile.company_email && profile.contact_number) score += 5;
-  if (profile.business_name) score += 5; if (profile.gst_no) score += 10; if (profile.cin_no || profile.pan_no) score += 5; if (profile.address && profile.city) score += 10;
-  if (docs.some(d => d.doc_type === 'GST Certificate')) score += 10; if (docs.some(d => d.doc_type === 'Business Registration Certificate')) score += 10; if (docs.some(d => d.doc_type === 'PAN Card')) score += 10;
-  if (profile.about && profile.about.length > 200) score += 10; else if (profile.about && profile.about.length > 50) score += 5;
-  if (profile.linkedin_url || profile.github_url) score += 10; return Math.min(100, score);
-};
 router.get("/profile/:userId", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireSelfParam("userId"), async (req, res) => {
   try {
     let [profiles]: any = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [req.params.userId]);
@@ -262,19 +253,75 @@ router.delete("/profile/:userId/documents/:type", authenticate, authorize(["COMP
 // Submit for Verification
 router.post("/profile/:userId/submit", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireSelfParam("userId"), async (req, res) => {
   try {
-    const [profiles]: any = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [req.params.userId]);
+    const userId = req.params.userId;
+    const profileData = req.body;
+
+    if (profileData && profileData.company_name) {
+      const contact_number = profileData.contact_number ? String(profileData.contact_number).replace(/\D/g, "").slice(0, 10) : "";
+      const company_email = profileData.company_email ? String(profileData.company_email).trim() : "";
+      const pan_no = profileData.pan_no ? String(profileData.pan_no).toUpperCase().trim() : "";
+      const gst_no = profileData.gst_no ? String(profileData.gst_no).toUpperCase().trim() : "";
+      const cin_no = profileData.cin_no ? String(profileData.cin_no).toUpperCase().trim() : "";
+
+      await db.query(`
+        UPDATE company_profiles 
+        SET 
+          company_name = COALESCE(?, company_name),
+          logo_url = COALESCE(?, logo_url),
+          website = COALESCE(?, website),
+          company_email = COALESCE(?, company_email),
+          contact_number = COALESCE(?, contact_number),
+          company_type = COALESCE(?, company_type),
+          industry = COALESCE(?, industry),
+          company_size = COALESCE(?, company_size),
+          business_name = COALESCE(?, business_name),
+          gst_no = COALESCE(?, gst_no),
+          cin_no = COALESCE(?, cin_no),
+          pan_no = COALESCE(?, pan_no),
+          address = COALESCE(?, address),
+          operating_address = COALESCE(?, operating_address),
+          country = COALESCE(?, country),
+          state = COALESCE(?, state),
+          city = COALESCE(?, city),
+          about = COALESCE(?, about),
+          services = COALESCE(?, services),
+          linkedin_url = COALESCE(?, linkedin_url),
+          github_url = COALESCE(?, github_url),
+          entity_type = COALESCE(?, entity_type),
+          registry_number = COALESCE(?, registry_number),
+          tax_id = COALESCE(?, tax_id),
+          state_of_formation = COALESCE(?, state_of_formation),
+          licensing_authority = COALESCE(?, licensing_authority)
+        WHERE user_id = ?
+      `, [
+        profileData.company_name, profileData.logo_url, profileData.website, company_email, contact_number,
+        profileData.company_type, profileData.industry, profileData.company_size,
+        profileData.business_name, gst_no, cin_no, pan_no,
+        profileData.address, profileData.operating_address, profileData.country, profileData.state, profileData.city,
+        profileData.about, profileData.services, profileData.linkedin_url, profileData.github_url,
+        profileData.entity_type, profileData.registry_number, profileData.tax_id, profileData.state_of_formation, profileData.licensing_authority,
+        userId
+      ]);
+    }
+
+    const [profiles]: any = await db.query("SELECT * FROM company_profiles WHERE user_id = ?", [userId]);
     if (!profiles[0]) return res.status(404).json({ success: false, message: "Profile not found" });
 
     const [docs]: any = await db.query("SELECT * FROM company_documents WHERE company_id = ?", [profiles[0].id]);
     const score = calculateCompleteness(profiles[0], docs);
 
     if (score < 80) {
-      return res.status(400).json({ success: false, message: "Profile incompleteness. Must reach 80% with required documents." });
+      return res.status(400).json({ 
+        success: false, 
+        message: `Profile completeness is currently ${score}%. Must reach at least 80% with required documents to submit for verification.`,
+        score 
+      });
     }
 
-    await db.query("UPDATE company_profiles SET status = 'PENDING', is_submitted = 1, completeness_score = ? WHERE user_id = ?", [score, req.params.userId]);
-    res.json({ success: true, message: "Profile submitted for verification" });
+    await db.query("UPDATE company_profiles SET status = 'PENDING', is_submitted = 1, completeness_score = ? WHERE user_id = ?", [score, userId]);
+    res.json({ success: true, message: "Profile submitted for verification", score });
   } catch (error) {
+    console.error("Submission error:", error);
     res.status(500).json({ success: false, message: "Submission failed" });
   }
 });

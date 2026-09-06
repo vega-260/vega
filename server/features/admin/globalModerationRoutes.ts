@@ -246,6 +246,22 @@ router.post("/companies/verify", async (req, res) => {
       VALUES (?, ?, ?, ?)
     `, [companyId, adminId, status, reason]);
 
+    // Create notification for the company
+    const [companyData]: any = await db.query("SELECT user_id, company_name FROM company_profiles WHERE id = ?", [companyId]);
+    if (companyData.length > 0) {
+      const companyUser = companyData[0];
+      const title = status === 'APPROVED' ? 'Profile Verified' : 'Profile Rejected';
+      const message = status === 'APPROVED' 
+        ? `Congratulations! Your company profile for ${companyUser.company_name} has been approved. You can now access all features.`
+        : `Your company profile was rejected. Reason: ${reason || 'Please review your details and submit again.'}`;
+      const type = status === 'APPROVED' ? 'SUCCESS' : 'ERROR';
+      
+      await db.query(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES (?, ?, ?, ?)
+      `, [companyUser.user_id, title, message, type]);
+    }
+
     await logAdminAction(adminId, `VERIFY_COMPANY_${status}`, { companyId, reason }, req);
 
     res.json({ success: true, message: `Company ${status}` });

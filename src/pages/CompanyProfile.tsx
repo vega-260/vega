@@ -240,17 +240,21 @@ export function CompanyProfile() {
     // 3. Verification Documents (30%)
     let docPoints = 0;
     if (country === "India") {
-      const hasGst = documents.some(d => d.doc_type === 'GST Certificate');
-      const hasReg = documents.some(d => d.doc_type === 'Business Registration Certificate');
-      const hasPan = documents.some(d => d.doc_type === 'PAN Card');
-      if (hasGst) docPoints += 10;
-      if (hasReg) docPoints += 10;
-      if (hasPan) docPoints += 10;
+      const hasGst = documents.some(d => /gst/i.test(d.doc_type));
+      const hasReg = documents.some(d => /registration|incorporation/i.test(d.doc_type));
+      const hasPan = documents.some(d => /pan/i.test(d.doc_type));
+      const hasOther = documents.some(d => !/gst|registration|incorporation|pan/i.test(d.doc_type));
+      let docCount = 0;
+      if (hasGst) docCount++;
+      if (hasReg) docCount++;
+      if (hasPan) docCount++;
+      if (hasOther) docCount++;
+      docPoints = Math.min(30, docCount * 10);
     } else {
       const reqDocs = rules.requiredDocs;
       let uploadedCount = 0;
       reqDocs.forEach(reqDocType => {
-        if (documents.some(d => d.doc_type === reqDocType)) {
+        if (documents.some(d => d.doc_type === reqDocType || d.doc_type?.toLowerCase() === reqDocType.toLowerCase())) {
           uploadedCount++;
         }
       });
@@ -481,10 +485,13 @@ export function CompanyProfile() {
         if (!silent) alert("Progress saved!");
         const updated = { ...profile, ...formData, completeness_score: data.score };
         updateProfile(updated);
+        return true;
       }
-    } catch (err) {
+      return false;
+    } catch (err: any) {
       console.error(err);
-      if (!silent) alert("Failed to save progress");
+      if (!silent) alert(err.response?.data?.message || "Failed to save progress");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -492,18 +499,40 @@ export function CompanyProfile() {
 
   const handleSubmitVerification = async () => {
     if (completeness < 80) {
-      alert("Please complete at least 80% of your profile including mandatory documents to submit for verification.");
+      alert(`Please complete at least 80% of your profile including mandatory documents to submit for verification (Current: ${completeness}%).`);
       return;
     }
     setSaving(true);
     try {
-      const { data } = await api.post(`/companies/profile/${user?.id}/submit`);
+      // 1. Save latest formData first
+      const saveRes = await api.put(`/companies/profile/${user?.id}`, formData);
+      if (!saveRes.data?.success) {
+        alert(saveRes.data?.message || "Failed to save profile progress before submission.");
+        setSaving(false);
+        return;
+      }
+      const score = saveRes.data?.score ?? completeness;
+      const updated = { ...profile, ...formData, completeness_score: score };
+      updateProfile(updated);
+
+      if (score < 80) {
+        alert(`Profile completeness reached ${score}%. Must reach at least 80% with required documents to submit for verification.`);
+        setSaving(false);
+        return;
+      }
+
+      // 2. Submit with payload
+      const { data } = await api.post(`/companies/profile/${user?.id}/submit`, formData);
       if (data.success) {
         alert("Profile submitted successfully! Admin will review your details.");
-        updateProfile({ ...profile, status: 'PENDING', is_submitted: 1 });
+        updateProfile({ ...updated, status: 'PENDING', is_submitted: 1, completeness_score: data.score || score });
+        setIsEditing(false);
+      } else {
+        alert(data.message || "Submission failed");
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || "Submission failed");
+      console.error("Submission error:", err);
+      alert(err.response?.data?.message || "Submission failed. Please check your details and try again.");
     } finally {
       setSaving(false);
     }

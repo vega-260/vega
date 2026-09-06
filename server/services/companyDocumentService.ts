@@ -17,8 +17,8 @@ export interface DeleteDocumentResult {
   code?: string;
 }
 
-// Helper to calculate completeness (aligned with server/routes/company.ts)
-export function calculateCompleteness(profile: any, docs: any[]): number {
+// Helper to calculate completeness (aligned with company profile requirements)
+export function calculateCompleteness(profile: any, docs: any[] = []): number {
   if (!profile) return 0;
   let score = 0;
 
@@ -28,20 +28,41 @@ export function calculateCompleteness(profile: any, docs: any[]): number {
   if (profile.website) score += 5;
   if (profile.company_email && profile.contact_number) score += 5;
 
+  const country = profile.country || "India";
+
   // 2. Business & Legal Details (30%)
   if (profile.business_name) score += 5;
-  if (profile.gst_no) score += 10;
-  if (profile.cin_no || profile.pan_no) score += 5;
   if (profile.address && profile.city) score += 10;
 
-  // 3. Verification Documents (30%)
-  const hasGst = docs.some(d => String(d.doc_type).toLowerCase() === 'gst certificate');
-  const hasReg = docs.some(d => String(d.doc_type).toLowerCase() === 'business registration certificate');
-  const hasPan = docs.some(d => String(d.doc_type).toLowerCase() === 'pan card');
+  // Country specific identifiers (15%)
+  if (country === "India") {
+    if (profile.gst_no) score += 10;
+    if (profile.cin_no || profile.pan_no) score += 5;
+  } else {
+    let idCount = 0;
+    if (profile.tax_id) idCount++;
+    if (profile.registry_number) idCount++;
+    if (profile.state_of_formation || profile.licensing_authority) idCount++;
+    score += Math.min(15, idCount * 8);
+  }
 
-  if (hasGst) score += 10;
-  if (hasReg) score += 10;
-  if (hasPan) score += 10;
+  // 3. Verification Documents (30%)
+  // Support standard document types: GST Certificate, Business Registration, PAN Card, Incorporation Certificate, etc.
+  if (country === "India") {
+    const hasGst = docs.some(d => /gst/i.test(d.doc_type));
+    const hasReg = docs.some(d => /registration|incorporation/i.test(d.doc_type));
+    const hasPan = docs.some(d => /pan/i.test(d.doc_type));
+    const hasOther = docs.some(d => !/gst|registration|incorporation|pan/i.test(d.doc_type));
+
+    let docCount = 0;
+    if (hasGst) docCount++;
+    if (hasReg) docCount++;
+    if (hasPan) docCount++;
+    if (hasOther) docCount++;
+    score += Math.min(30, docCount * 10);
+  } else {
+    score += Math.min(30, docs.length * 15);
+  }
 
   // 4. Company Narrative & Social (20%)
   if (profile.about && profile.about.length > 200) score += 10;

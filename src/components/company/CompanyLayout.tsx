@@ -81,8 +81,8 @@ export function CompanyLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  // Lock out and force redirect to /company/profile if not approved or pending review
-  const isAllowedToBrowse = profile?.status === 'APPROVED' || profile?.status === 'PENDING_REVERIFICATION' || profile?.status === 'PENDING';
+  // Lock out and force redirect to /company/profile if not approved
+  const isAllowedToBrowse = profile?.status === 'APPROVED';
   if (!isAllowedToBrowse && location.pathname !== '/company/profile') {
     return <Navigate to="/company/profile" replace />;
   }
