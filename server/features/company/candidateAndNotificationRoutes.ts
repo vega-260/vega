@@ -242,11 +242,94 @@ router.get("/notifications", authenticate, async (req: any, res) => {
     // Limit to most recent 40
     allNotifications = allNotifications.slice(0, 40);
 
+    // Ensure company_notification_reads table exists
+    try {
+      if (db.useMySQL) {
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS company_notification_reads (
+            user_id INT NOT NULL,
+            notification_id VARCHAR(191) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, notification_id)
+          )
+        `);
+      } else {
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS company_notification_reads (
+            user_id INTEGER NOT NULL,
+            notification_id TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, notification_id)
+          )
+        `);
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+
+    // Check read records
+    let readIdSet = new Set<string>();
+    try {
+      const [readRows]: any = await db.query(
+        "SELECT notification_id FROM company_notification_reads WHERE user_id = ?",
+        [userId]
+      );
+      readIdSet = new Set((readRows || []).map((r: any) => String(r.notification_id)));
+    } catch (e) {
+      // Non-blocking
+    }
+
+    // Include Profile Verified notification for approved companies if not already present
+    try {
+      const [compProfile]: any = await db.query(
+        "SELECT company_name, status, verified_at, created_at FROM company_profiles WHERE user_id = ? OR id = ?",
+        [userId, companyId]
+      );
+      if (compProfile && compProfile.length > 0 && compProfile[0].status === 'APPROVED') {
+        const cName = compProfile[0].company_name || 'ScaleUp';
+        const hasApproval = allNotifications.some(n => 
+          n.title?.toLowerCase().includes('profile verified') || n.title?.toLowerCase().includes('verified')
+        );
+        if (!hasApproval) {
+          const pvId = `p-verified-${companyId}`;
+          allNotifications.unshift({
+            id: pvId,
+            title: "PROFILE VERIFIED",
+            desc: `Congratulations! Your company profile for ${cName} has been approved. You can now access all features.`,
+            time: compProfile[0].verified_at || compProfile[0].created_at || new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
+            type: "success",
+            is_read: readIdSet.has(pvId) ? 1 : 0
+          });
+        }
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+
+    // If company user has zero notifications, provide a starter welcome notification
+    if (allNotifications.length === 0) {
+      const welcomeId = `p-welcome-${userId}`;
+      allNotifications.push({
+        id: welcomeId,
+        title: "Welcome to VEGA Recruiter Portal",
+        desc: "Your company recruitment workspace is active. Manage jobs, review applicants, and track candidate evaluations here.",
+        time: new Date().toISOString(),
+        type: "info",
+        is_read: readIdSet.has(welcomeId) ? 1 : 0
+      });
+    }
+
     const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
-    allNotifications = allNotifications.map(n => ({
-      ...n,
-      is_read: n.is_read !== undefined ? n.is_read : (new Date(n.time).getTime() < twoDaysAgo ? 1 : 0)
-    }));
+    allNotifications = allNotifications.map(n => {
+      const strId = String(n.id);
+      const isExplicitlyRead = readIdSet.has(strId) || (strId.startsWith('p-') && readIdSet.has(strId.replace('p-', '')));
+      const isReadInRow = n.is_read === 1 || n.is_read === true;
+      const isOld = n.time ? (new Date(n.time).getTime() < twoDaysAgo) : false;
+      return {
+        ...n,
+        is_read: (isExplicitlyRead || isReadInRow || isOld) ? 1 : 0
+      };
+    });
 
     res.json({ success: true, data: allNotifications });
   } catch (error: any) {
@@ -255,11 +338,86 @@ router.get("/notifications", authenticate, async (req: any, res) => {
   }
 });
 
+// Mark single company notification as read
+router.post(["/notifications/read/:id", "/notifications/:id/read"], authenticate, async (req: any, res) => {
+  try {
+    const ctx = await getCompanyContext(req);
+    const notifId = String(req.params.id);
+
+    // If it's a physical notification (e.g. p-123 or numeric 123)
+    if (notifId.startsWith("p-")) {
+      const numericId = parseInt(notifId.replace("p-", ""), 10);
+      if (!isNaN(numericId)) {
+        await db.query("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", [numericId, ctx.userId]);
+      }
+    } else if (!isNaN(Number(notifId))) {
+      await db.query("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", [Number(notifId), ctx.userId]);
+    }
+
+    // Persist in company_notification_reads for both physical and dynamic IDs
+    try {
+      if (db.useMySQL) {
+        await db.query(
+          "INSERT IGNORE INTO company_notification_reads (user_id, notification_id) VALUES (?, ?)",
+          [ctx.userId, notifId]
+        );
+      } else {
+        await db.query(
+          "INSERT OR IGNORE INTO company_notification_reads (user_id, notification_id) VALUES (?, ?)",
+          [ctx.userId, notifId]
+        );
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+
+    res.json({ success: true, message: "Notification marked as read" });
+  } catch (error: any) {
+    console.error("Error marking company notification as read:", error);
+    res.status(Number(error?.statusCode) || 500).json({ success: false, message: error.message });
+  }
+});
+
 // Mark all company notifications as read
-router.post("/notifications/read-all", authenticate, async (req: any, res) => {
+router.post(["/notifications/read-all", "/notifications/mark-all-read"], authenticate, async (req: any, res) => {
   try {
     const ctx = await getCompanyContext(req);
     await db.query("UPDATE notifications SET is_read = 1 WHERE user_id = ?", [ctx.userId]);
+
+    // Also mark dynamic notifications as read
+    try {
+      const [newApps]: any = await db.query(`
+        SELECT ja.id as app_id FROM job_applications ja JOIN jobs j ON ja.job_id = j.id WHERE j.company_id = ?
+      `, [ctx.companyId]);
+      const [historyRows]: any = await db.query(`
+        SELECT ah.id as hist_id FROM application_history ah JOIN job_applications ja ON ah.application_id = ja.id JOIN jobs j ON ja.job_id = j.id WHERE j.company_id = ?
+      `, [ctx.companyId]);
+      const [interviews]: any = await db.query(`
+        SELECT i.id as int_id FROM interview_schedules i JOIN job_applications ja ON i.application_id = ja.id JOIN jobs j ON ja.job_id = j.id WHERE j.company_id = ?
+      `, [ctx.companyId]);
+      const [jobs]: any = await db.query(`
+        SELECT id FROM jobs WHERE company_id = ?
+      `, [ctx.companyId]);
+
+      const idsToMark: string[] = [
+        `p-welcome-${ctx.userId}`,
+        ...(newApps || []).map((a: any) => `app-${a.app_id}`),
+        ...(historyRows || []).map((h: any) => `hist-${h.hist_id}`),
+        ...(interviews || []).map((i: any) => `interview-${i.int_id}`),
+        ...(jobs || []).map((j: any) => `deadline-${j.id}`)
+      ];
+
+      for (const notifId of idsToMark) {
+        if (db.useMySQL) {
+          await db.query("INSERT IGNORE INTO company_notification_reads (user_id, notification_id) VALUES (?, ?)", [ctx.userId, notifId]);
+        } else {
+          await db.query("INSERT OR IGNORE INTO company_notification_reads (user_id, notification_id) VALUES (?, ?)", [ctx.userId, notifId]);
+        }
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+
     res.json({ success: true, message: "All notifications marked as read" });
   } catch (error: any) {
     res.status(Number(error?.statusCode) || 500).json({ success: false, message: error.message });

@@ -20,6 +20,7 @@ import careerGapRoutes from "../routes/careerGap.ts";
 import interviewRoutes from "../routes/interview.ts";
 import assessmentRoutes from "../routes/assessments.ts";
 import contactRoutes from "../routes/contact.ts";
+import notificationRoutes from "../routes/notifications.ts";
 
 export function registerApiRoutes(app: Express) {
   app.use("/api/auth", authRoutes);
@@ -44,4 +45,5 @@ export function registerApiRoutes(app: Express) {
   app.use("/api/interviews", interviewRoutes);
   app.use("/api/assessments", assessmentRoutes);
   app.use("/api/contact", contactRoutes);
+  app.use("/api/notifications", notificationRoutes);
 }

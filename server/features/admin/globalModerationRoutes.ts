@@ -262,6 +262,16 @@ router.post("/companies/verify", async (req, res) => {
       `, [companyUser.user_id, title, message, type]);
     }
 
+    // Mark pending admin verification request notifications for this company as read
+    try {
+      await db.query(
+        "UPDATE notifications SET is_read = 1 WHERE (idempotency_key LIKE ? OR idempotency_key LIKE ?) AND type = 'VERIFICATION_REQUEST'",
+        [`%_${companyId}_%`, `pending_verification_${companyId}`]
+      );
+    } catch (e) {
+      // Non-critical
+    }
+
     await logAdminAction(adminId, `VERIFY_COMPANY_${status}`, { companyId, reason }, req);
 
     res.json({ success: true, message: `Company ${status}` });

@@ -325,7 +325,11 @@ router.get("/company-managed/all", authenticate, async (req: any, res) => {
       return {
         ...j,
         skills,
-        applicant_count: j.total_applicants || 0
+        applicant_count: j.total_applicants || 0,
+        jobType: j.job_type,
+        experienceLevel: j.experience_level,
+        salaryRange: j.salary_range,
+        educationRequirement: j.education_requirement
       };
     });
 

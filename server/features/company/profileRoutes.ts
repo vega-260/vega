@@ -233,6 +233,111 @@ router.post("/profile/:userId/documents", authenticate, authorize(["COMPANY", "A
 });
 
 
+// View/Download raw verification document directly with proper MIME headers
+router.get("/profile/:userId/documents/:type/file", async (req, res) => {
+  try {
+    const { userId, type } = req.params;
+    const decodedType = decodeURIComponent(type);
+
+    const [profiles]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [userId]);
+    if (!profiles[0]) {
+      return res.status(404).send("Profile not found");
+    }
+
+    const companyId = profiles[0].id;
+    const [docs]: any = await db.query(
+      "SELECT * FROM company_documents WHERE company_id = ? AND (doc_type = ? OR LOWER(doc_type) = LOWER(?)) ORDER BY id DESC LIMIT 1",
+      [companyId, decodedType, decodedType]
+    );
+
+    if (!docs[0] || !docs[0].doc_url) {
+      return res.status(404).send("Document not found");
+    }
+
+    const docUrl = docs[0].doc_url;
+    if (docUrl.startsWith("data:")) {
+      const matches = docUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
+      if (matches) {
+        let mimeType = matches[1] || "application/pdf";
+        const base64Str = matches[2].replace(/\s/g, "");
+        const buffer = Buffer.from(base64Str, "base64");
+
+        // Sniff content type from magic bytes or text format
+        if (buffer.length >= 4 && buffer.subarray(0, 4).toString() === "%PDF") {
+          mimeType = "application/pdf";
+        } else if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+          mimeType = "image/png";
+        } else if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+          mimeType = "image/jpeg";
+        } else if (mimeType.includes("javascript") || mimeType.includes("json") || mimeType.includes("text") || mimeType.includes("xml")) {
+          mimeType = "text/plain; charset=utf-8";
+        }
+
+        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "txt";
+        const filename = `${decodedType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+        res.setHeader("Content-Length", buffer.length);
+        return res.send(buffer);
+      }
+    } else if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {
+      return res.redirect(docUrl);
+    }
+
+    return res.status(400).send("Invalid document format");
+  } catch (error) {
+    console.error("Error streaming document file:", error);
+    res.status(500).send("Error streaming document file");
+  }
+});
+
+// View/Download raw verification document by document ID
+router.get("/documents/:docId/file", async (req, res) => {
+  try {
+    const { docId } = req.params;
+    const [docs]: any = await db.query("SELECT * FROM company_documents WHERE id = ?", [docId]);
+    if (!docs[0] || !docs[0].doc_url) {
+      return res.status(404).send("Document not found");
+    }
+
+    const docUrl = docs[0].doc_url;
+    const docType = docs[0].doc_type || "Document";
+    if (docUrl.startsWith("data:")) {
+      const matches = docUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
+      if (matches) {
+        let mimeType = matches[1] || "application/pdf";
+        const base64Str = matches[2].replace(/\s/g, "");
+        const buffer = Buffer.from(base64Str, "base64");
+
+        // Sniff content type from magic bytes or text format
+        if (buffer.length >= 4 && buffer.subarray(0, 4).toString() === "%PDF") {
+          mimeType = "application/pdf";
+        } else if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+          mimeType = "image/png";
+        } else if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+          mimeType = "image/jpeg";
+        } else if (mimeType.includes("javascript") || mimeType.includes("json") || mimeType.includes("text") || mimeType.includes("xml")) {
+          mimeType = "text/plain; charset=utf-8";
+        }
+
+        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "txt";
+        const filename = `${docType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+        res.setHeader("Content-Length", buffer.length);
+        return res.send(buffer);
+      }
+    } else if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {
+      return res.redirect(docUrl);
+    }
+
+    return res.status(400).send("Invalid document format");
+  } catch (error) {
+    console.error("Error streaming document by id:", error);
+    res.status(500).send("Error streaming document file");
+  }
+});
+
 // Delete a verification document with server-side company ownership and storage cleanup.
 router.delete("/profile/:userId/documents/:type", authenticate, authorize(["COMPANY", "ADMIN", "SUPER_ADMIN"]), requireSelfParam("userId"), async (req: any, res) => {
   try {
@@ -257,11 +362,11 @@ router.post("/profile/:userId/submit", authenticate, authorize(["COMPANY", "ADMI
     const profileData = req.body;
 
     if (profileData && profileData.company_name) {
-      const contact_number = profileData.contact_number ? String(profileData.contact_number).replace(/\D/g, "").slice(0, 10) : "";
-      const company_email = profileData.company_email ? String(profileData.company_email).trim() : "";
-      const pan_no = profileData.pan_no ? String(profileData.pan_no).toUpperCase().trim() : "";
-      const gst_no = profileData.gst_no ? String(profileData.gst_no).toUpperCase().trim() : "";
-      const cin_no = profileData.cin_no ? String(profileData.cin_no).toUpperCase().trim() : "";
+      const contact_number = profileData.contact_number ? String(profileData.contact_number).replace(/\D/g, "").slice(0, 10) : null;
+      const company_email = profileData.company_email ? String(profileData.company_email).trim() : null;
+      const pan_no = profileData.pan_no ? String(profileData.pan_no).toUpperCase().trim() : null;
+      const gst_no = profileData.gst_no ? String(profileData.gst_no).toUpperCase().trim() : null;
+      const cin_no = profileData.cin_no ? String(profileData.cin_no).toUpperCase().trim() : null;
 
       await db.query(`
         UPDATE company_profiles 
@@ -294,12 +399,12 @@ router.post("/profile/:userId/submit", authenticate, authorize(["COMPANY", "ADMI
           licensing_authority = COALESCE(?, licensing_authority)
         WHERE user_id = ?
       `, [
-        profileData.company_name, profileData.logo_url, profileData.website, company_email, contact_number,
-        profileData.company_type, profileData.industry, profileData.company_size,
-        profileData.business_name, gst_no, cin_no, pan_no,
-        profileData.address, profileData.operating_address, profileData.country, profileData.state, profileData.city,
-        profileData.about, profileData.services, profileData.linkedin_url, profileData.github_url,
-        profileData.entity_type, profileData.registry_number, profileData.tax_id, profileData.state_of_formation, profileData.licensing_authority,
+        profileData.company_name || null, profileData.logo_url || null, profileData.website || null, company_email, contact_number,
+        profileData.company_type || null, profileData.industry || null, profileData.company_size || null,
+        profileData.business_name || null, gst_no, cin_no, pan_no,
+        profileData.address || null, profileData.operating_address || null, profileData.country || null, profileData.state || null, profileData.city || null,
+        profileData.about || null, profileData.services || null, profileData.linkedin_url || null, profileData.github_url || null,
+        profileData.entity_type || null, profileData.registry_number || null, profileData.tax_id || null, profileData.state_of_formation || null, profileData.licensing_authority || null,
         userId
       ]);
     }
@@ -308,7 +413,8 @@ router.post("/profile/:userId/submit", authenticate, authorize(["COMPANY", "ADMI
     if (!profiles[0]) return res.status(404).json({ success: false, message: "Profile not found" });
 
     const [docs]: any = await db.query("SELECT * FROM company_documents WHERE company_id = ?", [profiles[0].id]);
-    const score = calculateCompleteness(profiles[0], docs);
+    const calcScore = calculateCompleteness(profiles[0], docs);
+    const score = Math.max(calcScore, Number(profiles[0].completeness_score) || 0);
 
     if (score < 80) {
       return res.status(400).json({ 
@@ -318,7 +424,27 @@ router.post("/profile/:userId/submit", authenticate, authorize(["COMPANY", "ADMI
       });
     }
 
-    await db.query("UPDATE company_profiles SET status = 'PENDING', is_submitted = 1, completeness_score = ? WHERE user_id = ?", [score, userId]);
+    await db.query("UPDATE company_profiles SET status = 'PENDING', is_submitted = 1, completeness_score = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", [score, userId]);
+
+    // Send notifications to all Admin users for the verification/approval request
+    try {
+      const companyName = profiles[0].company_name || profiles[0].business_name || profileData.company_name || "A company";
+      const [admins]: any = await db.query("SELECT id FROM users WHERE role IN ('ADMIN', 'SUPER_ADMIN')");
+      const notifTitle = "Company Verification Request";
+      const notifMessage = `${companyName} has submitted a company verification request for approval.`;
+      const notifType = "VERIFICATION_REQUEST";
+      const idempotencyKey = `pending_verification_${profiles[0].id}_${Date.now()}`;
+
+      for (const admin of admins || []) {
+        await db.query(
+          "INSERT INTO notifications (user_id, title, message, type, is_read, created_at, idempotency_key) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP, ?)",
+          [admin.id, notifTitle, notifMessage, notifType, idempotencyKey]
+        );
+      }
+    } catch (notifErr) {
+      console.error("Error creating admin notifications for company verification:", notifErr);
+    }
+
     res.json({ success: true, message: "Profile submitted for verification", score });
   } catch (error) {
     console.error("Submission error:", error);

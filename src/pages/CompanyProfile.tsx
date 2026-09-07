@@ -5,10 +5,11 @@ import {
   ArrowLeft, Save, Building2, Globe, Mail, Phone, 
   MapPin, Linkedin, Github, CheckCircle2, AlertCircle, 
   Upload, FileText, ChevronRight, ChevronLeft, LayoutGrid, 
-  Factory, Users, Calendar, ShieldCheck, Briefcase, FileCheck, X
+  Factory, Users, Calendar, ShieldCheck, Briefcase, FileCheck, X,
+  ExternalLink, Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const FRONTEND_COUNTRY_RULES: Record<string, {
   identifiers: { key: string; label: string; placeholder: string; required: boolean }[];
@@ -102,6 +103,7 @@ const FRONTEND_COUNTRY_RULES: Record<string, {
 export function CompanyProfile() {
   const { user, profile, updateProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -145,6 +147,17 @@ export function CompanyProfile() {
   const [deletingDocType, setDeletingDocType] = useState<string | null>(null);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{
+    title: string;
+    blobUrl: string;
+    rawUrl: string;
+    fileUrl?: string;
+    isPdf: boolean;
+    isImage: boolean;
+    isText?: boolean;
+    textContent?: string;
+    mimeType?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (profile?.status === 'APPROVED' || profile?.status === 'PENDING' || profile?.status === 'PENDING_REVERIFICATION') {
@@ -153,6 +166,21 @@ export function CompanyProfile() {
       setIsEditing(true);
     }
   }, [profile]);
+
+  useEffect(() => {
+    const requestedStep = searchParams.get('step');
+    const requestedSection = searchParams.get('section');
+    if (requestedStep) {
+      const parsed = parseInt(requestedStep, 10);
+      if (parsed >= 1 && parsed <= 5) {
+        setStep(parsed);
+        setIsEditing(true);
+      }
+    } else if (requestedSection === 'documents' || requestedSection === 'verification') {
+      setStep(5);
+      setIsEditing(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchProfile();
@@ -299,16 +327,22 @@ export function CompanyProfile() {
             doc_url: base64
           });
           if (data.success) {
-            setDocuments(prev => {
-              const others = prev.filter(d => d.doc_type !== type);
-              return [...others, { doc_type: type, status: 'PENDING', doc_url: base64 }];
-            });
+            if (data.documents && Array.isArray(data.documents)) {
+              setDocuments(data.documents);
+            } else {
+              setDocuments(prev => {
+                const others = prev.filter(d => d.doc_type !== type);
+                return [...others, { doc_type: type, status: 'PENDING', doc_url: base64 }];
+              });
+            }
             if (data.score !== undefined) {
               setCompleteness(data.score);
             }
             if (data.newStatus) {
               updateProfile({ ...profile, status: data.newStatus });
             }
+            // Seamless background refresh to ensure all document IDs and statuses are immediately synchronized
+            fetchProfile();
             alert("Document uploaded successfully!");
           } else {
             alert(data.message || "Failed to upload document");
@@ -372,6 +406,121 @@ export function CompanyProfile() {
         setDeletingDocType(null);
       }
     }
+  };
+
+  const handleViewDocument = (docUrl?: string, docType?: string, docId?: number) => {
+    const title = docType || "Verification Document";
+    if (!docUrl && !docId) {
+      alert("No document file available to view.");
+      return;
+    }
+
+    try {
+      let previewUrl = docUrl || "";
+      let isPdf = false;
+      let isImage = false;
+      let isText = false;
+      let textContent = "";
+      let mimeType = "application/pdf";
+
+      if (docUrl && docUrl.startsWith("data:")) {
+        const parts = docUrl.split(",");
+        if (parts.length >= 2) {
+          const meta = parts[0];
+          const rawBase64 = parts.slice(1).join(",").replace(/\s/g, "");
+          const mimeMatch = meta.match(/data:([^;]+)/);
+          mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : "application/pdf";
+
+          try {
+            const byteCharacters = atob(rawBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+
+            // Sniff magic bytes
+            if (byteArray.length >= 4 && byteArray[0] === 0x25 && byteArray[1] === 0x50 && byteArray[2] === 0x44 && byteArray[3] === 0x46) {
+              mimeType = "application/pdf";
+            } else if (byteArray.length >= 8 && byteArray[0] === 0x89 && byteArray[1] === 0x50 && byteArray[2] === 0x4e && byteArray[3] === 0x47) {
+              mimeType = "image/png";
+            } else if (byteArray.length >= 3 && byteArray[0] === 0xff && byteArray[1] === 0xd8 && byteArray[2] === 0xff) {
+              mimeType = "image/jpeg";
+            }
+
+            isPdf = mimeType.includes("pdf");
+            isImage = mimeType.includes("image");
+            isText = !isPdf && !isImage;
+
+            if (isText) {
+              try {
+                textContent = new TextDecoder().decode(byteArray);
+              } catch {
+                textContent = byteCharacters;
+              }
+              const blob = new Blob([byteArray], { type: "text/plain;charset=utf-8" });
+              previewUrl = URL.createObjectURL(blob);
+            } else {
+              const blob = new Blob([byteArray], { type: mimeType });
+              previewUrl = URL.createObjectURL(blob);
+            }
+          } catch (e) {
+            console.error("Error decoding base64 document:", e);
+          }
+        }
+      } else if (docUrl) {
+        isPdf = docUrl.toLowerCase().endsWith(".pdf") || docUrl.includes("application/pdf");
+        isImage = /\.(jpg|jpeg|png|webp|svg|gif)$/i.test(docUrl);
+        isText = !isPdf && !isImage;
+      } else {
+        isPdf = true;
+      }
+
+      const directFileUrl = docId
+        ? `/api/companies/documents/${docId}/file`
+        : user?.id
+          ? `/api/companies/profile/${user.id}/documents/${encodeURIComponent(title)}/file`
+          : "";
+
+      // Single click instant modal preview - reliable across all environments without popup blockers or blank pages
+      setPreviewDoc({
+        title,
+        blobUrl: previewUrl || directFileUrl,
+        rawUrl: docUrl || directFileUrl,
+        fileUrl: directFileUrl,
+        isPdf,
+        isImage,
+        isText,
+        textContent,
+        mimeType
+      });
+    } catch (err) {
+      console.error("Error opening document:", err);
+      const directFileUrl = docId
+        ? `/api/companies/documents/${docId}/file`
+        : user?.id
+          ? `/api/companies/profile/${user.id}/documents/${encodeURIComponent(title)}/file`
+          : "";
+      setPreviewDoc({
+        title,
+        blobUrl: docUrl || directFileUrl,
+        rawUrl: docUrl || directFileUrl,
+        fileUrl: directFileUrl,
+        isPdf: true,
+        isImage: false,
+        isText: false
+      });
+    }
+  };
+
+  const downloadDoc = (url: string, title: string, isText?: boolean, isImage?: boolean) => {
+    const a = document.createElement("a");
+    a.href = url;
+    const ext = isImage ? "png" : isText ? "txt" : "pdf";
+    a.download = `${title.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleSave = async (silent = false) => {
@@ -586,22 +735,34 @@ export function CompanyProfile() {
                    <Save size={15} className="text-slate-400" />
                    {saving ? "Saving..." : "Save Progress"}
                  </button>
-                 {completeness >= 80 && profile?.status !== 'PENDING' && profile?.status !== 'APPROVED' && (
+                 {completeness >= 80 && profile?.status !== 'PENDING' && (
                    <button 
                     onClick={handleSubmitVerification}
-                    className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all cursor-pointer"
+                    disabled={saving}
+                    className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all cursor-pointer disabled:opacity-50"
                    >
-                     Submit for Verification
+                     {saving ? "Submitting..." : profile?.status === 'APPROVED' ? "Submit for Re-Verification" : "Submit for Verification"}
                    </button>
                  )}
                </>
              ) : (
-               <button 
-                 onClick={() => setIsEditing(true)}
-                 className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all cursor-pointer shadow-lg shadow-blue-500/10"
-               >
-                 Edit Profile Details
-               </button>
+               <div className="flex items-center gap-3">
+                 {completeness >= 80 && profile?.status !== 'PENDING' && profile?.status !== 'APPROVED' && (
+                   <button 
+                     onClick={handleSubmitVerification}
+                     disabled={saving}
+                     className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all cursor-pointer disabled:opacity-50"
+                   >
+                     {saving ? "Submitting..." : "Submit for Verification"}
+                   </button>
+                 )}
+                 <button 
+                   onClick={() => setIsEditing(true)}
+                   className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all cursor-pointer shadow-lg shadow-blue-500/10"
+                 >
+                   Edit Profile Details
+                 </button>
+               </div>
              )}
           </div>
         </div>
@@ -712,52 +873,52 @@ export function CompanyProfile() {
             </div>
 
             {/* Profile Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-full">
               {/* Left Col (Story) */}
-              <div className="md:col-span-2 space-y-8">
-                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-4 shadow-sm">
+              <div className="md:col-span-2 space-y-8 min-w-0 max-w-full">
+                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-4 shadow-sm min-w-0 max-w-full box-border overflow-hidden">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">About Organization</h3>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full box-border">
                     {formData.about || "No organizational bio filled yet. Click 'Edit Profile' to write your company story."}
                   </p>
                 </div>
 
-                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-4 shadow-sm">
+                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-4 shadow-sm min-w-0 max-w-full box-border overflow-hidden">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Core Products & Services</h3>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full box-border">
                     {formData.services || "No products or services documented yet."}
                   </p>
                 </div>
               </div>
 
               {/* Right Col (Credentials & Contact) */}
-              <div className="space-y-8">
+              <div className="space-y-8 min-w-0 max-w-full">
                 {/* Business Credentials */}
-                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-6 shadow-sm">
+                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-6 shadow-sm min-w-0 max-w-full box-border overflow-hidden">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Business Credentials</h3>
                   
                   <div className="space-y-4">
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Country of Registration</span>
-                      <span className="text-xs font-bold text-slate-700">{formData.country || "India"}</span>
+                      <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{formData.country || "India"}</span>
                     </div>
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Registered Legal Name</span>
-                      <span className="text-xs font-bold text-slate-700">{formData.business_name || "Not Filled"}</span>
+                      <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{formData.business_name || "Not Filled"}</span>
                     </div>
                     {formData.country === "India" ? (
                       <>
                         <div>
                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">GST Identification Number</span>
-                          <span className="text-xs font-bold text-slate-700">{formData.gst_no || "Not Filled"}</span>
+                          <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{formData.gst_no || "Not Filled"}</span>
                         </div>
                         <div>
                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Corporate Identification Number (CIN)</span>
-                          <span className="text-xs font-bold text-slate-700">{formData.cin_no || "Not Filled"}</span>
+                          <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{formData.cin_no || "Not Filled"}</span>
                         </div>
                         <div>
                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Permanent Account Number (PAN)</span>
-                          <span className="text-xs font-bold text-slate-700">{formData.pan_no || "Not Filled"}</span>
+                          <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{formData.pan_no || "Not Filled"}</span>
                         </div>
                       </>
                     ) : (
@@ -765,37 +926,37 @@ export function CompanyProfile() {
                         {formData.entity_type && (
                           <div>
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Entity Type</span>
-                            <span className="text-xs font-bold text-slate-700">{formData.entity_type}</span>
+                            <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{formData.entity_type}</span>
                           </div>
                         )}
                         {(FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"]).identifiers.map((field) => (
                           <div key={field.key}>
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{field.label}</span>
-                            <span className="text-xs font-bold text-slate-700">{(formData as any)[field.key] || "Not Filled"}</span>
+                            <span className="text-xs font-bold text-slate-700 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full block">{(formData as any)[field.key] || "Not Filled"}</span>
                           </div>
                         ))}
                       </>
                     )}
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Registered Address</span>
-                      <span className="text-xs font-semibold text-slate-500 leading-relaxed block">{formData.address || "Not Filled"}</span>
-                      {formData.city && <span className="text-xs font-bold text-slate-700 block mt-1">{formData.city}, {formData.state}</span>}
+                      <span className="text-xs font-semibold text-slate-500 leading-relaxed block break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full">{formData.address || "Not Filled"}</span>
+                      {formData.city && <span className="text-xs font-bold text-slate-700 block mt-1 break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full">{formData.city}, {formData.state}</span>}
                     </div>
                   </div>
                 </div>
 
                 {/* Contact Details & Channels */}
-                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-6 shadow-sm">
+                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-6 shadow-sm min-w-0 max-w-full box-border overflow-hidden">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Contact & Socials</h3>
                   
                   <div className="space-y-4">
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Official Email</span>
-                      <span className="text-xs font-bold text-slate-700 block truncate">{formData.company_email || "Not Filled"}</span>
+                      <span className="text-xs font-bold text-slate-700 block break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full">{formData.company_email || "Not Filled"}</span>
                     </div>
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Contact Helpline</span>
-                      <span className="text-xs font-bold text-slate-700 block">{formData.contact_number || "Not Filled"}</span>
+                      <span className="text-xs font-bold text-slate-700 block break-words [word-break:break-word] [overflow-wrap:anywhere] max-w-full">{formData.contact_number || "Not Filled"}</span>
                     </div>
                     
                     <div className="h-px bg-slate-100 my-2" />
@@ -819,24 +980,45 @@ export function CompanyProfile() {
                 </div>
 
                 {/* Active Uploaded Files */}
-                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-4 shadow-sm">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Uploaded Documents</h3>
+                <div className="bg-white rounded-[32px] border border-slate-200/80 p-8 space-y-4 shadow-sm min-w-0 max-w-full box-border overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Uploaded Documents</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setStep(5);
+                      }}
+                      className="text-xs font-black text-blue-600 hover:text-blue-700 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors"
+                    >
+                      <Upload size={13} />
+                      Manage Documents
+                    </button>
+                  </div>
                   
                   {documents.length === 0 ? (
                     <span className="text-xs font-bold text-slate-400 italic block">No corporate files uploaded.</span>
                   ) : (
                     <div className="space-y-2">
                       {documents.map(doc => (
-                        <div key={doc.id || doc.doc_type} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                          <div className="flex items-center gap-2 min-w-0">
+                        <div key={doc.id || doc.doc_type} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 min-w-0 max-w-full">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileCheck size={16} className="text-emerald-500 shrink-0" />
-                            <span className="text-[10px] font-bold text-slate-700 truncate">{doc.doc_type}</span>
+                            <span className="text-[10px] font-bold text-slate-700 truncate" title={doc.doc_type}>{doc.doc_type}</span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
-                            {doc.doc_url && (
-                              <a href={doc.doc_url} target="_blank" rel="noreferrer" className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline">
+                            {(doc.doc_url || doc.id) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleViewDocument(doc.doc_url, doc.doc_type, doc.id);
+                                }}
+                                className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline cursor-pointer"
+                              >
                                 View
-                              </a>
+                              </button>
                             )}
                             {profile?.status !== 'APPROVED' && profile?.status !== 'PENDING' && profile?.status !== 'UNDER_REVIEW' && (
                               <button
@@ -1099,54 +1281,82 @@ export function CompanyProfile() {
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          {formData.country === "India" ? (
                            <>
-                             <DocUpload 
-                                label="GST Certificate" 
-                                required 
-                                active={documents.some(d => d.doc_type === "GST Certificate")} 
-                                isUploading={uploadingDocType === "GST Certificate"}
-                                isDeleting={deletingDocType === "GST Certificate"}
-                                onUpload={(e: any) => handleFileChange(e, "GST Certificate")}
-                                onDelete={() => handleDocDelete("GST Certificate")}
-                              />
-                             <DocUpload 
-                                label="Registration Cert" 
-                                required 
-                                active={documents.some(d => d.doc_type === "Business Registration Certificate")} 
-                                isUploading={uploadingDocType === "Business Registration Certificate"}
-                                isDeleting={deletingDocType === "Business Registration Certificate"}
-                                onUpload={(e: any) => handleFileChange(e, "Business Registration Certificate")}
-                                onDelete={() => handleDocDelete("Business Registration Certificate")}
-                              />
-                             <DocUpload 
-                                label="PAN Card Copy" 
-                                active={documents.some(d => d.doc_type === "PAN Card")} 
-                                isUploading={uploadingDocType === "PAN Card"}
-                                isDeleting={deletingDocType === "PAN Card"}
-                                onUpload={(e: any) => handleFileChange(e, "PAN Card")}
-                                onDelete={() => handleDocDelete("PAN Card")}
-                              />
-                             <DocUpload 
-                                label="Incorporation Cert" 
-                                active={documents.some(d => d.doc_type === "Incorporation Certificate")} 
-                                isUploading={uploadingDocType === "Incorporation Certificate"}
-                                isDeleting={deletingDocType === "Incorporation Certificate"}
-                                onUpload={(e: any) => handleFileChange(e, "Incorporation Certificate")}
-                                onDelete={() => handleDocDelete("Incorporation Certificate")}
-                              />
+                             {(() => {
+                               const gstDoc = documents.find(d => d.doc_type === "GST Certificate");
+                               return (
+                                 <DocUpload 
+                                    label="GST Certificate" 
+                                    required 
+                                    active={!!gstDoc} 
+                                    isUploading={uploadingDocType === "GST Certificate"}
+                                    isDeleting={deletingDocType === "GST Certificate"}
+                                    onUpload={(e: any) => handleFileChange(e, "GST Certificate")}
+                                    onDelete={() => handleDocDelete("GST Certificate")}
+                                    onView={(gstDoc?.doc_url || gstDoc?.id) ? () => handleViewDocument(gstDoc?.doc_url, "GST Certificate", gstDoc?.id) : undefined}
+                                  />
+                               );
+                             })()}
+                             {(() => {
+                               const regDoc = documents.find(d => d.doc_type === "Business Registration Certificate");
+                               return (
+                                 <DocUpload 
+                                    label="Registration Cert" 
+                                    required 
+                                    active={!!regDoc} 
+                                    isUploading={uploadingDocType === "Business Registration Certificate"}
+                                    isDeleting={deletingDocType === "Business Registration Certificate"}
+                                    onUpload={(e: any) => handleFileChange(e, "Business Registration Certificate")}
+                                    onDelete={() => handleDocDelete("Business Registration Certificate")}
+                                    onView={(regDoc?.doc_url || regDoc?.id) ? () => handleViewDocument(regDoc?.doc_url, "Business Registration Certificate", regDoc?.id) : undefined}
+                                  />
+                               );
+                             })()}
+                             {(() => {
+                               const panDoc = documents.find(d => d.doc_type === "PAN Card");
+                               return (
+                                 <DocUpload 
+                                    label="PAN Card Copy" 
+                                    active={!!panDoc} 
+                                    isUploading={uploadingDocType === "PAN Card"}
+                                    isDeleting={deletingDocType === "PAN Card"}
+                                    onUpload={(e: any) => handleFileChange(e, "PAN Card")}
+                                    onDelete={() => handleDocDelete("PAN Card")}
+                                    onView={(panDoc?.doc_url || panDoc?.id) ? () => handleViewDocument(panDoc?.doc_url, "PAN Card", panDoc?.id) : undefined}
+                                  />
+                               );
+                             })()}
+                             {(() => {
+                               const incDoc = documents.find(d => d.doc_type === "Incorporation Certificate");
+                               return (
+                                 <DocUpload 
+                                    label="Incorporation Cert" 
+                                    active={!!incDoc} 
+                                    isUploading={uploadingDocType === "Incorporation Certificate"}
+                                    isDeleting={deletingDocType === "Incorporation Certificate"}
+                                    onUpload={(e: any) => handleFileChange(e, "Incorporation Certificate")}
+                                    onDelete={() => handleDocDelete("Incorporation Certificate")}
+                                    onView={(incDoc?.doc_url || incDoc?.id) ? () => handleViewDocument(incDoc?.doc_url, "Incorporation Certificate", incDoc?.id) : undefined}
+                                  />
+                               );
+                             })()}
                            </>
                          ) : (
-                           (FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"]).requiredDocs.map((docType) => (
-                             <DocUpload 
-                                key={docType}
-                                label={docType} 
-                                required 
-                                active={documents.some(d => d.doc_type === docType)} 
-                                isUploading={uploadingDocType === docType}
-                                isDeleting={deletingDocType === docType}
-                                onUpload={(e: any) => handleFileChange(e, docType)}
-                                onDelete={() => handleDocDelete(docType)}
-                              />
-                           ))
+                           (FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"]).requiredDocs.map((docType) => {
+                             const matchDoc = documents.find(d => d.doc_type === docType);
+                             return (
+                               <DocUpload 
+                                  key={docType}
+                                  label={docType} 
+                                  required 
+                                  active={!!matchDoc} 
+                                  isUploading={uploadingDocType === docType}
+                                  isDeleting={deletingDocType === docType}
+                                  onUpload={(e: any) => handleFileChange(e, docType)}
+                                  onDelete={() => handleDocDelete(docType)}
+                                  onView={(matchDoc?.doc_url || matchDoc?.id) ? () => handleViewDocument(matchDoc?.doc_url, docType, matchDoc?.id) : undefined}
+                                />
+                             );
+                           })
                          )}
                        </div>
                        
@@ -1265,6 +1475,102 @@ export function CompanyProfile() {
               </motion.div>
             </div>
           )}
+
+          {/* Document Preview Modal */}
+          {previewDoc && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/90">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FileCheck size={20} className="text-emerald-500 shrink-0" />
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider truncate">
+                      {previewDoc.title}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = localStorage.getItem("token");
+                        if (previewDoc.fileUrl) {
+                          const tabUrl = token ? `${previewDoc.fileUrl}?token=${encodeURIComponent(token)}` : previewDoc.fileUrl;
+                          window.open(tabUrl, "_blank");
+                        } else if (previewDoc.blobUrl && previewDoc.blobUrl.startsWith("blob:")) {
+                          window.open(previewDoc.blobUrl, "_blank");
+                        } else if (previewDoc.isText && previewDoc.textContent) {
+                          const textBlob = new Blob([previewDoc.textContent], { type: "text/plain;charset=utf-8" });
+                          const textUrl = URL.createObjectURL(textBlob);
+                          window.open(textUrl, "_blank");
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-blue-600 hover:border-blue-300 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                      title="Open in new browser tab"
+                    >
+                      <ExternalLink size={13} />
+                      <span className="hidden sm:inline">Open in Tab</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadDoc(previewDoc.blobUrl.startsWith("blob:") ? previewDoc.blobUrl : (previewDoc.fileUrl || previewDoc.blobUrl), previewDoc.title, previewDoc.isText, previewDoc.isImage)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                      title="Download document"
+                    >
+                      <Download size={13} />
+                      <span className="hidden sm:inline">Download</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDoc(null)}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                      title="Close preview"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Document Display Body */}
+                <div className="p-3 sm:p-5 flex-1 overflow-auto bg-slate-100 flex items-center justify-center min-h-[60vh]">
+                  {previewDoc.isImage ? (
+                    <div className="max-w-full max-h-[75vh] flex items-center justify-center p-2 bg-white rounded-2xl shadow-sm border border-slate-200">
+                      <img
+                        src={previewDoc.blobUrl}
+                        alt={previewDoc.title}
+                        className="max-w-full max-h-[70vh] object-contain rounded-xl"
+                      />
+                    </div>
+                  ) : previewDoc.isText && previewDoc.textContent ? (
+                    <div className="w-full h-[75vh] bg-slate-900 rounded-2xl shadow-sm border border-slate-800 p-5 overflow-auto flex flex-col">
+                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-slate-400 text-xs font-mono">
+                        <span className="font-semibold text-slate-300 flex items-center gap-2">
+                          <FileText size={14} className="text-blue-400" />
+                          Document Content Preview
+                        </span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">{previewDoc.title}</span>
+                      </div>
+                      <pre className="font-mono text-xs text-slate-200 whitespace-pre-wrap break-words leading-relaxed flex-1">
+                        {previewDoc.textContent}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div className="w-full h-[75vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                      <iframe
+                        src={previewDoc.blobUrl}
+                        title={previewDoc.title}
+                        className="w-full h-full border-0"
+                      />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
         </AnimatePresence>
       </div>
     </div>
@@ -1313,7 +1619,7 @@ function Select({ label, value, onChange, options, icon }: any) {
   );
 }
 
-function DocUpload({ label, required, active, isDeleting, isUploading, onUpload, onDelete }: any) {
+function DocUpload({ label, required, active, isDeleting, isUploading, onUpload, onDelete, onView }: any) {
   return (
     <div className={`p-6 rounded-3xl border-2 transition-all group ${active ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-100 hover:border-blue-400 hover:bg-white border-dashed'}`}>
        <div className="flex items-center justify-between mb-4">
@@ -1362,10 +1668,21 @@ function DocUpload({ label, required, active, isDeleting, isUploading, onUpload,
            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[10px] uppercase">
               <CheckCircle2 size={12} /> Uploaded Successfully
            </div>
-           <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest cursor-pointer hover:underline">
-              Replace
-              <input type="file" className="hidden" accept=".pdf" disabled={isUploading || isDeleting} onChange={onUpload} />
-           </label>
+           <div className="flex items-center gap-3">
+             {onView && (
+               <button 
+                 type="button" 
+                 onClick={onView}
+                 className="text-[9px] font-black text-blue-600 uppercase tracking-widest cursor-pointer hover:underline"
+               >
+                 View
+               </button>
+             )}
+             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:underline">
+                Replace
+                <input type="file" className="hidden" accept=".pdf" disabled={isUploading || isDeleting} onChange={onUpload} />
+             </label>
+           </div>
          </div>
        ) : (
          <label className="mt-3 block text-[10px] font-black text-blue-600 uppercase tracking-widest cursor-pointer hover:underline">

@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
+  Building2,
   Briefcase, 
   Users, 
   GitBranch, 
@@ -41,6 +42,7 @@ export function CompanySidebar({ isCollapsed = false, onToggle }: CompanySidebar
 
   const navItems: NavItem[] = [
     { to: '/company', icon: LayoutDashboard, label: 'Dashboard', end: true },
+    { to: '/company/profile', icon: Building2, label: 'Company Profile' },
     { to: '/company/jobs', icon: Briefcase, label: 'Jobs' },
     { to: '/company/recommendations', icon: Sparkles, label: 'Hiring Copilot', isNew: true },
     { to: '/company/drops', icon: Zap, label: 'Drops' },
@@ -56,6 +58,7 @@ export function CompanySidebar({ isCollapsed = false, onToggle }: CompanySidebar
 
   const permissionMapping: Record<string, string> = {
     '/company': 'Dashboard View',
+    '/company/profile': 'Company Profile View',
     '/company/jobs': 'Jobs View',
     '/company/recommendations': 'Recommendations View',
     '/company/drops': 'Drops View',

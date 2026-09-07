@@ -95,6 +95,24 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
     }
   };
 
+  const handleNotificationClick = async (notif: any) => {
+    try {
+      if (!notif.is_read) {
+        await api.post(`/notifications/read/${notif.id}`);
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: 1 } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch {
+      // Non-blocking
+    }
+    setShowNotifications(false);
+    if (portalType === 'ADMIN') {
+      navigate('/admin/companies');
+    } else if (portalType === 'TPO') {
+      navigate('/tpo/notifications');
+    }
+  };
+
   // Close menus on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -186,7 +204,13 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
         {/* Notifications Icon Button */}
         <div className="relative" ref={notificationRef}>
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => {
+              const nextState = !showNotifications;
+              setShowNotifications(nextState);
+              if (nextState) {
+                fetchNotifications();
+              }
+            }}
             className={`w-10 h-10 rounded-xl flex items-center justify-center relative transition-all duration-200 cursor-pointer ${
               showNotifications
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
@@ -229,7 +253,7 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
                   )}
                 </div>
 
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                   {loadingNotifications && notifications.length === 0 ? (
                     <div className="p-8 text-center text-xs text-slate-400 font-medium">
                       Loading notifications...
@@ -243,13 +267,46 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
                       <p className="text-[10px] text-slate-400 mt-0.5">You are all caught up!</p>
                     </div>
                   ) : (
-                    notifications.slice(0, 5).map((notif: any) => (
-                      <div key={notif.id} className="p-3.5 hover:bg-slate-50 transition-colors">
-                        <p className="text-xs font-bold text-slate-800 line-clamp-1">{notif.title || 'System Notice'}</p>
-                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{notif.message || notif.content}</p>
-                        <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-medium">
-                          <Clock size={10} />
-                          <span>{notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'Just now'}</span>
+                    notifications.slice(0, 10).map((notif: any) => (
+                      <div
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer text-left ${
+                          !notif.is_read ? 'bg-blue-50/30' : ''
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              {!notif.is_read && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
+                              )}
+                              <p className="text-xs font-bold text-slate-800 line-clamp-1">
+                                {notif.title || 'System Notice'}
+                              </p>
+                            </div>
+                            <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                              {notif.message || notif.content}
+                            </p>
+                          </div>
+                          {notif.type === 'VERIFICATION_REQUEST' && (
+                            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200">
+                              Verification
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5 text-[9px] text-slate-400 font-medium">
+                          <div className="flex items-center gap-1">
+                            <Clock size={10} />
+                            <span>
+                              {notif.created_at ? new Date(notif.created_at).toLocaleString() : 'Just now'}
+                            </span>
+                          </div>
+                          {portalType === 'ADMIN' && (
+                            <span className="text-blue-600 font-bold hover:underline">
+                              Review &rarr;
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))
@@ -264,6 +321,18 @@ export function PortalHeader({ portalType, searchPlaceholder }: PortalHeaderProp
                       className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
                     >
                       View All Announcements &rarr;
+                    </Link>
+                  </div>
+                )}
+
+                {portalType === 'ADMIN' && (
+                  <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                    <Link
+                      to="/admin/companies"
+                      onClick={() => setShowNotifications(false)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors inline-flex items-center gap-1"
+                    >
+                      <span>Review Company Approvals &rarr;</span>
                     </Link>
                   </div>
                 )}

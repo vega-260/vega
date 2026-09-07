@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, Bell, Key, Briefcase, Mail, Loader2, Eye, EyeOff, Users, ArrowRight } from 'lucide-react';
+import { Settings, Shield, Bell, Key, Briefcase, Mail, Loader2, Eye, EyeOff, Users, ArrowRight, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -263,6 +263,7 @@ export function CompanySettingsPage() {
         {/* Sidebar Tabs */}
         <div className="w-full md:w-64 shrink-0 flex flex-col gap-2">
           {[
+            { id: 'profile', icon: Building2, label: 'Company Profile' },
             { id: 'account', icon: Briefcase, label: 'Account Info' },
             { id: 'security', icon: Shield, label: 'Security' },
             { id: 'notifications', icon: Bell, label: 'Notifications' },
@@ -271,7 +272,13 @@ export function CompanySettingsPage() {
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                if (tab.id === 'profile') {
+                  navigate('/company/profile');
+                } else {
+                  setActiveTab(tab.id);
+                }
+              }}
               className={`flex items-center gap-3 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${
                 activeTab === tab.id
                   ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/10'
@@ -280,6 +287,7 @@ export function CompanySettingsPage() {
             >
               <tab.icon size={18} />
               {tab.label}
+              {tab.id === 'profile' && <ArrowRight size={14} className="ml-auto opacity-50" />}
             </button>
           ))}
         </div>
@@ -316,6 +324,27 @@ export function CompanySettingsPage() {
                   </select>
                 </div>
               </div>
+              <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <Building2 size={16} className="text-blue-600" />
+                    Organization Profile & Verification
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Manage official company identification numbers (GST, PAN, CIN), addresses, and verification documents.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/company/profile')}
+                  className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors shrink-0 flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <Building2 size={14} />
+                  Open Company Profile
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+
               <div className="pt-6 border-t border-slate-50">
                 <button 
                   onClick={() => toast.error("Deactivation request must be raised directly to platform support.")}

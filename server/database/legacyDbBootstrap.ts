@@ -3191,7 +3191,165 @@ export async function initDb() {
         'India', 'Maharashtra', 'Mumbai', 'Leading tech solution company provider.', 'AI, Cloud, Database Solutions', 'https://linkedin.com', 'https://github.com'
       )
     `, [companyUserId, "Google Recruiting Team"]);
+    const [compProfile]: any = await performQuery("SELECT id FROM company_profiles WHERE user_id = ?", [companyUserId]);
+    if (compProfile && compProfile[0]) {
+      await performQuery(`
+        INSERT INTO company_documents (company_id, doc_type, doc_url, status) VALUES
+        (?, 'GST Certificate', 'https://example.com/docs/gst_certificate.pdf', 'APPROVED'),
+        (?, 'Incorporation Certificate', 'https://example.com/docs/incorporation_certificate.pdf', 'APPROVED'),
+        (?, 'Company PAN Card', 'https://example.com/docs/pan_card.pdf', 'APPROVED')
+      `, [compProfile[0].id, compProfile[0].id, compProfile[0].id]);
+    }
     console.log("🏢 Default approved company created: company@vega.com / company123");
+  }
+
+  // Seed default sample jobs for testing if company has no jobs
+  try {
+    const [compProfiles]: any = await performQuery("SELECT id FROM company_profiles WHERE company_name = 'Google Recruiting Team' OR id = 1 LIMIT 1");
+    if (compProfiles && compProfiles[0]) {
+      const companyId = compProfiles[0].id;
+      const [existingJobs]: any = await performQuery("SELECT COUNT(*) as count FROM jobs WHERE company_id = ?", [companyId]);
+      if (existingJobs[0]?.count === 0) {
+        console.log("🌱 Seeding default sample company jobs for testing...");
+        const today = new Date();
+        const addDays = (d: number) => {
+          const date = new Date(today);
+          date.setDate(date.getDate() + d);
+          return date.toISOString().split("T")[0];
+        };
+
+        const seedJobs = [
+          {
+            title: "Senior AI Research Fellow (Internship)",
+            description: "Join our core research division as a Senior AI Research Fellow Intern focusing on advanced models and inference optimization.",
+            skills: ["Python", "PyTorch", "Deep Learning", "NLP"],
+            location: "Remote",
+            job_type: "Internship",
+            experience_level: "Senior (5+ yrs)",
+            salary_range: "₹ 60,000 - ₹ 90,000 / month",
+            education_requirement: "Master's or PhD in Computer Science or AI",
+            responsibilities: "Conduct state-of-the-art AI experimentation and research prototypes.",
+            qualifications: "5+ years of software/AI research experience.",
+            start_date: addDays(-5),
+            deadline: addDays(24),
+            openings: 2,
+            status: "OPEN"
+          },
+          {
+            title: "Frontend Engineering Intern",
+            description: "Build clean, accessible, modern web interfaces and components.",
+            skills: ["React", "TypeScript", "Tailwind CSS", "Next.js"],
+            location: "Bangalore",
+            job_type: "Internship",
+            experience_level: "Fresher (0 yrs)",
+            salary_range: "₹ 35,000 - ₹ 50,000 / month",
+            education_requirement: "B.Tech / B.E in CS/IT",
+            responsibilities: "Develop UI components, integrate APIs, and assist team with web features.",
+            qualifications: "Knowledge of modern JavaScript and React.",
+            start_date: addDays(-3),
+            deadline: addDays(14),
+            openings: 5,
+            status: "OPEN"
+          },
+          {
+            title: "Senior Cloud Infrastructure Architect",
+            description: "Architect, scale, and maintain mission-critical cloud systems across distributed regions.",
+            skills: ["AWS", "Kubernetes", "Terraform", "Go", "Docker"],
+            location: "Remote",
+            job_type: "Full-time",
+            experience_level: "Senior (5+ yrs)",
+            salary_range: "₹ 30,00,000 - ₹ 45,00,000",
+            education_requirement: "B.Tech / B.E / M.Tech in CS or related field",
+            responsibilities: "Lead cloud reliability engineering and infrastructure as code automation.",
+            qualifications: "5+ years managing Kubernetes and high-scale cloud platforms.",
+            start_date: addDays(-10),
+            deadline: addDays(22),
+            openings: 3,
+            status: "OPEN"
+          },
+          {
+            title: "Junior Backend Developer",
+            description: "Develop reliable RESTful backend microservices and database queries.",
+            skills: ["Node.js", "Express", "PostgreSQL", "REST APIs"],
+            location: "Mumbai",
+            job_type: "Full-time",
+            experience_level: "Entry (1-3 yrs)",
+            salary_range: "₹ 8,00,000 - ₹ 12,00,000",
+            education_requirement: "Bachelor's degree in CS or equivalent",
+            responsibilities: "Implement robust server APIs and integrate database transactions.",
+            qualifications: "1-3 years backend engineering with Node.js and SQL.",
+            start_date: addDays(-2),
+            deadline: addDays(6),
+            openings: 2,
+            status: "OPEN"
+          },
+          {
+            title: "DevOps & SRE Specialist",
+            description: "Manage continuous integration, automated testing pipelines, and cluster health.",
+            skills: ["CI/CD", "Linux", "Python", "Monitoring", "Docker"],
+            location: "Hyderabad",
+            job_type: "Contract",
+            experience_level: "Mid (3-5 yrs)",
+            salary_range: "₹ 16,00,000 - ₹ 22,00,000",
+            education_requirement: "Any Graduate",
+            responsibilities: "Build CI/CD automation pipelines and maintain metrics observability.",
+            qualifications: "3-5 years DevOps experience.",
+            start_date: addDays(-4),
+            deadline: addDays(29),
+            openings: 1,
+            status: "OPEN"
+          },
+          {
+            title: "Summer Software Engineering Intern 2025",
+            description: "Previous summer intern cohort position for student developers.",
+            skills: ["Java", "Spring Boot", "Git"],
+            location: "Remote",
+            job_type: "Internship",
+            experience_level: "Fresher (0 yrs)",
+            salary_range: "₹ 30,000 / month",
+            education_requirement: "Undergraduate CS student",
+            responsibilities: "Completed summer intern project assignments.",
+            qualifications: "Core data structures and algorithms.",
+            start_date: addDays(-60),
+            deadline: addDays(-15),
+            openings: 4,
+            status: "CLOSED"
+          }
+        ];
+
+        for (const j of seedJobs) {
+          const [res]: any = await performQuery(`
+            INSERT INTO jobs (
+              company_id, title, description, skills_json, location, job_type,
+              experience_level, salary_range, education_requirement, responsibilities,
+              qualifications, application_start_date, deadline, openings, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            companyId, j.title, j.description, JSON.stringify(j.skills), j.location, j.job_type,
+            j.experience_level, j.salary_range, j.education_requirement, j.responsibilities,
+            j.qualifications, j.start_date, j.deadline, j.openings, j.status
+          ]);
+          const jobId = res?.insertId;
+          if (jobId) {
+            const defaultStages = [
+              { name: "Resume Screening", type: "SCREENING", order: 1 },
+              { name: "Technical Assessment", type: "ASSESSMENT", order: 2 },
+              { name: "Technical Interview", type: "INTERVIEW", order: 3 },
+              { name: "HR Discussion", type: "HR_ROUND", order: 4 }
+            ];
+            for (const s of defaultStages) {
+              await performQuery(`
+                INSERT INTO job_stages (job_id, stage_name, stage_type, stage_order, description, config_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `, [jobId, s.name, s.type, s.order, "", JSON.stringify({})]);
+            }
+          }
+        }
+        console.log("✅ Seeded default company jobs successfully");
+      }
+    }
+  } catch (err) {
+    console.error("Error seeding default jobs:", err);
   }
 
   // Seed Default System Configs

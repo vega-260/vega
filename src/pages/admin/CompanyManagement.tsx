@@ -94,16 +94,29 @@ export function CompanyManagement() {
         const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
         
         try {
-          const byteCharacters = atob(base64Data);
+          const rawBase64 = base64Data.replace(/\s/g, "");
+          const byteCharacters = atob(rawBase64);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
             byteNumbers[i] = byteCharacters.charCodeAt(i);
           }
           const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: mimeType });
+
+          let resolvedMime = mimeType;
+          if (byteArray.length >= 4 && byteArray[0] === 0x25 && byteArray[1] === 0x50 && byteArray[2] === 0x44 && byteArray[3] === 0x46) {
+            resolvedMime = "application/pdf";
+          } else if (byteArray.length >= 8 && byteArray[0] === 0x89 && byteArray[1] === 0x50 && byteArray[2] === 0x4e && byteArray[3] === 0x47) {
+            resolvedMime = "image/png";
+          } else if (byteArray.length >= 3 && byteArray[0] === 0xff && byteArray[1] === 0xd8 && byteArray[2] === 0xff) {
+            resolvedMime = "image/jpeg";
+          } else if (mimeType.includes("javascript") || mimeType.includes("text") || mimeType.includes("json")) {
+            resolvedMime = "text/plain;charset=utf-8";
+          }
+
+          const blob = new Blob([byteArray], { type: resolvedMime });
           const blobUrl = URL.createObjectURL(blob);
           
-          const newWindow = window.open(blobUrl, "_blank", "noopener,noreferrer");
+          const newWindow = window.open(blobUrl, "_blank");
           if (!newWindow) {
             alert("Popup blocked! Please allow popups to view the document.");
           }
@@ -112,7 +125,7 @@ export function CompanyManagement() {
           alert("The uploaded file could not be opened because it is corrupted or malformed.");
         }
       } else {
-        const newWindow = window.open(docUrl, "_blank", "noopener,noreferrer");
+        const newWindow = window.open(docUrl, "_blank");
         if (!newWindow) {
           alert("Popup blocked! Please allow popups to view the document.");
         }

@@ -218,6 +218,43 @@ export function AdminDashboard() {
     }
   };
 
+  const openVerificationDoc = (docUrl: string, docType: string, docId?: number) => {
+    if (!docUrl && !docId) return;
+    try {
+      if (docId) {
+        const token = localStorage.getItem("token");
+        const fileUrl = token ? `/api/companies/documents/${docId}/file?token=${encodeURIComponent(token)}` : `/api/companies/documents/${docId}/file`;
+        window.open(fileUrl, "_blank");
+        return;
+      }
+      if (docUrl && docUrl.startsWith("data:")) {
+        const parts = docUrl.split(",");
+        if (parts.length >= 2) {
+          const meta = parts[0];
+          const base64Data = parts[1];
+          const mimeMatch = meta.match(/data:([^;]+)/);
+          const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: mimeType });
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, "_blank");
+          return;
+        }
+      }
+      if (docUrl) {
+        window.open(docUrl, "_blank");
+      }
+    } catch (e) {
+      console.error("Error opening document:", e);
+      if (docUrl) window.open(docUrl, "_blank");
+    }
+  };
+
   const openStudentAudit = async (profileId: number) => {
     setLoading(true);
     try {
@@ -681,18 +718,7 @@ export function AdminDashboard() {
                            <ModalSectionTitle label="Uploaded Evidence" />
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                               {selectedCompany.documents?.length > 0 ? selectedCompany.documents.map((doc: any) => (
-                                <a 
-                                  key={doc.id} 
-                                  href={doc.doc_url} 
-                                  target="_blank" 
-                                  className="p-3 bg-white border border-slate-200 rounded flex items-center justify-between hover:border-indigo-400 hover:shadow-sm transition-all group"
-                                >
-                                   <div className="flex items-center gap-2">
-                                      <FileText size={16} className="text-indigo-600" />
-                                      <span className="text-xs font-semibold text-slate-700 group-hover:text-indigo-700 uppercase">{doc.doc_type}</span>
-                                   </div>
-                                   <ExternalLink size={14} className="text-slate-400 group-hover:text-indigo-600" />
-                                </a>
+                                <button key={doc.id} type="button" onClick={() => openVerificationDoc(doc.doc_url, doc.doc_type, doc.id)} className="p-3 bg-white border border-slate-200 rounded flex items-center justify-between hover:border-indigo-400 hover:shadow-sm transition-all group cursor-pointer text-left w-full"><div className="flex items-center gap-2"><FileText size={16} className="text-indigo-600 shrink-0" /><span className="text-xs font-semibold text-slate-700 group-hover:text-indigo-700 uppercase truncate">{doc.doc_type}</span></div><ExternalLink size={14} className="text-slate-400 group-hover:text-indigo-600 shrink-0" /></button>
                               )) : (
                                 <span className="text-slate-500 italic text-xs font-mono">No documents attached</span>
                               )}

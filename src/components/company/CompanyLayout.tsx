@@ -48,6 +48,38 @@ export function CompanyLayout() {
   const [allApplicants, setAllApplicants] = React.useState<any[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [focusedCandidate, setFocusedCandidate] = React.useState<any>(null);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  const fetchUnreadCount = React.useCallback(async () => {
+    try {
+      const res = await api.get('/company/notifications');
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        const count = res.data.data.filter((n: any) => !n.is_read).length;
+        setUnreadCount(count);
+      }
+    } catch (err) {
+      console.error("Error fetching company notifications count:", err);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (user?.id) {
+      fetchUnreadCount();
+      const interval = setInterval(fetchUnreadCount, 30000);
+      const handleUpdate = (e: any) => {
+        if (typeof e.detail?.unreadCount === 'number') {
+          setUnreadCount(e.detail.unreadCount);
+        } else {
+          fetchUnreadCount();
+        }
+      };
+      window.addEventListener('vega:company-notifications-updated', handleUpdate);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('vega:company-notifications-updated', handleUpdate);
+      };
+    }
+  }, [user?.id, fetchUnreadCount]);
 
   React.useEffect(() => {
     document.documentElement.classList.add('scrollbar-hide');
@@ -81,9 +113,8 @@ export function CompanyLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  // Lock out and force redirect to /company/profile if not approved
-  const isAllowedToBrowse = profile?.status === 'APPROVED';
-  if (!isAllowedToBrowse && location.pathname !== '/company/profile') {
+  // If company status is REJECTED, force redirect to /company/profile to fix verification documents
+  if (profile?.status === 'REJECTED' && location.pathname !== '/company/profile') {
     return <Navigate to="/company/profile" replace />;
   }
 
@@ -243,13 +274,20 @@ export function CompanyLayout() {
           <div className="flex items-center gap-6">
              <div className="flex items-center gap-3 bg-slate-50/50 p-1.5 rounded-2xl border border-slate-100/50">
                 <button 
+                  id="company-notifications-btn"
                   onClick={() => setShowNotifications(!showNotifications)}
                   className={`w-11 h-11 rounded-xl flex items-center justify-center relative transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ${
                     showNotifications ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-white text-slate-500 hover:text-blue-600 shadow-sm'
                   }`}
+                  title="Notifications"
                 >
                    <Bell size={20} />
-                   {!showNotifications && <span className="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white animate-bounce" />}
+                   {unreadCount > 0 && !showNotifications && (
+                     <span 
+                       id="pending-notification-indicator" 
+                       className="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white animate-bounce" 
+                     />
+                   )}
                 </button>
                 <button 
                   onClick={() => setShowCalendar(true)}
@@ -267,7 +305,10 @@ export function CompanyLayout() {
 
              <AnimatePresence>
                 {showNotifications && (
-                   <NotificationPanel onClose={() => setShowNotifications(false)} />
+                   <NotificationPanel 
+                     onClose={() => setShowNotifications(false)} 
+                     onUnreadCountChange={(count) => setUnreadCount(count)}
+                   />
                 )}
              </AnimatePresence>
 
@@ -350,9 +391,19 @@ export function CompanyLayout() {
                    Company verification pending. Some actions are disabled until Admin approval.
                 </p>
              </div>
-             <p className="text-[10px] font-mono font-black uppercase tracking-widest bg-amber-600 px-3 py-1 rounded-full border border-amber-700/30">
-                Frozen State
-             </p>
+             <div className="flex items-center gap-3 shrink-0">
+               <button
+                 id="banner-upload-documents-btn"
+                 onClick={() => navigate('/company/profile?step=5')}
+                 className="px-4 py-1.5 bg-white text-amber-900 hover:bg-amber-50 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+               >
+                 <Building2 size={14} className="text-amber-700" />
+                 Upload Verification Documents
+               </button>
+               <p className="text-[10px] font-mono font-black uppercase tracking-widest bg-amber-600 px-3 py-1 rounded-full border border-amber-700/30">
+                  Frozen State
+               </p>
+             </div>
           </div>
         )}
         </div>

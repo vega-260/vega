@@ -74,7 +74,7 @@ export function JobPostingPage() {
     title: "",
     location: "Remote",
     jobType: "Full-time",
-    experienceLevel: "Entry Level",
+    experienceLevel: "Entry (1-3 yrs)",
     skills: [] as string[],
     skillInput: "",
     description: "",
@@ -88,7 +88,7 @@ export function JobPostingPage() {
     aiMatchCutoff: 60, // AI Screening Cutoff
     autoReject: false,
     publishDestination: "JOB_ONLY",
-    openings: 1
+    openings: 1 as number | string
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -146,7 +146,8 @@ export function JobPostingPage() {
     if (!formData.location.trim()) {
       newErrors.location = "Location & Workplace is required.";
     }
-    const openingsNum = parseInt(formData.openings?.toString() || "1");
+    const openingsStr = formData.openings !== undefined && formData.openings !== null ? formData.openings.toString().trim() : "";
+    const openingsNum = openingsStr === "" ? NaN : parseInt(openingsStr, 10);
     if (isNaN(openingsNum) || openingsNum < 1 || openingsNum > 999) {
       newErrors.openings = "Number of Openings must be between 1 and 999.";
     }
@@ -305,7 +306,8 @@ export function JobPostingPage() {
       return;
     }
 
-    const openingsNum = parseInt(formData.openings?.toString() || "1");
+    const openingsStr = formData.openings !== undefined && formData.openings !== null ? formData.openings.toString().trim() : "";
+    const openingsNum = openingsStr === "" ? NaN : parseInt(openingsStr, 10);
     if (isNaN(openingsNum) || openingsNum < 1 || openingsNum > 999) {
       toast.error("Number of Openings must be between 1 and 999.");
       setStep(1);
@@ -340,6 +342,7 @@ export function JobPostingPage() {
     try {
       await api.post("/jobs", {
         ...formData,
+        openings: openingsNum,
         salaryRange: formData.salaryRange ? `${formData.salaryCurrency} ${formData.salaryRange}` : "",
         stages: stages.map(s => ({ 
           name: s.name, 
@@ -539,9 +542,24 @@ export function JobPostingPage() {
                               min="1" 
                               max="999" 
                               className={`form-input py-3 ${errors.openings ? 'border-rose-500 bg-rose-50/20' : ''}`}
-                              placeholder="e.g. 5" 
+                              placeholder="e.g. 1" 
                               value={formData.openings} 
-                              onChange={e => setFormData({ ...formData, openings: parseInt(e.target.value) || 1 })} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (val === "") {
+                                  setFormData(prev => ({ ...prev, openings: "" }));
+                                } else {
+                                  const parsed = parseInt(val, 10);
+                                  setFormData(prev => ({ ...prev, openings: isNaN(parsed) ? "" : parsed }));
+                                }
+                                if (errors.openings) {
+                                  setErrors(prev => {
+                                    const next = { ...prev };
+                                    delete next.openings;
+                                    return next;
+                                  });
+                                }
+                              }} 
                             />
                             {errors.openings && <p className="text-rose-500 text-[10px] font-bold mt-1 ml-1">{errors.openings}</p>}
                         </FormGroup>
@@ -1141,7 +1159,7 @@ export function JobPostingPage() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                                <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Role Title</span> <strong className="text-white text-xs">{formData.title || 'Untitled'}</strong></div>
                                <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Location</span> <strong className="text-white text-xs">{formData.location}</strong></div>
-                               <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Openings</span> <strong className="text-indigo-300 text-xs">{formData.openings} Openings</strong></div>
+                               <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Openings</span> <strong className="text-indigo-300 text-xs">{formData.openings ? `${formData.openings} ${Number(formData.openings) === 1 ? 'Opening' : 'Openings'}` : 'Not specified'}</strong></div>
                                <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Pipeline</span> <strong className="text-emerald-400 text-xs">{stages.length} Stages</strong></div>
                             </div>
 
@@ -1195,7 +1213,7 @@ export function JobPostingPage() {
                     </div>
                     <div>
                         <span className="text-[10px] text-slate-400 font-bold block uppercase mb-0.5">Openings</span>
-                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 inline-block">{formData.openings} {formData.openings === 1 ? 'Opening' : 'Openings'}</span>
+                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 inline-block">{formData.openings ? `${formData.openings} ${Number(formData.openings) === 1 ? 'Opening' : 'Openings'}` : 'Not specified'}</span>
                     </div>
                     <div>
                         <span className="text-[10px] text-slate-400 font-bold block uppercase mb-0.5">Pipeline Stages</span>

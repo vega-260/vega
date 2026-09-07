@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Bell, CheckCircle, Clock, AlertCircle, X, Loader2 } from 'lucide-react';
+import { Bell, CheckCircle, Clock, AlertCircle, Loader2, Check } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
 
 interface NotificationPanelProps {
   onClose: () => void;
+  onUnreadCountChange?: (count: number) => void;
 }
 
 interface NotificationItem {
@@ -20,30 +21,42 @@ interface NotificationItem {
 function formatRelativeTime(dateString: string) {
   try {
     const diffMs = Date.now() - new Date(dateString).getTime();
-    if (isNaN(diffMs) || diffMs < 0) return "Just now";
+    if (isNaN(diffMs) || diffMs < 0) return "JUST NOW";
     const diffSecs = Math.floor(diffMs / 1000);
-    if (diffSecs < 60) return "Just now";
+    if (diffSecs < 60) return "JUST NOW";
     const diffMins = Math.floor(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins} mins ago`;
+    if (diffMins < 60) return `${diffMins} MINS AGO`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} HOUR${diffHours > 1 ? 'S' : ''} AGO`;
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return `${diffDays} DAY${diffDays > 1 ? 'S' : ''} AGO`;
   } catch (e) {
-    return "Just now";
+    return "JUST NOW";
   }
 }
 
-export function NotificationPanel({ onClose }: NotificationPanelProps) {
+// Standard notification display duration: 5000ms (5 seconds)
+const STANDARD_DISPLAY_DURATION_MS = 5000;
+
+export function NotificationPanel({ onClose, onUnreadCountChange }: NotificationPanelProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const notifyUnreadChange = (items: NotificationItem[]) => {
+    const count = items.filter(n => !n.is_read).length;
+    onUnreadCountChange?.(count);
+    window.dispatchEvent(new CustomEvent('vega:company-notifications-updated', { detail: { unreadCount: count } }));
+  };
 
   const fetchNotifications = async () => {
     try {
       setLoading(true);
       const res = await api.get('/company/notifications');
-      if (res.data?.success) {
+      if (res.data?.success && Array.isArray(res.data.data)) {
         setNotifications(res.data.data);
+        notifyUnreadChange(res.data.data);
       }
     } catch (err) {
       console.error("Failed to fetch company notifications:", err);
@@ -54,17 +67,73 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll notifications every 10 seconds for real-time behavior
-    const interval = setInterval(fetchNotifications, 10000);
-    return () => clearInterval(interval);
   }, []);
 
+  // Standard notification auto-dismiss timer (5 seconds)
+  // Automatically closes the notification popup if user performs no action
+  useEffect(() => {
+    if (isHovered) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    timerRef.current = setTimeout(() => {
+      onClose();
+    }, STANDARD_DISPLAY_DURATION_MS);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [isHovered, onClose]);
+
+  // Mark single notification as read & auto-disappear
+  const handleMarkSingleRead = async (id: string | number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    // Optimistically update
+    setNotifications(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, is_read: 1 } : n);
+      notifyUnreadChange(next);
+      return next;
+    });
+
+    // Disappear immediately on click of "mark as read"
+    onClose();
+
+    try {
+      await api.post(`/company/notifications/read/${id}`);
+      toast.success("Notification marked as read");
+    } catch (err) {
+      try {
+        await api.post(`/company/notifications/${id}/read`);
+        toast.success("Notification marked as read");
+      } catch (fallbackErr) {
+        console.error("Failed to mark notification as read:", fallbackErr);
+      }
+    }
+  };
+
+  // Mark all notifications as read & auto-disappear
   const handleMarkAllRead = async () => {
+    // Optimistic update
+    setNotifications(prev => {
+      const next = prev.map(n => ({ ...n, is_read: 1 }));
+      notifyUnreadChange(next);
+      return next;
+    });
+
+    // Disappear immediately on click of "mark as read"
+    onClose();
+
     try {
       const res = await api.post('/company/notifications/read-all');
       if (res.data?.success) {
         toast.success("All notifications marked as read");
-        fetchNotifications();
       }
     } catch (err) {
       console.error("Failed to mark all as read:", err);
@@ -87,71 +156,123 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   return (
     <>
-      <div className="fixed inset-0 z-[100]" onClick={onClose} />
+      {/* Backdrop overlay to dismiss on outside click */}
+      <div 
+        id="notifications-backdrop"
+        className="fixed inset-0 z-[100]" 
+        onClick={onClose} 
+      />
+
       <motion.div 
-        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+        id="company-notifications-popup"
+        initial={{ opacity: 0, y: 8, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-        className="absolute top-20 right-10 w-96 bg-white rounded-[32px] shadow-2xl border border-slate-100 z-[101] overflow-hidden"
+        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="absolute top-20 right-10 w-[420px] bg-white rounded-[32px] shadow-2xl border border-slate-100 z-[101] overflow-hidden select-none"
       >
-        <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-          <div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Notifications</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-              {loading ? "Syncing..." : `You have ${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 hover:text-slate-600 cursor-pointer">
-            <X size={18} />
-          </button>
+        {/* Subtle top duration countdown bar */}
+        <div className="h-1 w-full bg-slate-50 overflow-hidden">
+          <motion.div 
+            key={isHovered ? 'paused' : 'running'}
+            initial={{ width: isHovered ? "100%" : "100%" }}
+            animate={{ width: isHovered ? "100%" : "0%" }}
+            transition={{ duration: 5, ease: "linear" }}
+            className="h-full bg-blue-600/40"
+          />
         </div>
 
-        <div className="max-h-[400px] overflow-y-auto min-h-[150px] flex flex-col justify-start">
+        {/* Notifications list */}
+        <div className="max-h-[420px] overflow-y-auto min-h-[120px] flex flex-col justify-start divide-y divide-slate-50">
           {loading && notifications.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center py-12 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin mb-2 text-indigo-600" />
-              <p className="text-xs font-semibold uppercase tracking-wider">Loading inbox...</p>
+              <p className="text-xs font-semibold uppercase tracking-wider">Syncing notifications...</p>
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center py-12 text-slate-400 text-center px-6">
               <Bell className="w-8 h-8 mb-2 text-slate-300" />
               <p className="text-xs font-black uppercase tracking-wider text-slate-600">Your Inbox is Clear</p>
-              <p className="text-[10px] font-medium text-slate-400 mt-1 leading-relaxed">No new alerts or candidate status updates have been registered yet.</p>
+              <p className="text-[10px] font-medium text-slate-400 mt-1 leading-relaxed">
+                No new alerts or candidate status updates have been registered yet.
+              </p>
             </div>
           ) : (
             notifications.map((n) => {
               const IconComp = getIcon(n.type);
               return (
-                <div key={n.id} className={`p-5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 group cursor-pointer ${!n.is_read ? 'bg-indigo-50/20' : ''}`}>
-                  <div className="flex gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                <div 
+                  key={n.id} 
+                  onClick={() => {
+                    if (!n.is_read) {
+                      handleMarkSingleRead(n.id);
+                    } else {
+                      onClose();
+                    }
+                  }}
+                  className={`p-5 hover:bg-slate-50/80 transition-colors group cursor-pointer relative ${
+                    !n.is_read ? 'bg-blue-50/20' : ''
+                  }`}
+                >
+                  <div className="flex gap-4 items-start">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 ${
                       n.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
                       n.type === 'warning' ? 'bg-orange-50 text-orange-600' :
                       'bg-indigo-50 text-indigo-600'
                     }`}>
                       <IconComp size={20} />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">{n.title}</h4>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">{formatRelativeTime(n.time)}</span>
+
+                    <div className="flex-1 min-w-0 pr-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight truncate">
+                          {n.title}
+                        </h4>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                          {formatRelativeTime(n.time)}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">{n.desc}</p>
+
+                      <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                        {n.desc}
+                      </p>
+
+                      {!n.is_read && (
+                        <div className="flex items-center justify-between mt-2.5 pt-1.5 border-t border-slate-100/60">
+                          <span className="text-[10px] font-semibold text-blue-600">
+                            Unread Alert
+                          </span>
+                          <button
+                            onClick={(e) => handleMarkSingleRead(n.id, e)}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Check size={11} /> Mark as read
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {!n.is_read && (
+                    <span className="absolute top-4 right-3 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-white" />
+                  )}
                 </div>
               );
             })
           )}
         </div>
 
+        {/* Footer with MARK ALL AS READ button */}
         {notifications.length > 0 && (
           <div className="p-4 bg-slate-50/50 text-center border-t border-slate-50">
             <button 
+              id="mark-all-notifications-read-btn"
               onClick={handleMarkAllRead}
-              className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline cursor-pointer"
+              className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline cursor-pointer disabled:opacity-50"
             >
-              Mark all as read
+              MARK ALL AS READ
             </button>
           </div>
         )}

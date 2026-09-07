@@ -189,39 +189,105 @@ export function ActiveJobsPage() {
 
   const filteredJobs = filteredByTab.filter(job => {
     // 1. Search Query (Matches title, location, or skills)
-    const matchesSearch = searchQuery === '' || 
-      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (job.skills && job.skills.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase())));
-
-    if (!matchesSearch) return false;
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.trim().toLowerCase();
+      const titleMatches = String(job.title || '').toLowerCase().includes(q);
+      const locMatches = String(job.location || '').toLowerCase().includes(q);
+      let skillsList: string[] = [];
+      if (Array.isArray(job.skills)) {
+        skillsList = job.skills;
+      } else if (typeof job.skills_json === 'string') {
+        try { skillsList = JSON.parse(job.skills_json); } catch {}
+      } else if (typeof job.skills === 'string') {
+        try { skillsList = JSON.parse(job.skills); } catch { skillsList = [job.skills]; }
+      }
+      const skillMatches = skillsList.some(s => typeof s === 'string' && s.toLowerCase().includes(q));
+      if (!titleMatches && !locMatches && !skillMatches) return false;
+    }
 
     // 2. Designation / Job Title Filter
-    if (filterDesignation !== '' && !job.title.toLowerCase().includes(filterDesignation.toLowerCase())) {
-      return false;
+    if (filterDesignation.trim() !== '') {
+      const designationFilter = filterDesignation.trim().toLowerCase();
+      const title = String(job.title || '').toLowerCase();
+      if (!title.includes(designationFilter)) {
+        return false;
+      }
     }
 
     // 3. Location Filter
-    if (filterLocation !== '' && !job.location?.toLowerCase().includes(filterLocation.toLowerCase())) {
-      return false;
+    if (filterLocation.trim() !== '') {
+      const locationFilter = filterLocation.trim().toLowerCase();
+      const loc = String(job.location || '').toLowerCase();
+      if (!loc.includes(locationFilter)) {
+        return false;
+      }
     }
 
     // 4. Job Type Filter
-    if (filterJobType !== 'All' && job.jobType !== filterJobType) {
-      return false;
+    if (filterJobType !== 'All') {
+      const rawJobType = String(job.job_type || job.jobType || job.type || '').trim().toLowerCase();
+      const filterType = filterJobType.trim().toLowerCase();
+      const clean = (s: string) => s.replace(/[^a-z0-9]/g, '');
+      const cleanedJobType = clean(rawJobType);
+      const cleanedFilterType = clean(filterType);
+      
+      if (cleanedJobType !== cleanedFilterType && !cleanedJobType.includes(cleanedFilterType) && !cleanedFilterType.includes(cleanedJobType)) {
+        return false;
+      }
     }
 
     // 5. Experience Level Filter
-    if (filterExpLevel !== 'All' && job.experienceLevel !== filterExpLevel) {
-      return false;
+    if (filterExpLevel !== 'All') {
+      const rawExp = String(job.experience_level || job.experienceLevel || job.experience || '').trim().toLowerCase();
+      const filterExp = filterExpLevel.trim().toLowerCase();
+
+      if (!rawExp) return false;
+
+      const isMatch = (() => {
+        if (rawExp === filterExp) return true;
+
+        if (filterExp.includes('fresher') || filterExp.includes('0 yr')) {
+          return rawExp.includes('fresher') || rawExp.includes('0 yr') || rawExp.includes('0-1') || rawExp.includes('intern');
+        }
+        if (filterExp.includes('entry') || filterExp.includes('1-3')) {
+          if (rawExp.includes('3-5') || rawExp.includes('5+')) return false;
+          return rawExp.includes('entry') || rawExp.includes('1-3') || rawExp.includes('junior');
+        }
+        if (filterExp.includes('mid') || filterExp.includes('3-5')) {
+          if (rawExp.includes('1-3') || rawExp.includes('5+')) return false;
+          return rawExp.includes('mid') || rawExp.includes('3-5') || rawExp.includes('intermediate');
+        }
+        if (filterExp.includes('senior') || filterExp.includes('5+')) {
+          if (rawExp.includes('3-5') || rawExp.includes('1-3') || rawExp.includes('fresher')) return false;
+          return rawExp.includes('senior') || rawExp.includes('5+') || rawExp.includes('lead') || rawExp.includes('principal');
+        }
+        return rawExp.includes(filterExp) || filterExp.includes(rawExp);
+      })();
+
+      if (!isMatch) {
+        return false;
+      }
     }
 
     // 6. Expiry Filter
-    if (filterExpiry !== 'All' && job.deadline) {
+    if (filterExpiry !== 'All') {
+      const isValidDeadline = job.deadline && 
+        job.deadline !== 'null' && 
+        job.deadline !== 'undefined' && 
+        job.deadline.toString().trim() !== '' && 
+        job.deadline !== '0000-00-00' && 
+        !isNaN(new Date(job.deadline).getTime());
+
+      if (!isValidDeadline) {
+        return false;
+      }
+
       const deadlineDate = new Date(job.deadline);
-      const today = new Date();
-      const diffTime = deadlineDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      deadlineDate.setHours(23, 59, 59, 999);
+      const now = new Date();
+      const diffMs = deadlineDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
       if (filterExpiry === '7days' && (diffDays < 0 || diffDays > 7)) return false;
       if (filterExpiry === '30days' && (diffDays < 0 || diffDays > 30)) return false;
       if (filterExpiry === 'expired' && diffDays >= 0) return false;
@@ -229,15 +295,25 @@ export function ActiveJobsPage() {
 
     // 7. Applicant Range Filter
     if (filterApplicantRange !== 'All') {
-      const count = job.total_applicants !== undefined ? job.total_applicants : (job.applicant_count || 0);
-      if (filterApplicantRange === '0-5' && count > 5) return false;
+      const rawCount = job.total_applicants !== undefined ? job.total_applicants : (job.applicant_count || 0);
+      const count = Number(rawCount) || 0;
+      if (filterApplicantRange === '0-5' && (count < 0 || count > 5)) return false;
       if (filterApplicantRange === '5-15' && (count < 5 || count > 15)) return false;
-      if (filterApplicantRange === '15+' && count <= 15) return false;
+      if (filterApplicantRange === '15+' && count < 15) return false;
     }
 
     // 8. Required Skill Filter
-    if (filterSkill !== '' && job.skills) {
-      const matchesSkill = job.skills.some((s: string) => s.toLowerCase().includes(filterSkill.toLowerCase()));
+    if (filterSkill.trim() !== '') {
+      const term = filterSkill.trim().toLowerCase();
+      let skillsList: string[] = [];
+      if (Array.isArray(job.skills)) {
+        skillsList = job.skills;
+      } else if (typeof job.skills_json === 'string') {
+        try { skillsList = JSON.parse(job.skills_json); } catch {}
+      } else if (typeof job.skills === 'string') {
+        try { skillsList = JSON.parse(job.skills); } catch { skillsList = [job.skills]; }
+      }
+      const matchesSkill = skillsList.some((s: string) => typeof s === 'string' && s.toLowerCase().includes(term));
       if (!matchesSkill) return false;
     }
 
