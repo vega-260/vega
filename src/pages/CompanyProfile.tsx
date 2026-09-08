@@ -476,11 +476,16 @@ export function CompanyProfile() {
         isPdf = true;
       }
 
-      const directFileUrl = docId
+      let directFileUrl = docId
         ? `/api/companies/documents/${docId}/file`
         : user?.id
           ? `/api/companies/profile/${user.id}/documents/${encodeURIComponent(title)}/file`
           : "";
+
+      const token = localStorage.getItem("token");
+      if (token && directFileUrl) {
+        directFileUrl = `${directFileUrl}?token=${encodeURIComponent(token)}`;
+      }
 
       // Single click instant modal preview - reliable across all environments without popup blockers or blank pages
       setPreviewDoc({
@@ -496,11 +501,16 @@ export function CompanyProfile() {
       });
     } catch (err) {
       console.error("Error opening document:", err);
-      const directFileUrl = docId
+      let directFileUrl = docId
         ? `/api/companies/documents/${docId}/file`
         : user?.id
           ? `/api/companies/profile/${user.id}/documents/${encodeURIComponent(title)}/file`
           : "";
+          
+      const token = localStorage.getItem("token");
+      if (token && directFileUrl) {
+        directFileUrl = `${directFileUrl}?token=${encodeURIComponent(token)}`;
+      }
       setPreviewDoc({
         title,
         blobUrl: docUrl || directFileUrl,
@@ -1475,8 +1485,10 @@ export function CompanyProfile() {
               </motion.div>
             </div>
           )}
+        </AnimatePresence>
 
-          {/* Document Preview Modal */}
+        {/* Document Preview Modal */}
+        <AnimatePresence>
           {previewDoc && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
               <motion.div
@@ -1497,10 +1509,8 @@ export function CompanyProfile() {
                     <button
                       type="button"
                       onClick={() => {
-                        const token = localStorage.getItem("token");
                         if (previewDoc.fileUrl) {
-                          const tabUrl = token ? `${previewDoc.fileUrl}?token=${encodeURIComponent(token)}` : previewDoc.fileUrl;
-                          window.open(tabUrl, "_blank");
+                          window.open(previewDoc.fileUrl, "_blank");
                         } else if (previewDoc.blobUrl && previewDoc.blobUrl.startsWith("blob:")) {
                           window.open(previewDoc.blobUrl, "_blank");
                         } else if (previewDoc.isText && previewDoc.textContent) {
@@ -1561,7 +1571,7 @@ export function CompanyProfile() {
                   ) : (
                     <div className="w-full h-[75vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                       <iframe
-                        src={previewDoc.blobUrl}
+                        src={previewDoc.blobUrl.startsWith("blob:") ? previewDoc.blobUrl : (previewDoc.fileUrl || previewDoc.blobUrl)}
                         title={previewDoc.title}
                         className="w-full h-full border-0"
                       />
