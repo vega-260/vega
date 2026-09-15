@@ -3,6 +3,8 @@ import { Settings, Shield, Bell, Key, Briefcase, Mail, Loader2, Eye, EyeOff, Use
 import { useAuth } from '../../context/AuthContext.tsx';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api.ts';
+import { getAccessToken } from '../../services/tokenStore.ts';
 
 interface TeamMember {
   id: number;
@@ -33,19 +35,7 @@ export function CompanySettingsPage() {
 
   // Token helper
   const getEffectiveToken = () => {
-    if (contextToken) return contextToken;
-    const authData = sessionStorage.getItem("vega_auth") || localStorage.getItem("vega_auth");
-    if (authData) {
-      try {
-        const parsed = JSON.parse(authData);
-        if (parsed && parsed.token) {
-          return parsed.token;
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    return getAccessToken() || contextToken || sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   };
 
   // Preferences State
@@ -83,14 +73,9 @@ export function CompanySettingsPage() {
   const fetchPreferences = async () => {
     try {
       setLoadingPrefs(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/settings/preferences', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const resData = await response.json();
-      if (resData.success && resData.preferences) {
+      const res = await api.get('/company/settings/preferences');
+      const resData = res.data;
+      if (resData?.success && resData.preferences) {
         setPreferences({
           timezone: resData.preferences.timezone || "Asia/Kolkata",
           emailNotifications: {
@@ -113,23 +98,15 @@ export function CompanySettingsPage() {
   // Save preferences
   const savePreferences = async (updatedPrefs: typeof preferences) => {
     try {
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/settings/preferences', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(updatedPrefs)
-      });
-      const resData = await response.json();
-      if (resData.success) {
+      const res = await api.put('/company/settings/preferences', updatedPrefs);
+      const resData = res.data;
+      if (resData?.success) {
         toast.success('Preferences saved successfully.');
       } else {
-        toast.error(resData.message || 'Failed to update preferences.');
+        toast.error(resData?.message || 'Failed to update preferences.');
       }
     } catch (err: any) {
-      toast.error(err.message || 'An error occurred while saving.');
+      toast.error(err.response?.data?.message || err.message || 'An error occurred while saving.');
     }
   };
 
@@ -137,17 +114,12 @@ export function CompanySettingsPage() {
   const fetchTeamMembers = async () => {
     try {
       setLoadingTeam(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/sub-hr', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const resData = await response.json();
-      if (resData.success) {
+      const res = await api.get('/company/sub-hr');
+      const resData = res.data;
+      if (resData?.success) {
         setTeamMembers(resData.data || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching team:", err);
     } finally {
       setLoadingTeam(false);
@@ -158,17 +130,12 @@ export function CompanySettingsPage() {
   const fetchBillingInfo = async () => {
     try {
       setLoadingBilling(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/settings/billing', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const resData = await response.json();
-      if (resData.success) {
+      const res = await api.get('/company/settings/billing');
+      const resData = res.data;
+      if (resData?.success) {
         setBillingInfo(resData.billing);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching billing:", err);
     } finally {
       setLoadingBilling(false);
@@ -225,26 +192,18 @@ export function CompanySettingsPage() {
 
     try {
       setSecLoading(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/settings/password', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
-      });
-      const resData = await response.json();
-      if (resData.success) {
+      const res = await api.put('/company/settings/password', { currentPassword, newPassword, confirmPassword });
+      const resData = res.data;
+      if (resData?.success) {
         toast.success('Password updated successfully.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        toast.error(resData.message || 'Failed to update password.');
+        toast.error(resData?.message || 'Failed to update password.');
       }
     } catch (err: any) {
-      toast.error(err.message || 'An error occurred.');
+      toast.error(err.response?.data?.message || err.message || 'An error occurred.');
     } finally {
       setSecLoading(false);
     }

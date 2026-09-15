@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import api from '../../services/api.ts';
-import { Search, Plus, Briefcase, History, SlidersHorizontal, Trash2, MapPin, Calendar, Users, LayoutGrid, List } from 'lucide-react';
+import { Search, Plus, Briefcase, History, SlidersHorizontal, Trash2, MapPin, Calendar, Users, LayoutGrid, List, UserPlus, Check, CheckCircle2, AlertCircle } from 'lucide-react';
 import { JobCard } from '../../components/company/JobCard.tsx';
 import { EditJobModal } from '../../components/company/EditJobModal.tsx';
 import { ViewJobDetailsModal } from '../../components/company/ViewJobDetailsModal.tsx';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 
 export function ActiveJobsPage() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,9 +21,19 @@ export function ActiveJobsPage() {
 
   // Job Assignment Modal State
   const [assigningJob, setAssigningJob] = useState<any | null>(null);
+  const [assignModalTab, setAssignModalTab] = useState<'assign' | 'register'>('assign');
   const [subHrs, setSubHrs] = useState<any[]>([]);
   const [assignedHrUserIds, setAssignedHrUserIds] = useState<number[]>([]);
   const [savingAssignment, setSavingAssignment] = useState(false);
+  const [registeringSubHr, setRegisteringSubHr] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [newHrForm, setNewHrForm] = useState({
+    name: '',
+    email: '',
+    designation: 'Technical Recruiter',
+    password: '',
+    permissions: ['Jobs View', 'Applicants View', 'Pipeline View', 'Pipeline Manage']
+  });
 
   // Filters State
   const [showFilters, setShowFilters] = useState(false);
@@ -66,27 +77,28 @@ export function ActiveJobsPage() {
   const fetchSubHrsAndAssignments = async (job: any) => {
     try {
       setAssigningJob(job);
-      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      setAssignModalTab('assign');
+      setRegisterError(null);
       // Fetch all company sub HR profiles
-      const subHrsRes = await fetch('/api/company/sub-hr', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const subHrsData = await subHrsRes.json();
-      if (subHrsData.success) {
-        setSubHrs(subHrsData.data || []);
+      const subHrsRes = await api.get('/company/sub-hr');
+      if (subHrsRes.data?.success) {
+        setSubHrs(subHrsRes.data.data || []);
       }
 
       // Fetch currently assigned Sub HRs for this job
-      const assignmentsRes = await fetch(`/api/company/jobs/${job.id}/assignments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const assignmentsData = await assignmentsRes.json();
-      if (assignmentsData.success) {
-        const assignedIds = (assignmentsData.data || []).map((a: any) => a.assigned_hr_user_id);
+      const assignmentsRes = await api.get(`/company/jobs/${job.id}/assignments`);
+      if (assignmentsRes.data?.success) {
+        const assignedIds = (assignmentsRes.data.data || []).map((a: any) => a.assigned_hr_user_id);
         setAssignedHrUserIds(assignedIds);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching job assignments:", err);
+      if (err.response?.status === 401 || err.response?.data?.expired || err.message?.includes("expired")) {
+        toast.error("Your session has expired. Please log in again to continue.", { id: "session-expired" });
+        setTimeout(() => navigate('/login?expired=true'), 800);
+      } else {
+        toast.error(err.response?.data?.message || "Error fetching job assignments.");
+      }
     }
   };
 
@@ -98,32 +110,100 @@ export function ActiveJobsPage() {
     }
   };
 
+  const handleRegisterSubHr = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!assigningJob) return;
+
+    if (!newHrForm.name.trim()) {
+      setRegisterError("Full name is required.");
+      return;
+    }
+    if (!newHrForm.email.trim()) {
+      setRegisterError("Official email address is required.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newHrForm.email.trim())) {
+      setRegisterError("Please enter a valid official email address.");
+      return;
+    }
+
+    try {
+      setRegisteringSubHr(true);
+      setRegisterError(null);
+      const res = await api.post('/company/sub-hr', {
+        name: newHrForm.name.trim(),
+        email: newHrForm.email.trim().toLowerCase(),
+        designation: newHrForm.designation.trim() || 'Technical Recruiter',
+        password: newHrForm.password.trim() || undefined,
+        permissions: newHrForm.permissions.length > 0 ? newHrForm.permissions : ['Jobs View', 'Applicants View', 'Pipeline View', 'Pipeline Manage']
+      });
+
+      if (res.data?.success) {
+        toast.success("Sub HR registered successfully!");
+        // Refresh Sub HR list
+        const subHrsRes = await api.get('/company/sub-hr');
+        let newHrList = [];
+        if (subHrsRes.data?.success) {
+          newHrList = subHrsRes.data.data || [];
+          setSubHrs(newHrList);
+        }
+        // Auto-select the newly registered Sub HR for this job
+        const registered = newHrList.find((h: any) => h.email?.toLowerCase() === newHrForm.email.trim().toLowerCase());
+        if (registered) {
+          setAssignedHrUserIds(prev => Array.from(new Set([...prev, registered.user_id])));
+        }
+        // Reset form & switch to assignment tab
+        setNewHrForm({
+          name: '',
+          email: '',
+          designation: 'Technical Recruiter',
+          password: '',
+          permissions: ['Jobs View', 'Applicants View', 'Pipeline View', 'Pipeline Manage']
+        });
+        setAssignModalTab('assign');
+      } else {
+        const errorMsg = res.data?.message || "Failed to register Sub HR.";
+        setRegisterError(errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      console.error("Error registering Sub HR:", err);
+      if (err.response?.status === 401 || err.response?.data?.expired || err.message?.includes("expired")) {
+        toast.error("Your session has expired. Please log in again to continue.", { id: "session-expired" });
+        setTimeout(() => navigate('/login?expired=true'), 800);
+      } else {
+        const msg = err.response?.data?.message || err.message || "Failed to register Sub HR.";
+        setRegisterError(msg);
+        toast.error(msg);
+      }
+    } finally {
+      setRegisteringSubHr(false);
+    }
+  };
+
   const handleSaveAssignments = async () => {
     if (!assigningJob) return;
     try {
       setSavingAssignment(true);
-      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
-      const response = await fetch('/api/company/jobs/assign', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          jobId: assigningJob.id,
-          hrUserIds: assignedHrUserIds
-        })
+      const response = await api.post('/company/jobs/assign', {
+        jobId: assigningJob.id,
+        hrUserIds: assignedHrUserIds
       });
-      const resData = await response.json();
-      if (resData.success) {
+      if (response.data?.success) {
         toast.success("Job HR assignments updated successfully!");
         setAssigningJob(null);
       } else {
-        toast.error(resData.message || "Failed to update assignments.");
+        toast.error(response.data?.message || "Failed to update assignments.");
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Error saving job assignments.");
+    } catch (err: any) {
+      console.error("Error saving job assignments:", err);
+      if (err.response?.status === 401 || err.response?.data?.expired || err.message?.includes("expired")) {
+        toast.error("Your session has expired. Please log in again to continue.", { id: "session-expired" });
+        setTimeout(() => navigate('/login?expired=true'), 800);
+      } else {
+        toast.error(err.response?.data?.message || "Error saving job assignments.");
+      }
     } finally {
       setSavingAssignment(false);
     }
@@ -738,107 +818,331 @@ export function ActiveJobsPage() {
       {/* JOB TO HR ASSIGNMENT MODAL */}
       {assigningJob && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-150 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-150 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div>
                 <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Assign HR Recruiter</h3>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Role: {assigningJob.title}</p>
               </div>
               <button 
-                onClick={() => setAssigningJob(null)}
+                onClick={() => {
+                  setAssigningJob(null);
+                  setRegisterError(null);
+                }}
                 className="text-slate-400 hover:text-slate-600 font-bold hover:bg-slate-200/50 p-2 rounded-xl transition-all"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-6 space-y-4 max-h-[350px] overflow-y-auto">
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Select which recruitment team members are assigned to manage candidates and move pipelines for this role. Unassigned Sub HRs will not see this job posting.
-              </p>
+            {/* Modal Tabs */}
+            <div className="flex border-b border-slate-100 bg-slate-50/50 px-6 pt-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignModalTab('assign');
+                  setRegisterError(null);
+                }}
+                className={`pb-3 px-4 text-xs font-black uppercase tracking-wider transition-all border-b-2 ${
+                  assignModalTab === 'assign'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Assign HRs ({assignedHrUserIds.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignModalTab('register');
+                  setRegisterError(null);
+                }}
+                className={`pb-3 px-4 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center gap-1.5 ${
+                  assignModalTab === 'register'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <UserPlus size={14} />
+                Register Sub HR
+              </button>
+            </div>
 
-              {subHrs.length === 0 ? (
-                <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Sub HR accounts found</p>
-                  <Link 
-                    to="/company/hr-management"
-                    className="text-[10px] font-black uppercase text-blue-600 hover:underline tracking-widest mt-2 block"
-                  >
-                    Go to HR Management →
-                  </Link>
-                </div>
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {assignModalTab === 'assign' ? (
+                <>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Select which recruitment team members are assigned to manage candidates and move pipelines for this role. Unassigned Sub HRs will not see this job posting.
+                  </p>
+
+                  {subHrs.length === 0 ? (
+                    <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50 space-y-3">
+                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-slate-400">
+                        <Users size={22} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-700 uppercase tracking-wider">No Sub HR accounts found</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Register a Sub HR recruiter now to assign them to this job posting.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssignModalTab('register');
+                          setRegisterError(null);
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+                      >
+                        <UserPlus size={14} />
+                        Register Sub HR Now
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-center px-1">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Team Members ({subHrs.length})</span>
+                        <div className="flex gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => setAssignedHrUserIds(subHrs.map(h => h.user_id))}
+                            className="text-[9px] font-black text-blue-600 uppercase hover:underline tracking-widest"
+                          >
+                            Select All
+                          </button>
+                          <span className="text-[9px] text-slate-300">|</span>
+                          <button 
+                            type="button"
+                            onClick={() => setAssignedHrUserIds([])}
+                            className="text-[9px] font-black text-rose-600 uppercase hover:underline tracking-widest"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="divide-y divide-slate-100 border border-slate-150 rounded-2xl overflow-hidden bg-white">
+                        {subHrs.map((hr) => {
+                          const isAssigned = assignedHrUserIds.includes(hr.user_id);
+                          return (
+                            <label 
+                              key={hr.id || hr.user_id}
+                              className="flex items-center justify-between p-3.5 hover:bg-slate-50/50 cursor-pointer select-none transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <input 
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  onChange={() => handleToggleAssignment(hr.user_id)}
+                                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                />
+                                <div>
+                                  <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{hr.name || hr.designation || "Recruiter"}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold tracking-wide">{hr.email}</p>
+                                </div>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${
+                                hr.is_active !== false ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                              }`}>
+                                {hr.designation || 'Recruiter'}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="pt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAssignModalTab('register');
+                            setRegisterError(null);
+                          }}
+                          className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 tracking-wider flex items-center gap-1.5"
+                        >
+                          <UserPlus size={13} />
+                          + Register New Sub HR
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="space-y-2.5">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Team Members</span>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button"
-                        onClick={() => setAssignedHrUserIds(subHrs.map(h => h.user_id))}
-                        className="text-[9px] font-black text-blue-600 uppercase hover:underline tracking-widest"
-                      >
-                        Select All
-                      </button>
-                      <span className="text-[9px] text-slate-300">|</span>
-                      <button 
-                        type="button"
-                        onClick={() => setAssignedHrUserIds([])}
-                        className="text-[9px] font-black text-rose-600 uppercase hover:underline tracking-widest"
-                      >
-                        Clear
-                      </button>
+                <form onSubmit={handleRegisterSubHr} className="space-y-4">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Create a new Sub HR recruiter profile for your organization. They will immediately be available and selected for this job posting.
+                  </p>
+
+                  {registerError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs font-bold">
+                      <AlertCircle size={16} className="shrink-0 text-red-500" />
+                      <span>{registerError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                        Full Name <span className="text-rose-500 font-bold">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newHrForm.name}
+                        onChange={(e) => setNewHrForm({ ...newHrForm, name: e.target.value })}
+                        placeholder="e.g. Sarah Jenkins"
+                        required
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                        Official Email <span className="text-rose-500 font-bold">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={newHrForm.email}
+                        onChange={(e) => setNewHrForm({ ...newHrForm, email: e.target.value })}
+                        placeholder="recruiter@company.com"
+                        required
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                          Designation
+                        </label>
+                        <input
+                          type="text"
+                          value={newHrForm.designation}
+                          onChange={(e) => setNewHrForm({ ...newHrForm, designation: e.target.value })}
+                          placeholder="Technical Recruiter"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                          Password (Optional)
+                        </label>
+                        <input
+                          type="password"
+                          value={newHrForm.password}
+                          onChange={(e) => setNewHrForm({ ...newHrForm, password: e.target.value })}
+                          placeholder="Auto-generated if blank"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-2">
+                        Assigned Permissions
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {[
+                          'Jobs View',
+                          'Applicants View',
+                          'Pipeline View',
+                          'Pipeline Manage',
+                          'Candidate Select/Reject',
+                          'Schedule Interviews'
+                        ].map((perm) => {
+                          const isChecked = newHrForm.permissions.includes(perm);
+                          return (
+                            <label
+                              key={perm}
+                              className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-100 cursor-pointer text-slate-700 font-medium"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setNewHrForm({
+                                      ...newHrForm,
+                                      permissions: newHrForm.permissions.filter(p => p !== perm)
+                                    });
+                                  } else {
+                                    setNewHrForm({
+                                      ...newHrForm,
+                                      permissions: [...newHrForm.permissions, perm]
+                                    });
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 text-blue-600 rounded"
+                              />
+                              <span className="text-[11px] font-bold">{perm}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="divide-y divide-slate-100 border border-slate-150 rounded-2xl overflow-hidden bg-white">
-                    {subHrs.map((hr) => {
-                      const isAssigned = assignedHrUserIds.includes(hr.user_id);
-                      return (
-                        <label 
-                          key={hr.id}
-                          className="flex items-center justify-between p-3.5 hover:bg-slate-50/50 cursor-pointer select-none transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <input 
-                              type="checkbox"
-                              checked={isAssigned}
-                              onChange={() => handleToggleAssignment(hr.user_id)}
-                              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                            />
-                            <div>
-                              <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{hr.name}</p>
-                              <p className="text-[10px] text-slate-400 font-bold tracking-wide">{hr.email}</p>
-                            </div>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${
-                            hr.is_active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
-                          }`}>
-                            {hr.designation || 'Recruiter'}
-                          </span>
-                        </label>
-                      );
-                    })}
+                  <div className="pt-2 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAssignModalTab('assign')}
+                      className="px-4 py-2.5 bg-slate-150 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                      Back to Selection
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={registeringSubHr}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-blue-500/20 hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {registeringSubHr ? (
+                        <>
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Registering...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={13} />
+                          <span>Register Sub HR</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                </div>
+                </form>
               )}
             </div>
 
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setAssigningJob(null)}
-                className="px-5 py-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAssignments}
-                disabled={savingAssignment}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
-              >
-                {savingAssignment ? "Saving..." : "Save Assignments"}
-              </button>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400">
+                {assignedHrUserIds.length} Recruiter{assignedHrUserIds.length === 1 ? '' : 's'} Selected
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssigningJob(null);
+                    setRegisterError(null);
+                  }}
+                  className="px-5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAssignments}
+                  disabled={savingAssignment || (assignModalTab === 'register')}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                >
+                  {savingAssignment ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>Save & Assign HRs</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

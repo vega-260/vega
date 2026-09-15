@@ -256,28 +256,34 @@ router.get("/profile/:userId/documents/:type/file", async (req, res) => {
 
     const docUrl = docs[0].doc_url;
     if (docUrl.startsWith("data:")) {
-      const matches = docUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
+      // More robust regex to handle potential extra parameters in data URL
+      const matches = docUrl.match(/^data:([^;]+)(?:;[^;]+)*;base64,([\s\S]+)$/);
       if (matches) {
         let mimeType = matches[1] || "application/pdf";
         const base64Str = matches[2].replace(/\s/g, "");
         const buffer = Buffer.from(base64Str, "base64");
 
-        // Sniff content type from magic bytes or text format
-        if (buffer.length >= 4 && buffer.subarray(0, 4).toString() === "%PDF") {
+        // Sniff content type from magic bytes or text format to ensure accuracy
+        const magic = buffer.subarray(0, 8).toString("hex").toLowerCase();
+        if (magic.startsWith("25504446")) { // %PDF
           mimeType = "application/pdf";
-        } else if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+        } else if (magic.startsWith("89504e47")) { // PNG
           mimeType = "image/png";
-        } else if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+        } else if (magic.startsWith("ffd8ff")) { // JPEG
           mimeType = "image/jpeg";
+        } else if (magic.startsWith("47494638")) { // GIF
+          mimeType = "image/gif";
         } else if (mimeType.includes("javascript") || mimeType.includes("json") || mimeType.includes("text") || mimeType.includes("xml")) {
           mimeType = "text/plain; charset=utf-8";
         }
 
-        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "txt";
+        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : (mimeType.includes("jpeg") || mimeType.includes("jpg")) ? "jpg" : "txt";
         const filename = `${decodedType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+        
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
         res.setHeader("Content-Length", buffer.length);
+        res.setHeader("Cache-Control", "private, max-age=3600");
         return res.send(buffer);
       }
     } else if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {
@@ -303,28 +309,34 @@ router.get("/documents/:docId/file", async (req, res) => {
     const docUrl = docs[0].doc_url;
     const docType = docs[0].doc_type || "Document";
     if (docUrl.startsWith("data:")) {
-      const matches = docUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
+      // More robust regex to handle potential extra parameters in data URL
+      const matches = docUrl.match(/^data:([^;]+)(?:;[^;]+)*;base64,([\s\S]+)$/);
       if (matches) {
         let mimeType = matches[1] || "application/pdf";
         const base64Str = matches[2].replace(/\s/g, "");
         const buffer = Buffer.from(base64Str, "base64");
 
         // Sniff content type from magic bytes or text format
-        if (buffer.length >= 4 && buffer.subarray(0, 4).toString() === "%PDF") {
+        const magic = buffer.subarray(0, 8).toString("hex").toLowerCase();
+        if (magic.startsWith("25504446")) { // %PDF
           mimeType = "application/pdf";
-        } else if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+        } else if (magic.startsWith("89504e47")) { // PNG
           mimeType = "image/png";
-        } else if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+        } else if (magic.startsWith("ffd8ff")) { // JPEG
           mimeType = "image/jpeg";
+        } else if (magic.startsWith("47494638")) { // GIF
+          mimeType = "image/gif";
         } else if (mimeType.includes("javascript") || mimeType.includes("json") || mimeType.includes("text") || mimeType.includes("xml")) {
           mimeType = "text/plain; charset=utf-8";
         }
 
-        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "txt";
+        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : (mimeType.includes("jpeg") || mimeType.includes("jpg")) ? "jpg" : "txt";
         const filename = `${docType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
         res.setHeader("Content-Length", buffer.length);
+        res.setHeader("Cache-Control", "private, max-age=3600");
         return res.send(buffer);
       }
     } else if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {

@@ -17,7 +17,7 @@ const FRONTEND_COUNTRY_RULES: Record<string, {
 }> = {
   "India": {
     identifiers: [
-      { key: "gst_no", label: "GST Number", placeholder: "22AAAAA0000A1Z5", required: false },
+      { key: "gst_no", label: "GST Number", placeholder: "22AAAAA0000A1Z5", required: true },
       { key: "cin_no", label: "CIN Number", placeholder: "U72200MH2021PTC...", required: false },
       { key: "pan_no", label: "PAN Number", placeholder: "ABCDE1234F", required: true }
     ],
@@ -103,12 +103,91 @@ const FRONTEND_COUNTRY_RULES: Record<string, {
 export function CompanyProfile() {
   const { user, profile, updateProfile } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [step, setStep] = useState(1);
+  const [submittedSteps, setSubmittedSteps] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [stepError, setStepError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  const computeSubmittedStepsFromProfile = (p: any, docs: any[] = []): number[] => {
+    const steps: number[] = [];
+
+    // Step 1: Basic Information
+    const hasStep1 = Boolean(
+      p?.company_name?.trim() &&
+      p?.company_email?.trim() &&
+      p?.contact_number?.trim() &&
+      p?.company_type?.trim() &&
+      p?.industry?.trim() &&
+      p?.company_size?.trim()
+    );
+    if (hasStep1) steps.push(1);
+
+    // Step 2: Legal & Business Details
+    const country = p?.country || "India";
+    const hasCommonLegal = Boolean(p?.business_name?.trim() && p?.address?.trim() && p?.city?.trim() && p?.state?.trim());
+    let hasLegal = false;
+    if (country === "India") {
+      hasLegal = Boolean(hasCommonLegal && p?.gst_no?.trim() && p?.pan_no?.trim());
+    } else {
+      const countryRule = FRONTEND_COUNTRY_RULES[country] || FRONTEND_COUNTRY_RULES["India"];
+      let idsValid = true;
+      if (countryRule) {
+        for (const field of countryRule.identifiers) {
+          if (field.required && (!p[field.key] || !String(p[field.key]).trim())) {
+            idsValid = false;
+            break;
+          }
+        }
+      }
+      hasLegal = Boolean(hasCommonLegal && p?.entity_type?.trim() && idsValid);
+    }
+    if (hasStep1 && hasLegal) steps.push(2);
+
+    // Step 3: About
+    const hasStep3 = Boolean(p?.about?.trim() && p?.about?.trim().length > 0);
+    if (hasStep1 && hasLegal && hasStep3) steps.push(3);
+
+    // Step 4: Online Presence (LinkedIn Page is mandatory)
+    const hasStep4 = Boolean(
+      p?.linkedin_url?.trim() &&
+      /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*linkedin\.com\/.+/i.test(p.linkedin_url.trim())
+    );
+    if (hasStep1 && hasLegal && hasStep3 && hasStep4) steps.push(4);
+
+    // Step 5: Verification Documents
+    let hasDocs = false;
+    if (country === "India") {
+      const hasGst = docs.some(d => d.doc_type === "GST Certificate");
+      const hasReg = docs.some(d => d.doc_type === "Business Registration Certificate");
+      hasDocs = hasGst && hasReg;
+    } else {
+      const countryRule = FRONTEND_COUNTRY_RULES[country] || FRONTEND_COUNTRY_RULES["India"];
+      if (countryRule) {
+        hasDocs = countryRule.requiredDocs.every(reqDoc => docs.some(d => d.doc_type === reqDoc));
+      }
+    }
+    if (hasStep1 && hasLegal && hasStep3 && hasStep4 && hasDocs) steps.push(5);
+
+    return steps;
+  };
+
+  const updateFormField = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+    if (stepError) {
+      setStepError(null);
+    }
+  };
 
   const [formData, setFormData] = useState({
     company_name: "",
@@ -170,17 +249,33 @@ export function CompanyProfile() {
   useEffect(() => {
     const requestedStep = searchParams.get('step');
     const requestedSection = searchParams.get('section');
-    if (requestedStep) {
-      const parsed = parseInt(requestedStep, 10);
-      if (parsed >= 1 && parsed <= 5) {
-        setStep(parsed);
+    if (!loading) {
+      if (requestedStep) {
+        const parsed = parseInt(requestedStep, 10);
+        if (parsed >= 1 && parsed <= 5) {
+          let allowedStep = parsed;
+          for (let s = 1; s < parsed; s++) {
+            if (!submittedSteps.includes(s) || !validateStep(s).isValid) {
+              allowedStep = s;
+              break;
+            }
+          }
+          setStep(allowedStep);
+          setIsEditing(true);
+        }
+      } else if (requestedSection === 'documents' || requestedSection === 'verification') {
+        let allowedStep = 5;
+        for (let s = 1; s < 5; s++) {
+          if (!submittedSteps.includes(s) || !validateStep(s).isValid) {
+            allowedStep = s;
+            break;
+          }
+        }
+        setStep(allowedStep);
         setIsEditing(true);
       }
-    } else if (requestedSection === 'documents' || requestedSection === 'verification') {
-      setStep(5);
-      setIsEditing(true);
     }
-  }, [searchParams]);
+  }, [searchParams, loading, submittedSteps]);
 
   useEffect(() => {
     fetchProfile();
@@ -224,6 +319,25 @@ export function CompanyProfile() {
         });
         setDocuments(p.documents || []);
         setCompleteness(p.completeness_score || 0);
+
+        const initialSubmitted = computeSubmittedStepsFromProfile(p, p.documents || []);
+        setSubmittedSteps(initialSubmitted);
+
+        const requestedStep = searchParams.get('step');
+        if (requestedStep) {
+          const parsed = parseInt(requestedStep, 10);
+          if (parsed >= 1 && parsed <= 5) {
+            let allowedStep = parsed;
+            for (let s = 1; s < parsed; s++) {
+              if (!initialSubmitted.includes(s)) {
+                allowedStep = s;
+                break;
+              }
+            }
+            setStep(allowedStep);
+            setIsEditing(true);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -416,13 +530,26 @@ export function CompanyProfile() {
     }
 
     try {
-      let previewUrl = docUrl || "";
+      let previewUrl = "";
       let isPdf = false;
       let isImage = false;
       let isText = false;
       let textContent = "";
       let mimeType = "application/pdf";
 
+      // 1. Calculate direct API URL for fallback and non-data URLs
+      let directFileUrl = docId
+        ? `/api/companies/documents/${docId}/file`
+        : user?.id
+          ? `/api/companies/profile/${user.id}/documents/${encodeURIComponent(title)}/file`
+          : "";
+
+      const token = localStorage.getItem("token");
+      if (token && directFileUrl) {
+        directFileUrl = `${directFileUrl}${directFileUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+      }
+
+      // 2. Process docUrl if it's a data URL
       if (docUrl && docUrl.startsWith("data:")) {
         const parts = docUrl.split(",");
         if (parts.length >= 2) {
@@ -439,12 +566,13 @@ export function CompanyProfile() {
             }
             const byteArray = new Uint8Array(byteNumbers);
 
-            // Sniff magic bytes
-            if (byteArray.length >= 4 && byteArray[0] === 0x25 && byteArray[1] === 0x50 && byteArray[2] === 0x44 && byteArray[3] === 0x46) {
+            // Sniff magic bytes for accuracy
+            const magic = Array.from(byteArray.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('');
+            if (magic === "25504446") {
               mimeType = "application/pdf";
-            } else if (byteArray.length >= 8 && byteArray[0] === 0x89 && byteArray[1] === 0x50 && byteArray[2] === 0x4e && byteArray[3] === 0x47) {
+            } else if (magic === "89504e47") {
               mimeType = "image/png";
-            } else if (byteArray.length >= 3 && byteArray[0] === 0xff && byteArray[1] === 0xd8 && byteArray[2] === 0xff) {
+            } else if (magic.startsWith("ffd8ff")) {
               mimeType = "image/jpeg";
             }
 
@@ -469,28 +597,22 @@ export function CompanyProfile() {
           }
         }
       } else if (docUrl) {
-        isPdf = docUrl.toLowerCase().endsWith(".pdf") || docUrl.includes("application/pdf");
-        isImage = /\.(jpg|jpeg|png|webp|svg|gif)$/i.test(docUrl);
+        // External or relative URL
+        isPdf = docUrl.toLowerCase().endsWith(".pdf") || docUrl.toLowerCase().includes("application/pdf");
+        isImage = /\.(jpg|jpeg|png|webp|svg|gif)$/i.test(docUrl.split('?')[0]);
         isText = !isPdf && !isImage;
+        previewUrl = docUrl;
       } else {
+        // Only docId provided, assume PDF for API endpoint unless we can sniff it
         isPdf = true;
       }
 
-      let directFileUrl = docId
-        ? `/api/companies/documents/${docId}/file`
-        : user?.id
-          ? `/api/companies/profile/${user.id}/documents/${encodeURIComponent(title)}/file`
-          : "";
+      // Final URL to use in viewer
+      const finalUrl = previewUrl || directFileUrl;
 
-      const token = localStorage.getItem("token");
-      if (token && directFileUrl) {
-        directFileUrl = `${directFileUrl}?token=${encodeURIComponent(token)}`;
-      }
-
-      // Single click instant modal preview - reliable across all environments without popup blockers or blank pages
       setPreviewDoc({
         title,
-        blobUrl: previewUrl || directFileUrl,
+        blobUrl: finalUrl,
         rawUrl: docUrl || directFileUrl,
         fileUrl: directFileUrl,
         isPdf,
@@ -501,6 +623,7 @@ export function CompanyProfile() {
       });
     } catch (err) {
       console.error("Error opening document:", err);
+      // Fallback logic
       let directFileUrl = docId
         ? `/api/companies/documents/${docId}/file`
         : user?.id
@@ -509,7 +632,7 @@ export function CompanyProfile() {
           
       const token = localStorage.getItem("token");
       if (token && directFileUrl) {
-        directFileUrl = `${directFileUrl}?token=${encodeURIComponent(token)}`;
+        directFileUrl = `${directFileUrl}${directFileUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
       }
       setPreviewDoc({
         title,
@@ -531,6 +654,262 @@ export function CompanyProfile() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const validateStep = (stepNumber: number): { isValid: boolean; error?: string; fieldErrors?: Record<string, string> } => {
+    const errs: Record<string, string> = {};
+
+    if (stepNumber === 1) {
+      if (!formData.company_name || !formData.company_name.trim()) {
+        errs.company_name = "Company Name is mandatory.";
+      } else {
+        const company_name = formData.company_name.trim();
+        const allowedRegex = /^[a-zA-Z0-9\s.&'()-]+$/;
+        if (!allowedRegex.test(company_name) || !/[a-zA-Z0-9]/.test(company_name)) {
+          errs.company_name = "Please enter a valid company name.";
+        }
+      }
+
+      if (!formData.company_email || !formData.company_email.trim()) {
+        errs.company_email = "Official Email is mandatory.";
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.company_email.trim())) {
+        errs.company_email = "Please enter a valid official email address.";
+      }
+
+      if (!formData.contact_number || !formData.contact_number.trim()) {
+        errs.contact_number = "Contact Number is mandatory.";
+      } else {
+        const cleanContact = formData.contact_number.replace(/\D/g, "");
+        if (cleanContact.length !== 10) {
+          errs.contact_number = "Contact number must be exactly 10 digits.";
+        }
+      }
+
+      if (!formData.company_type) {
+        errs.company_type = "Company Type is mandatory.";
+      }
+
+      if (!formData.industry) {
+        errs.industry = "Industry is mandatory.";
+      }
+
+      if (!formData.company_size) {
+        errs.company_size = "Company Size is mandatory.";
+      }
+
+      if (formData.website && formData.website.trim()) {
+        const urlRegex = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/;
+        if (!urlRegex.test(formData.website.trim())) {
+          errs.website = "Please enter a valid website URL.";
+        }
+      }
+
+      if (formData.registration_date) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (formData.registration_date > todayStr) {
+          errs.registration_date = "Company registration date cannot be in the future.";
+        }
+      }
+    } else if (stepNumber === 2) {
+      if (!formData.country) {
+        errs.country = "Country of Registration is mandatory.";
+      }
+
+      if (!formData.business_name || !formData.business_name.trim()) {
+        errs.business_name = "Registered Business Name is mandatory.";
+      } else {
+        const business_name = formData.business_name.trim();
+        const allowedRegex = /^[a-zA-Z0-9\s.&'()-]+$/;
+        if (!allowedRegex.test(business_name) || !/[a-zA-Z0-9]/.test(business_name)) {
+          errs.business_name = "Please enter a valid business name.";
+        }
+      }
+
+      if (formData.country === "India") {
+        if (!formData.gst_no || !formData.gst_no.trim()) {
+          errs.gst_no = "GST Number is mandatory for Indian registered businesses.";
+        } else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i.test(formData.gst_no.trim())) {
+          errs.gst_no = "GST number must be a valid 15-character GSTIN.";
+        }
+
+        if (formData.cin_no && formData.cin_no.trim()) {
+          if (!/^[A-Z0-9]{21}$/i.test(formData.cin_no.trim())) {
+            errs.cin_no = "CIN must be a valid 21-character alphanumeric number.";
+          }
+        }
+
+        if (!formData.pan_no || !formData.pan_no.trim()) {
+          errs.pan_no = "PAN Number is mandatory for Indian registered businesses.";
+        } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(formData.pan_no.trim())) {
+          errs.pan_no = "PAN must be in valid format (e.g., ABCDE1234F).";
+        }
+      } else {
+        if (!formData.entity_type || !formData.entity_type.trim()) {
+          errs.entity_type = "Legal Entity Type is mandatory.";
+        }
+        const countryRule = FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"];
+        if (countryRule) {
+          for (const field of countryRule.identifiers) {
+            if (field.required) {
+              const val = (formData as any)[field.key];
+              if (!val || !String(val).trim()) {
+                errs[field.key] = `${field.label} is mandatory.`;
+              }
+            }
+          }
+        }
+      }
+
+      if (!formData.address || !formData.address.trim()) {
+        errs.address = "Registered Address is mandatory.";
+      }
+
+      if (!formData.city || !formData.city.trim()) {
+        errs.city = "City is mandatory.";
+      } else if (!/^[a-zA-Z\s-]+$/.test(formData.city.trim())) {
+        errs.city = "Please enter a valid city name.";
+      }
+
+      if (!formData.state || !formData.state.trim()) {
+        errs.state = "State is mandatory.";
+      } else if (!/^[a-zA-Z\s-]+$/.test(formData.state.trim())) {
+        errs.state = "Please enter a valid state name.";
+      }
+    } else if (stepNumber === 3) {
+      if (!formData.about || !formData.about.trim()) {
+        errs.about = "About Company is mandatory. Please provide a description of your organization.";
+      }
+    } else if (stepNumber === 4) {
+      if (!formData.linkedin_url || !formData.linkedin_url.trim()) {
+        errs.linkedin_url = "LinkedIn Page URL is mandatory for company verification.";
+      } else {
+        const lUrl = formData.linkedin_url.trim();
+        if (!/^(https?:\/\/)?([a-zA-Z0-9-]+\.)*linkedin\.com\/.+/i.test(lUrl)) {
+          errs.linkedin_url = "Please enter a valid LinkedIn URL (e.g. linkedin.com/company/yourcompany).";
+        }
+      }
+
+      if (formData.github_url && formData.github_url.trim()) {
+        const gUrl = formData.github_url.trim();
+        if (!/^(https?:\/\/)?([a-zA-Z0-9-]+\.)*github\.com\/.+/i.test(gUrl) && !/^[a-zA-Z0-9_-]+$/.test(gUrl)) {
+          errs.github_url = "Please enter a valid GitHub organization URL or username.";
+        }
+      }
+    } else if (stepNumber === 5) {
+      if (formData.country === "India") {
+        const hasGst = documents.some(d => d.doc_type === "GST Certificate");
+        const hasReg = documents.some(d => d.doc_type === "Business Registration Certificate");
+        if (!hasGst) errs.gst_doc = "GST Certificate document is mandatory.";
+        if (!hasReg) errs.reg_doc = "Business Registration Certificate document is mandatory.";
+      } else {
+        const countryRule = FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"];
+        if (countryRule) {
+          for (const docType of countryRule.requiredDocs) {
+            if (!documents.some(d => d.doc_type === docType)) {
+              errs[docType] = `${docType} document is mandatory.`;
+            }
+          }
+        }
+      }
+    }
+
+    const firstError = Object.values(errs)[0];
+    return {
+      isValid: Object.keys(errs).length === 0,
+      error: firstError,
+      fieldErrors: errs
+    };
+  };
+
+  const isStepCompleted = (stepNumber: number): boolean => {
+    // Step must have been submitted
+    if (!submittedSteps.includes(stepNumber)) {
+      return false;
+    }
+    // All validations up to this step must pass
+    for (let s = 1; s <= stepNumber; s++) {
+      if (!validateStep(s).isValid) return false;
+    }
+    return true;
+  };
+
+  const handleContinue = async () => {
+    const res = validateStep(step);
+    if (!res.isValid) {
+      setFieldErrors(res.fieldErrors || {});
+      setStepError(res.error || `Please complete all mandatory fields in Step ${step} before continuing.`);
+      return;
+    }
+
+    setFieldErrors({});
+    setStepError(null);
+
+    const saved = await handleSave(true);
+    if (saved) {
+      setSubmittedSteps(prev => Array.from(new Set([...prev, step])));
+      const nextStep = Math.min(5, step + 1);
+      setStep(nextStep);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(nextStep));
+        return next;
+      }, { replace: true });
+    }
+  };
+
+  const handleStepClick = async (targetStep: number) => {
+    if (targetStep === step) return;
+
+    // Moving backward to previously completed/visited steps is allowed
+    if (targetStep < step) {
+      setStepError(null);
+      setFieldErrors({});
+      setStep(targetStep);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(targetStep));
+        return next;
+      }, { replace: true });
+      return;
+    }
+
+    // Moving forward requires current step validation and submission
+    const curVal = validateStep(step);
+    if (!curVal.isValid) {
+      setFieldErrors(curVal.fieldErrors || {});
+      setStepError(`Cannot proceed to Step ${targetStep}. Please complete all mandatory fields in Step ${step} first: ${curVal.error}`);
+      return;
+    }
+
+    if (!submittedSteps.includes(step)) {
+      setStepError(`Cannot proceed to Step ${targetStep}. Please submit Step ${step} by clicking "Submit & Continue" before moving to the next step.`);
+      return;
+    }
+
+    // Verify all steps up to targetStep are completed and submitted
+    for (let s = 1; s < targetStep; s++) {
+      const res = validateStep(s);
+      if (!res.isValid || !submittedSteps.includes(s)) {
+        setStep(s);
+        setFieldErrors(res.fieldErrors || {});
+        setStepError(`Cannot proceed to Step ${targetStep}. Please complete and submit Step ${s} first${res.error ? `: ${res.error}` : '.'}`);
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.set('step', String(s));
+          return next;
+        }, { replace: true });
+        return;
+      }
+    }
+
+    setStepError(null);
+    setFieldErrors({});
+    setStep(targetStep);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('step', String(targetStep));
+      return next;
+    }, { replace: true });
   };
 
   const handleSave = async (silent = false) => {
@@ -580,6 +959,24 @@ export function CompanyProfile() {
       const urlRegex = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/;
       if (!urlRegex.test(websiteUrl)) {
         alert("Please enter a valid website URL.");
+        return;
+      }
+    }
+
+    // LinkedIn URL validation (if filled)
+    if (formData.linkedin_url && formData.linkedin_url.trim()) {
+      const lUrl = formData.linkedin_url.trim();
+      if (!/^(https?:\/\/)?([a-zA-Z0-9-]+\.)*linkedin\.com\/.+/i.test(lUrl)) {
+        alert("Please enter a valid LinkedIn URL (e.g. linkedin.com/company/yourcompany).");
+        return;
+      }
+    }
+
+    // GitHub URL validation (if filled)
+    if (formData.github_url && formData.github_url.trim()) {
+      const gUrl = formData.github_url.trim();
+      if (!/^(https?:\/\/)?([a-zA-Z0-9-]+\.)*github\.com\/.+/i.test(gUrl) && !/^[a-zA-Z0-9_-]+$/.test(gUrl)) {
+        alert("Please enter a valid GitHub organization URL or username.");
         return;
       }
     }
@@ -644,6 +1041,9 @@ export function CompanyProfile() {
         if (!silent) alert("Progress saved!");
         const updated = { ...profile, ...formData, completeness_score: data.score };
         updateProfile(updated);
+        if (validateStep(step).isValid) {
+          setSubmittedSteps(prev => Array.from(new Set([...prev, step])));
+        }
         return true;
       }
       return false;
@@ -657,6 +1057,18 @@ export function CompanyProfile() {
   };
 
   const handleSubmitVerification = async () => {
+    // Validate all steps 1 to 5 before final submission
+    for (let s = 1; s <= 5; s++) {
+      const res = validateStep(s);
+      if (!res.isValid) {
+        setStep(s);
+        setFieldErrors(res.fieldErrors || {});
+        setStepError(`Cannot submit. Please complete mandatory requirements in Step ${s}: ${res.error}`);
+        alert(`Cannot submit. Please complete mandatory requirements in Step ${s}: ${res.error}`);
+        return;
+      }
+    }
+
     if (completeness < 80) {
       alert(`Please complete at least 80% of your profile including mandatory documents to submit for verification (Current: ${completeness}%).`);
       return;
@@ -1054,15 +1466,30 @@ export function CompanyProfile() {
           <>
             <div className="mb-12 flex justify-between relative bg-white/40 p-4 rounded-2xl backdrop-blur">
                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-200 -translate-y-1/2 -z-10" />
-               {[1, 2, 3, 4, 5].map((s) => (
-                 <div 
-                   key={s} 
-                   onClick={() => setStep(s)}
-                   className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-all border-4 ${step === s ? 'bg-blue-600 text-white border-blue-100 scale-125' : s < step ? 'bg-emerald-500 text-white border-emerald-100' : 'bg-white text-slate-400 border-slate-50'}`}
-                 >
-                   {s < step ? <CheckCircle2 size={20} /> : <span className="font-black text-sm">{s}</span>}
-                 </div>
-               ))}
+               {[1, 2, 3, 4, 5].map((s) => {
+                 const isCurrent = step === s;
+                 const isCompleted = isStepCompleted(s);
+                 const isAccessible = s <= step || (isStepCompleted(s - 1) && submittedSteps.includes(step));
+                 return (
+                   <button 
+                     key={s} 
+                     type="button"
+                     onClick={() => handleStepClick(s)}
+                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border-4 focus:outline-none ${
+                       isCurrent 
+                         ? 'bg-blue-600 text-white border-blue-100 scale-125 shadow-lg shadow-blue-500/25 cursor-pointer' 
+                         : isCompleted 
+                           ? 'bg-emerald-500 text-white border-emerald-100 hover:scale-110 shadow-sm cursor-pointer' 
+                           : isAccessible
+                             ? 'bg-white text-slate-400 border-slate-200 hover:border-blue-200 hover:text-slate-600 cursor-pointer'
+                             : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-60'
+                     }`}
+                     title={`Step ${s}${isCompleted ? ' (Completed & Submitted)' : isCurrent ? ' (Active)' : isAccessible ? ' (Unlocked)' : ' (Locked until Step ' + step + ' is submitted)'}`}
+                   >
+                     {isCompleted && !isCurrent ? <CheckCircle2 size={20} /> : <span className="font-black text-sm">{s}</span>}
+                   </button>
+                 );
+               })}
             </div>
 
             <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
@@ -1074,15 +1501,37 @@ export function CompanyProfile() {
                   exit={{ opacity: 0, x: -20 }}
                   className="p-12"
                 >
+                  {stepError && (
+                    <div className="mb-8 p-4 bg-red-50/95 border-2 border-red-200 rounded-2xl flex items-center justify-between gap-4 text-red-800 text-xs sm:text-sm font-bold shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <AlertCircle size={20} className="text-red-500 shrink-0" />
+                        <span>{stepError}</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setStepError(null)}
+                        className="text-red-400 hover:text-red-700 p-1.5 rounded-xl hover:bg-red-100/50 transition-colors cursor-pointer"
+                        title="Dismiss"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
                   {step === 1 && (
                     <div className="space-y-8">
-                       <div className="flex items-center gap-4 mb-4">
-                          <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                             <Building2 size={32} />
+                       <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-100">
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                <Building2 size={32} />
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Basic Information</h2>
+                                <p className="text-slate-500 text-sm">Tell us the public details about your organization.</p>
+                             </div>
                           </div>
-                          <div>
-                             <h2 className="text-3xl font-black text-slate-800 tracking-tight">Basic Information</h2>
-                             <p className="text-slate-500 text-sm">Tell us the public details about your organization.</p>
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 rounded-full text-xs font-semibold shadow-xs">
+                             <span className="text-red-500 font-black text-sm leading-none">*</span>
+                             <span>Fields marked with <strong className="text-red-600">*</strong> are mandatory</span>
                           </div>
                        </div>
 
@@ -1103,31 +1552,37 @@ export function CompanyProfile() {
                              </div>
                           </div>
 
-                          <Input label="Company Name" placeholder="e.g. Acme Innovations" value={formData.company_name} onChange={v => setFormData({...formData, company_name: v})} icon={<Building2 size={16} />} />
-                          <Input label="Official Website" placeholder="https://acme.com" value={formData.website} onChange={v => setFormData({...formData, website: v})} icon={<Globe size={16} />} />
-                          <Input label="Official Email" placeholder="hr@acme.com" value={formData.company_email} onChange={v => setFormData({...formData, company_email: v})} icon={<Mail size={16} />} />
-                          <Input label="Contact Number" placeholder="+91 XXXXX XXXXX" value={formData.contact_number} onChange={(v: string) => setFormData({...formData, contact_number: v.replace(/\D/g, "").slice(0, 10)})} icon={<Phone size={16} />} />
+                          <Input label="Company Name" placeholder="e.g. Acme Innovations" value={formData.company_name} onChange={v => updateFormField("company_name", v)} icon={<Building2 size={16} />} required error={fieldErrors.company_name} />
+                          <Input label="Official Website" placeholder="https://acme.com" value={formData.website} onChange={v => updateFormField("website", v)} icon={<Globe size={16} />} error={fieldErrors.website} />
+                          <Input label="Official Email" placeholder="hr@acme.com" value={formData.company_email} onChange={v => updateFormField("company_email", v)} icon={<Mail size={16} />} required error={fieldErrors.company_email} />
+                          <Input label="Contact Number" placeholder="+91 XXXXX XXXXX" value={formData.contact_number} onChange={(v: string) => updateFormField("contact_number", v.replace(/\D/g, "").slice(0, 10))} icon={<Phone size={16} />} required error={fieldErrors.contact_number} />
                           
                           <Select 
                             label="Company Type" 
                             value={formData.company_type} 
-                            onChange={v => setFormData({...formData, company_type: v})}
+                            onChange={v => updateFormField("company_type", v)}
                             options={['Startup', 'MNC', 'SME', 'Government', 'Agency']}
                             icon={<LayoutGrid size={16} />}
+                            required
+                            error={fieldErrors.company_type}
                           />
                           <Select 
                             label="Industry" 
                             value={formData.industry} 
-                            onChange={v => setFormData({...formData, industry: v})}
+                            onChange={v => updateFormField("industry", v)}
                             options={['IT & Software', 'Finance', 'Healthcare', 'Education', 'Manufacturing', 'Retail']}
                             icon={<Factory size={16} />}
+                            required
+                            error={fieldErrors.industry}
                           />
                           <Select 
                             label="Company Size" 
                             value={formData.company_size} 
-                            onChange={v => setFormData({...formData, company_size: v})}
+                            onChange={v => updateFormField("company_size", v)}
                             options={['1-10', '10-50', '50-200', '200-500', '500+']}
                             icon={<Users size={16} />}
+                            required
+                            error={fieldErrors.company_size}
                           />
                           <Input 
                             label="Company Registration Date" 
@@ -1136,9 +1591,11 @@ export function CompanyProfile() {
                             value={formData.registration_date || ""} 
                             onChange={(v: string) => {
                               const year = v ? new Date(v).getFullYear() : "";
-                              setFormData({...formData, registration_date: v, year_established: year});
+                              updateFormField("registration_date", v);
+                              setFormData(prev => ({ ...prev, registration_date: v, year_established: year }));
                             }} 
                             icon={<Calendar size={16} />} 
+                            error={fieldErrors.registration_date}
                           />
                        </div>
                     </div>
@@ -1146,13 +1603,19 @@ export function CompanyProfile() {
 
                   {step === 2 && (
                     <div className="space-y-8">
-                       <div className="flex items-center gap-4 mb-4">
-                          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
-                             <ShieldCheck size={32} />
+                       <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-100">
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                                <ShieldCheck size={32} />
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Business Details</h2>
+                                <p className="text-slate-500 text-sm">Required for tax and verification purposes.</p>
+                             </div>
                           </div>
-                          <div>
-                             <h2 className="text-3xl font-black text-slate-800 tracking-tight">Business Details</h2>
-                             <p className="text-slate-500 text-sm">Required for tax and verification purposes.</p>
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 rounded-full text-xs font-semibold shadow-xs">
+                             <span className="text-red-500 font-black text-sm leading-none">*</span>
+                             <span>Fields marked with <strong className="text-red-600">*</strong> are mandatory</span>
                           </div>
                        </div>
 
@@ -1161,75 +1624,129 @@ export function CompanyProfile() {
                             <Select 
                               label="Country of Registration" 
                               value={formData.country} 
-                              onChange={v => setFormData({...formData, country: v})}
+                              onChange={v => updateFormField("country", v)}
                               options={Object.keys(FRONTEND_COUNTRY_RULES)}
                               icon={<Globe size={16} />}
+                              required
+                              error={fieldErrors.country}
                             />
                           </div>
 
-                          <Input label="Registered Business Name" placeholder="As per official registration" value={formData.business_name} onChange={v => setFormData({...formData, business_name: v})} icon={<Building2 size={16} />} />
+                          <Input 
+                            label="Registered Business Name" 
+                            placeholder="As per official registration" 
+                            value={formData.business_name} 
+                            onChange={v => updateFormField("business_name", v)} 
+                            icon={<Building2 size={16} />} 
+                            required
+                            error={fieldErrors.business_name}
+                          />
                           
                           {formData.country === "India" ? (
                             <>
-                              <Input label="GST Number" placeholder="22AAAAA0000A1Z5" value={formData.gst_no} onChange={(v: string) => setFormData({...formData, gst_no: v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15)})} icon={<ShieldCheck size={16} />} />
-                              <Input label="CIN Number (Optional)" placeholder="U72200MH2021PTC..." value={formData.cin_no} onChange={(v: string) => setFormData({...formData, cin_no: v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 21)})} icon={<ShieldCheck size={16} />} />
-                              <Input label="PAN Number" placeholder="ABCDE1234F" value={formData.pan_no} onChange={(v: string) => setFormData({...formData, pan_no: v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10)})} icon={<ShieldCheck size={16} />} />
+                              <Input 
+                                label="GST Number" 
+                                placeholder="22AAAAA0000A1Z5" 
+                                value={formData.gst_no} 
+                                onChange={(v: string) => updateFormField("gst_no", v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15))} 
+                                icon={<ShieldCheck size={16} />} 
+                                required
+                                error={fieldErrors.gst_no}
+                              />
+                              <Input 
+                                label="CIN Number (Optional)" 
+                                placeholder="U72200MH2021PTC..." 
+                                value={formData.cin_no} 
+                                onChange={(v: string) => updateFormField("cin_no", v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 21))} 
+                                icon={<ShieldCheck size={16} />} 
+                                error={fieldErrors.cin_no}
+                              />
+                              <Input 
+                                label="PAN Number" 
+                                placeholder="ABCDE1234F" 
+                                value={formData.pan_no} 
+                                onChange={(v: string) => updateFormField("pan_no", v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))} 
+                                icon={<ShieldCheck size={16} />} 
+                                required
+                                error={fieldErrors.pan_no}
+                              />
                             </>
                           ) : (
                             <>
                               <Select
                                 label="Legal Entity Type"
                                 value={formData.entity_type}
-                                onChange={v => setFormData({...formData, entity_type: v})}
+                                onChange={v => updateFormField("entity_type", v)}
                                 options={["LLC / Limited Liability Company", "Corporation (Inc./Corp.)", "Partnership (LLP/LP)", "Sole Proprietor", "Other"]}
                                 icon={<LayoutGrid size={16} />}
+                                required
+                                error={fieldErrors.entity_type}
                               />
                               {(FRONTEND_COUNTRY_RULES[formData.country] || FRONTEND_COUNTRY_RULES["India"]).identifiers.map((field) => (
                                 <Input 
                                   key={field.key}
-                                  label={`${field.label}${field.required ? ' *' : ' (Optional)'}`} 
+                                  label={`${field.label}${field.required ? '' : ' (Optional)'}`} 
                                   placeholder={field.placeholder} 
                                   value={(formData as any)[field.key] || ""} 
-                                  onChange={v => setFormData({...formData, [field.key]: v})} 
+                                  onChange={v => updateFormField(field.key, v)} 
                                   icon={<ShieldCheck size={16} />} 
+                                  required={field.required}
+                                  error={fieldErrors[field.key]}
                                 />
                               ))}
                             </>
                           )}
                           
                           <div className="md:col-span-2 space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Registered Address</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+                              <span>Registered Address</span>
+                              <span className="text-red-500 font-black text-xs ml-1">*</span>
+                            </label>
                             <textarea 
                               rows={3} 
                               value={formData.address}
-                              onChange={e => setFormData({...formData, address: e.target.value})}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:ring-4 focus:ring-blue-50 text-sm font-medium resize-none transition-all"
+                              onChange={e => updateFormField("address", e.target.value)}
+                              className={`w-full rounded-2xl px-5 py-4 outline-none text-sm font-medium resize-none transition-all ${
+                                fieldErrors.address 
+                                  ? 'bg-red-50/30 border-2 border-red-400 focus:ring-4 focus:ring-red-100 text-slate-800' 
+                                  : 'bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-blue-50 hover:border-slate-300'
+                              }`}
                               placeholder="Full registered office address..."
                             />
+                            {fieldErrors.address && <p className="text-xs text-red-500 font-medium">{fieldErrors.address}</p>}
                           </div>
 
-                          <Input label="City" placeholder="Mumbai" value={formData.city} onChange={v => setFormData({...formData, city: v})} icon={<MapPin size={16} />} />
-                          <Input label="State" placeholder="Maharashtra" value={formData.state} onChange={v => setFormData({...formData, state: v})} icon={<MapPin size={16} />} />
+                          <Input label="City" placeholder="Mumbai" value={formData.city} onChange={v => updateFormField("city", v)} icon={<MapPin size={16} />} required error={fieldErrors.city} />
+                          <Input label="State" placeholder="Maharashtra" value={formData.state} onChange={v => updateFormField("state", v)} icon={<MapPin size={16} />} required error={fieldErrors.state} />
                        </div>
                     </div>
                   )}
 
                   {step === 3 && (
                     <div className="space-y-8">
-                       <div className="flex items-center gap-4 mb-4">
-                          <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
-                             <FileText size={32} />
+                       <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-100">
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+                                <FileText size={32} />
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Company Story</h2>
+                                <p className="text-slate-500 text-sm">Tell potential employees why they should join you.</p>
+                             </div>
                           </div>
-                          <div>
-                             <h2 className="text-3xl font-black text-slate-800 tracking-tight">Company Story</h2>
-                             <p className="text-slate-500 text-sm">Tell potential employees why they should join you.</p>
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 rounded-full text-xs font-semibold shadow-xs">
+                             <span className="text-red-500 font-black text-sm leading-none">*</span>
+                             <span>Fields marked with <strong className="text-red-600">*</strong> are mandatory</span>
                           </div>
                        </div>
 
                        <div className="space-y-6">
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
-                              <span>About Company</span>
+                              <span className="flex items-center">
+                                <span>About Company</span>
+                                <span className="text-red-500 font-black text-xs ml-1">*</span>
+                              </span>
                               <span className={formData.about?.length >= 200 ? 'text-emerald-500' : 'text-slate-400'}>
                                  {Math.min(100, Math.round((formData.about?.length || 0) / 2))}% towards goal
                               </span>
@@ -1237,10 +1754,15 @@ export function CompanyProfile() {
                             <textarea 
                               rows={8} 
                               value={formData.about}
-                              onChange={e => setFormData({...formData, about: e.target.value})}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-6 outline-none focus:ring-4 focus:ring-blue-50 text-sm font-medium leading-relaxed transition-all"
+                              onChange={e => updateFormField("about", e.target.value)}
+                              className={`w-full rounded-3xl px-6 py-6 outline-none text-sm font-medium leading-relaxed transition-all ${
+                                fieldErrors.about 
+                                  ? 'bg-red-50/30 border-2 border-red-400 focus:ring-4 focus:ring-red-100 text-slate-800' 
+                                  : 'bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-blue-50 hover:border-slate-300'
+                              }`}
                               placeholder="Describe your company values, history, and mission... (Min 100 words/500 characters recommended)"
                             />
+                            {fieldErrors.about && <p className="text-xs text-red-500 font-medium">{fieldErrors.about}</p>}
                           </div>
 
                           <div className="space-y-2">
@@ -1248,8 +1770,8 @@ export function CompanyProfile() {
                             <textarea 
                               rows={4} 
                               value={formData.services}
-                              onChange={e => setFormData({...formData, services: e.target.value})}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-6 outline-none focus:ring-4 focus:ring-blue-50 text-sm font-medium resize-none transition-all"
+                              onChange={e => updateFormField("services", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-6 outline-none focus:ring-4 focus:ring-blue-50 text-sm font-medium resize-none transition-all hover:border-slate-300"
                               placeholder="What does your company build or provide?"
                             />
                           </div>
@@ -1259,32 +1781,59 @@ export function CompanyProfile() {
 
                   {step === 4 && (
                     <div className="space-y-8">
-                       <div className="flex items-center gap-4 mb-4">
-                          <div className="p-3 bg-slate-100 text-slate-600 rounded-2xl">
-                             <LayoutGrid size={32} />
+                       <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-100">
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                <LayoutGrid size={32} />
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Online Presence</h2>
+                                <p className="text-slate-500 text-sm">Help us verify your authenticity via social channels.</p>
+                             </div>
                           </div>
-                          <div>
-                             <h2 className="text-3xl font-black text-slate-800 tracking-tight">Online Presence</h2>
-                             <p className="text-slate-500 text-sm">Help us verify your authenticity via social channels.</p>
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 rounded-full text-xs font-semibold shadow-xs">
+                             <span className="text-red-500 font-black text-sm leading-none">*</span>
+                             <span>Fields marked with <strong className="text-red-600">*</strong> are mandatory</span>
                           </div>
                        </div>
 
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <Input label="LinkedIn Page" placeholder="linkedin.com/company/acme" value={formData.linkedin_url} onChange={v => setFormData({...formData, linkedin_url: v})} icon={<Linkedin size={16} />} />
-                          <Input label="GitHub Organization" placeholder="github.com/acme" value={formData.github_url} onChange={v => setFormData({...formData, github_url: v})} icon={<Github size={16} />} />
+                          <Input 
+                            label="LinkedIn Page" 
+                            placeholder="linkedin.com/company/acme" 
+                            value={formData.linkedin_url} 
+                            onChange={(v: string) => updateFormField("linkedin_url", v)} 
+                            icon={<Linkedin size={16} />} 
+                            required
+                            error={fieldErrors.linkedin_url}
+                          />
+                          <Input 
+                            label="GitHub Organization (Optional)" 
+                            placeholder="github.com/acme" 
+                            value={formData.github_url} 
+                            onChange={(v: string) => updateFormField("github_url", v)} 
+                            icon={<Github size={16} />} 
+                            error={fieldErrors.github_url}
+                          />
                        </div>
                     </div>
                   )}
 
                    {step === 5 && (
                     <div className="space-y-8">
-                       <div className="flex items-center gap-4 mb-4">
-                          <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
-                             <FileCheck size={32} />
+                       <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-100">
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                                <FileCheck size={32} />
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Verification Documents ({formData.country})</h2>
+                                <p className="text-slate-500 text-sm">Upload official certificates for quick approval.</p>
+                             </div>
                           </div>
-                          <div>
-                             <h2 className="text-3xl font-black text-slate-800 tracking-tight">Verification Documents ({formData.country})</h2>
-                             <p className="text-slate-500 text-sm">Upload official certificates for quick approval.</p>
+                          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 rounded-full text-xs font-semibold shadow-xs">
+                             <span className="text-red-500 font-black text-sm leading-none">*</span>
+                             <span>Documents marked as <strong className="text-red-600">Required</strong> are mandatory</span>
                           </div>
                        </div>
 
@@ -1385,7 +1934,11 @@ export function CompanyProfile() {
                   <div className="mt-12 pt-12 border-t border-slate-100 flex items-center justify-between">
                      <button 
                        disabled={step === 1}
-                       onClick={() => setStep(step - 1)}
+                       onClick={() => {
+                         setStepError(null);
+                         setFieldErrors({});
+                         setStep(step - 1);
+                       }}
                        className="flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest text-xs disabled:opacity-0 transition-all cursor-pointer"
                      >
                        <ChevronLeft size={16} /> Back
@@ -1402,13 +1955,15 @@ export function CompanyProfile() {
                        </button>
                        {step < 5 ? (
                          <button 
-                           onClick={() => setStep(step + 1)}
+                           type="button"
+                           onClick={handleContinue}
                            className="flex items-center gap-3 bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all cursor-pointer"
                          >
                            Continue <ChevronRight size={16} />
                          </button>
                        ) : (
                          <button 
+                           type="button"
                            onClick={handleSubmitVerification}
                            className="flex items-center gap-3 bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all cursor-pointer"
                          >
@@ -1553,6 +2108,10 @@ export function CompanyProfile() {
                         src={previewDoc.blobUrl}
                         alt={previewDoc.title}
                         className="max-w-full max-h-[70vh] object-contain rounded-xl"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.src = "https://placehold.co/600x400?text=Image+Load+Failed";
+                        }}
                       />
                     </div>
                   ) : previewDoc.isText && previewDoc.textContent ? (
@@ -1569,12 +2128,17 @@ export function CompanyProfile() {
                       </pre>
                     </div>
                   ) : (
-                    <div className="w-full h-[75vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="w-full h-[75vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
                       <iframe
-                        src={previewDoc.blobUrl.startsWith("blob:") ? previewDoc.blobUrl : (previewDoc.fileUrl || previewDoc.blobUrl)}
+                        src={previewDoc.blobUrl}
                         title={previewDoc.title}
                         className="w-full h-full border-0"
+                        loading="lazy"
                       />
+                      {/* Fallback for browsers that block PDF iframes or if resource fails */}
+                      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-slate-50/50 opacity-0 hover:opacity-100 transition-opacity">
+                         <p className="text-slate-500 text-sm font-medium">Click "Open in Tab" if preview doesn't load</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1587,12 +2151,18 @@ export function CompanyProfile() {
   );
 }
 
-function Input({ label, placeholder, value, onChange, icon, type = "text" }: any) {
+function Input({ label, placeholder, value, onChange, icon, type = "text", required, error }: any) {
+  const hasAsteriskInLabel = typeof label === "string" && label.includes("*");
+  const showAsterisk = required && !hasAsteriskInLabel;
+
   return (
     <div className="space-y-2 group">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{label}</label>
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+        <span>{label}</span>
+        {showAsterisk && <span className="text-red-500 font-black text-xs ml-1">*</span>}
+      </label>
       <div className="relative">
-         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors">
+         <div className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors ${error ? 'text-red-400' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
             {icon}
          </div>
          <input 
@@ -1601,30 +2171,46 @@ function Input({ label, placeholder, value, onChange, icon, type = "text" }: any
            onChange={e => onChange(e.target.value)}
            placeholder={placeholder}
            max={type === "date" ? new Date().toISOString().split("T")[0] : undefined}
-           className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 outline-none focus:ring-4 focus:ring-blue-50 text-sm font-medium transition-all hover:border-slate-300"
+           className={`w-full border rounded-2xl pl-12 pr-5 py-4 outline-none text-sm font-medium transition-all ${
+             error 
+               ? 'bg-red-50/30 border-red-400 focus:ring-4 focus:ring-red-100 text-slate-800' 
+               : 'bg-slate-50 border-slate-200 focus:ring-4 focus:ring-blue-50 hover:border-slate-300'
+           }`}
          />
       </div>
+      {error && <p className="text-xs text-red-500 font-medium mt-1">{error}</p>}
     </div>
   );
 }
 
-function Select({ label, value, onChange, options, icon }: any) {
+function Select({ label, value, onChange, options, icon, required, error }: any) {
+  const hasAsteriskInLabel = typeof label === "string" && label.includes("*");
+  const showAsterisk = required && !hasAsteriskInLabel;
+
   return (
     <div className="space-y-2 group">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{label}</label>
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+        <span>{label}</span>
+        {showAsterisk && <span className="text-red-500 font-black text-xs ml-1">*</span>}
+      </label>
       <div className="relative">
-         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
+         <div className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${error ? 'text-red-400' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
             {icon}
          </div>
          <select 
            value={value}
            onChange={e => onChange(e.target.value)}
-           className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 outline-none focus:ring-4 focus:ring-blue-50 text-sm font-medium transition-all hover:border-slate-300 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236B7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_1.25rem_center] bg-no-repeat cursor-pointer"
+           className={`w-full border rounded-2xl pl-12 pr-5 py-4 outline-none text-sm font-medium transition-all appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236B7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_1.25rem_center] bg-no-repeat cursor-pointer ${
+             error 
+               ? 'bg-red-50/30 border-red-400 focus:ring-4 focus:ring-red-100 text-slate-800' 
+               : 'bg-slate-50 border-slate-200 focus:ring-4 focus:ring-blue-50 hover:border-slate-300'
+           }`}
          >
            <option value="">Select {label}</option>
            {options.map((o: any) => <option key={o} value={o}>{o}</option>)}
          </select>
       </div>
+      {error && <p className="text-xs text-red-500 font-medium mt-1">{error}</p>}
     </div>
   );
 }

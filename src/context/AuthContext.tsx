@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import api, { refreshSession } from "../services/api";
-import { setAccessToken } from "../services/tokenStore";
+import { setAccessToken, setRefreshToken, clearTokens } from "../services/tokenStore";
 
 
 interface User {
@@ -120,8 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     setToken(data.token);
     setAccessToken(data.token || null);
+    if (data.refreshToken) {
+      setRefreshToken(data.refreshToken);
+    }
     setProfile(data.profile);
-    const authData = JSON.stringify({ user: data.user, profile: data.profile, token: data.token });
+    const authData = JSON.stringify({
+      user: data.user,
+      profile: data.profile,
+      token: data.token,
+      refreshToken: data.refreshToken
+    });
     sessionStorage.setItem("vega_session_active", "true");
     sessionStorage.setItem("vega_auth", authData);
     if (data.token) {
@@ -143,13 +151,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { await api.post("/auth/logout", {}); } catch {}
     setUser(null);
     setToken(null);
-    setAccessToken(null);
     setProfile(null);
-    sessionStorage.removeItem("vega_auth");
-    sessionStorage.removeItem("vega_session_active");
-    sessionStorage.removeItem("token");
-    localStorage.removeItem("vega_auth");
-    localStorage.removeItem("token");
+    clearTokens();
   };
 
   return (

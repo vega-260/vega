@@ -57,8 +57,16 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       exp: decoded.exp,
     };
     return next();
-  } catch {
-    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+  } catch (err: any) {
+    const isExpired = err?.name === "TokenExpiredError";
+    return res.status(401).json({
+      success: false,
+      message: isExpired
+        ? "Your session has expired. Please log in again to continue."
+        : "Invalid or expired token. Please log in again.",
+      code: isExpired ? "TOKEN_EXPIRED" : "TOKEN_INVALID",
+      expired: isExpired,
+    });
   }
 };
 

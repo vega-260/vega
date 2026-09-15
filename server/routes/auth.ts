@@ -262,6 +262,7 @@ router.post("/login", async (req, res) => {
       success: true,
       data: {
         token: accessToken,
+        refreshToken: refreshToken,
         user: { 
           id: user.id, 
           email: user.email, 
@@ -280,7 +281,7 @@ router.post("/login", async (req, res) => {
 
 // Refresh Token - hashed at rest and rotated on every use.
 router.post("/refresh-token", requireTrustedBrowserOrigin, async (req, res) => {
-  const refreshToken = readCookie(req, env.cookie.name) || (process.env.NODE_ENV !== "production" ? req.body?.refreshToken : undefined);
+  const refreshToken = readCookie(req, env.cookie.name) || req.body?.refreshToken;
   if (!refreshToken) return res.status(401).json({ success: false, message: "Refresh session required" });
 
   try {
@@ -320,7 +321,12 @@ router.post("/refresh-token", requireTrustedBrowserOrigin, async (req, res) => {
     );
 
     setRefreshCookie(res, newRefreshToken);
-    res.json({ success: true, token: newAccessToken, user: { id: user.id, email: user.email, role: user.role, is_verified: user.is_verified } });
+    res.json({
+      success: true,
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: { id: user.id, email: user.email, role: user.role, is_verified: user.is_verified }
+    });
   } catch (e) {
     console.error("Refresh token rotation failed:", e);
     res.status(500).json({ success: false, message: "Refresh failed" });

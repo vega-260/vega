@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
+import api from '../../services/api';
+import { getAccessToken } from '../../services/tokenStore';
 
 interface SubHrUser {
   id: number;
@@ -84,19 +86,7 @@ export function HrManagement() {
 
   // Robust token retrieval falling back safely if context is loading
   const getEffectiveToken = () => {
-    if (contextToken) return contextToken;
-    const authData = sessionStorage.getItem("vega_auth") || localStorage.getItem("vega_auth");
-    if (authData) {
-      try {
-        const parsed = JSON.parse(authData);
-        if (parsed && parsed.token) {
-          return parsed.token;
-        }
-      } catch (e) {
-        console.error("Auth parsing error", e);
-      }
-    }
-    return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    return getAccessToken() || contextToken || sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   };
 
   const [activeTab, setActiveTab] = useState<'accounts' | 'allocation'>('accounts');
@@ -145,20 +135,14 @@ export function HrManagement() {
     try {
       setLoading(true);
       setError(null);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/sub-hr', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const resData = await response.json();
-      if (resData.success) {
-        setHrs(resData.data || []);
+      const res = await api.get('/company/sub-hr');
+      if (res.data?.success) {
+        setHrs(res.data.data || []);
       } else {
-        setError(resData.message || 'Failed to load Sub HR accounts.');
+        setError(res.data?.message || 'Failed to load Sub HR accounts.');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred while fetching accounts.');
+      setError(err.response?.data?.message || err.message || 'An error occurred while fetching accounts.');
     } finally {
       setLoading(false);
     }
@@ -167,15 +151,11 @@ export function HrManagement() {
   const fetchJobs = async () => {
     try {
       setLoadingJobs(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/jobs/company-managed/all', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const resData = await response.json();
-      if (resData.success) {
-        setJobs(resData.data || []);
+      const res = await api.get('/jobs/company-managed/all');
+      if (res.data?.success) {
+        setJobs(res.data.data || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching jobs:", err);
     } finally {
       setLoadingJobs(false);
@@ -187,19 +167,15 @@ export function HrManagement() {
     try {
       setLoadingApplicants(true);
       setSelectedAppIds([]);
-      const token = getEffectiveToken();
-      const response = await fetch(`/api/jobs/applicants/${jobId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const resData = await response.json();
-      if (resData.success) {
-        setApplicants(resData.data?.applicants || []);
+      const res = await api.get(`/jobs/applicants/${jobId}`);
+      if (res.data?.success) {
+        setApplicants(res.data.data?.applicants || []);
       } else {
-        toast.error(resData.message || "Failed to load candidates.");
+        toast.error(res.data?.message || "Failed to load candidates.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Error loading job candidates.");
+      toast.error(err.response?.data?.message || "Error loading job candidates.");
     } finally {
       setLoadingApplicants(false);
     }
@@ -257,22 +233,15 @@ export function HrManagement() {
     }
 
     try {
-      const token = getEffectiveToken();
-      const response = await fetch(`/api/company/sub-hr/${hrId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const resData = await response.json();
-      if (resData.success) {
+      const res = await api.delete(`/company/sub-hr/${hrId}`);
+      if (res.data?.success) {
         toast.success('Sub HR account deleted successfully.');
         fetchHrs();
       } else {
-        toast.error(resData.message || 'Failed to delete Sub HR.');
+        toast.error(res.data?.message || 'Failed to delete Sub HR.');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error deleting Sub HR.');
+      toast.error(err.response?.data?.message || err.message || 'Error deleting Sub HR.');
     }
   };
 
@@ -313,7 +282,6 @@ export function HrManagement() {
     try {
       setSubmitting(true);
       setError(null);
-      const token = getEffectiveToken();
       
       const payload = {
         email,
@@ -324,7 +292,7 @@ export function HrManagement() {
       };
 
       // When updating, we pass editingHr.user_id (with fallback to editingHr.id) to route PUT /sub-hr/:id
-      let url = '/api/company/sub-hr';
+      let url = '/company/sub-hr';
       if (editingHr) {
         const subHrId = editingHr.user_id || editingHr.id;
         if (!subHrId) {
@@ -332,27 +300,13 @@ export function HrManagement() {
           toast.error('Unable to update HR permissions: missing Sub HR identifier.');
           return;
         }
-        url = `/api/company/sub-hr/${subHrId}`;
+        url = `/company/sub-hr/${subHrId}`;
       }
       
-      const method = editingHr ? 'PUT' : 'POST';
+      const res = editingHr ? await api.put(url, payload) : await api.post(url, payload);
+      const resData = res.data;
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.error || "Failed to save Sub HR account.");
-      }
-
-      const resData = await response.json();
-      if (resData.success) {
+      if (resData?.success) {
         if (!editingHr && resData.emailStatus === 'FAILED' && resData.temporaryPassword) {
           // Email failed - show credentials modal to copy manually
           setCreatedHrEmail(email);
@@ -371,12 +325,13 @@ export function HrManagement() {
         setDesignation('');
         fetchHrs();
       } else {
-        setError(resData.message || 'Operation failed.');
-        toast.error(resData.message || 'Operation failed.');
+        setError(resData?.message || 'Operation failed.');
+        toast.error(resData?.message || 'Operation failed.');
       }
     } catch (err: any) {
-      setError(err.message || 'Error saving Sub HR account.');
-      toast.error(err.message || 'Error saving Sub HR account.');
+      const msg = err.response?.data?.message || err.message || 'Error saving Sub HR account.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -413,28 +368,20 @@ export function HrManagement() {
 
     try {
       setAllocating(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/candidates/assign', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          applicationIds: selectedAppIds,
-          hrUserId: Number(targetHrUserId),
-          assignmentType: 'MANUAL'
-        })
+      const res = await api.post('/company/candidates/assign', {
+        applicationIds: selectedAppIds,
+        hrUserId: Number(targetHrUserId),
+        assignmentType: 'MANUAL'
       });
-      const resData = await response.json();
-      if (resData.success) {
+      const resData = res.data;
+      if (resData?.success) {
         toast.success(`Successfully assigned ${selectedAppIds.length} candidate(s) to recruiter.`);
         setSelectedAppIds([]);
       } else {
-        toast.error(resData.message || "Failed to assign candidates.");
+        toast.error(resData?.message || "Failed to assign candidates.");
       }
     } catch (err: any) {
-      toast.error(err.message || "Error assigning candidates.");
+      toast.error(err.response?.data?.message || err.message || "Error assigning candidates.");
     } finally {
       setAllocating(false);
     }
@@ -453,28 +400,20 @@ export function HrManagement() {
 
     try {
       setAllocating(true);
-      const token = getEffectiveToken();
-      const response = await fetch('/api/company/candidates/auto-distribute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          applicationIds: selectedAppIds,
-          hrUserIds: distributionHrUserIds
-        })
+      const res = await api.post('/company/candidates/auto-distribute', {
+        applicationIds: selectedAppIds,
+        hrUserIds: distributionHrUserIds
       });
-      const resData = await response.json();
-      if (resData.success) {
+      const resData = res.data;
+      if (resData?.success) {
         toast.success(`Successfully auto-distributed ${selectedAppIds.length} candidate(s) among recruiters.`);
         setSelectedAppIds([]);
         setDistributionHrUserIds([]);
       } else {
-        toast.error(resData.message || "Failed to distribute candidates.");
+        toast.error(resData?.message || "Failed to distribute candidates.");
       }
     } catch (err: any) {
-      toast.error(err.message || "Error distributing candidates.");
+      toast.error(err.response?.data?.message || err.message || "Error distributing candidates.");
     } finally {
       setAllocating(false);
     }

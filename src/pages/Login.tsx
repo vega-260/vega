@@ -16,6 +16,13 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("expired") === "true") {
+      toast.error("Your session has expired. Please log in again to continue.", { id: "session-expired" });
+    }
+  }, []);
+
+  useEffect(() => {
     if (!loading && user) {
       if (user.role === "STUDENT") {
         if (!profile || profile.onboarding_completed === 0 || (profile.completeness_score || 0) < 70) {
