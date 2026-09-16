@@ -16,6 +16,7 @@ import { UserAvatar } from "../../components/common/UserAvatar.tsx";
 
 function AIMentorWidget({ profile, analytics, applications }: { profile: any, analytics: any, applications: any[] }) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [insight, setInsight] = useState<{ text: string, highlight: string, action: string, type: string }>({
     text: "Analyzing your profile...",
     highlight: "",
@@ -55,8 +56,8 @@ function AIMentorWidget({ profile, analytics, applications }: { profile: any, an
 
   return (
     <div className="h-full bg-slate-950 border border-slate-900 rounded-3xl p-5 text-white relative overflow-hidden group shadow-lg flex flex-col justify-between">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 transition-all duration-1000 group-hover:scale-110" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -ml-32 -mb-32 transition-all duration-1000 group-hover:scale-110" />
+      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 transition-all duration-1000 group-hover:scale-110 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -ml-32 -mb-32 transition-all duration-1000 group-hover:scale-110 pointer-events-none" />
       
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-4">
@@ -93,7 +94,12 @@ function AIMentorWidget({ profile, analytics, applications }: { profile: any, an
       <div className="relative z-10 grid grid-cols-2 gap-3 mt-auto pt-2">
         <Link 
           to={insight.type === 'SKILL' || insight.type === 'PROFILE' ? "/profile" : insight.type === 'MOCK' ? "/interview" : "/profile"} 
-          className="py-2.5 bg-indigo-600 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center shadow-md shadow-indigo-900/10 hover:scale-[1.02] active:scale-[0.98] duration-200"
+          onClick={(e) => {
+            e.preventDefault();
+            const target = insight.type === 'SKILL' || insight.type === 'PROFILE' ? "/profile" : insight.type === 'MOCK' ? "/interview" : "/profile";
+            navigate(target);
+          }}
+          className="py-2.5 bg-indigo-600 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center shadow-md shadow-indigo-900/10 hover:scale-[1.02] active:scale-[0.98] duration-200 cursor-pointer"
         >
           {insight.action}
         </Link>
@@ -101,6 +107,10 @@ function AIMentorWidget({ profile, analytics, applications }: { profile: any, an
           to="/career-gap"
           id="view-roadmap-btn"
           data-testid="view-roadmap-btn"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate("/career-gap");
+          }}
           className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white backdrop-blur-md text-center flex items-center justify-center cursor-pointer hover:scale-[1.02] active:scale-[0.98] duration-200"
         >
           {t('view_roadmap')}
@@ -128,7 +138,7 @@ function TalentScoreWidget({ talent, psychometric }: { talent: any, psychometric
   
   return (
     <div className="h-full bg-white border border-slate-100/80 rounded-3xl p-5 relative overflow-hidden group shadow-md shadow-slate-200/45 flex flex-col justify-between hover:shadow-lg transition-all duration-300">
-      <div className="absolute top-0 right-0 w-36 h-36 bg-indigo-50/60 rounded-full blur-3xl -mr-16 -mt-16 transition-transform duration-1000 group-hover:scale-125" />
+      <div className="absolute top-0 right-0 w-36 h-36 bg-indigo-50/60 rounded-full blur-3xl -mr-16 -mt-16 transition-transform duration-1000 group-hover:scale-125 pointer-events-none" />
       
       <div className="relative z-10">
         <div className="flex justify-between items-start mb-2">
@@ -264,7 +274,7 @@ function WelcomeBanner({ profile, applications }: { profile: any, applications: 
   if (selectedApps.length > 0) {
     return (
       <div className="col-span-1 md:col-span-12 relative overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-800 rounded-3xl p-6 md:p-8 text-white shadow-lg shadow-emerald-950/25 mb-4 border border-emerald-500/30">
-         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mt-48 -mr-48" />
+         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mt-48 -mr-48 pointer-events-none" />
          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 justify-between">
             <div className="flex items-center gap-4">
                <div className="w-16 h-16 bg-white shadow-xl rounded-2xl flex items-center justify-center shrink-0">
@@ -799,8 +809,8 @@ function ReferBanner({ user }: { user: any }) {
 
   return (
     <div className="mt-12 bg-blue-700 rounded-[32px] overflow-hidden flex flex-col md:flex-row items-center justify-between p-8 md:p-12 relative shadow-2xl shadow-blue-900/20">
-      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl -mr-32 -mt-32" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl -ml-32 -mb-32" />
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl -ml-32 -mb-32 pointer-events-none" />
       
       <div className="relative z-10 max-w-2xl text-left">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-md mb-6">

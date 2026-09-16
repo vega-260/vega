@@ -221,6 +221,8 @@ export const secureHeadersConfig = (): any => ({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       connectSrc: [
         "'self'", 
+        "blob:",
+        "data:",
         "wss:", 
         "https://api.razorpay.com", 
         "https://checkout.razorpay.com", 
@@ -228,10 +230,10 @@ export const secureHeadersConfig = (): any => ({
         "https://lumberjack.razorpay.com",
         "https://*.razorpay.com"
       ],
-      frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://custom-analytics.razorpay.com", "https://*.razorpay.com"],
-      objectSrc: ["'none'"],
+      frameSrc: ["'self'", "blob:", "data:", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://custom-analytics.razorpay.com", "https://*.razorpay.com"],
+      objectSrc: ["'self'", "blob:", "data:"],
       baseUri: ["'self'"],
-      frameAncestors: ["'none'"],
+      frameAncestors: ["'self'", "*"],
       formAction: ["'self'"],
       upgradeInsecureRequests: [],
     },

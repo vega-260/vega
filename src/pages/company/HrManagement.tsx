@@ -21,16 +21,19 @@ import {
   RefreshCw,
   Send,
   Eye,
-  EyeOff
+  EyeOff,
+  User
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import { getAccessToken } from '../../services/tokenStore';
+import { ALL_HR_PERMISSIONS } from '../../features/company/hrPermissions';
 
 interface SubHrUser {
   id: number;
   user_id: number; // actual users.id
+  name?: string;
   email: string;
   status: string;
   created_at: string;
@@ -56,30 +59,7 @@ interface JobApplicant {
   applied_at: string;
 }
 
-const ALL_PERMISSIONS = [
-  { key: "Dashboard View", label: "Dashboard View", desc: "Access to view the company overview dashboard" },
-  { key: "Jobs View", label: "Jobs View", desc: "View posted job opportunities" },
-  { key: "Create Jobs", label: "Create Jobs", desc: "Post new jobs to the platform" },
-  { key: "Edit Jobs", label: "Edit Jobs", desc: "Modify job descriptions and details" },
-  { key: "End Jobs", label: "End Jobs", desc: "Archive or close active job postings" },
-  { key: "Applicants View", label: "Applicants View", desc: "View the list of job applicants" },
-  { key: "Pipeline View", label: "Pipeline View", desc: "Access the recruitment pipeline kanban" },
-  { key: "Pipeline Manage", label: "Pipeline Manage", desc: "Move candidates between recruitment stages" },
-  { key: "Candidate Select/Reject", label: "Candidate Select/Reject", desc: "Make selection or rejection decisions" },
-  { key: "Candidate Notify", label: "Candidate Notify", desc: "Notify candidates about final application decisions" },
-  { key: "Interview View", label: "Interview View", desc: "View scheduled interviews and feedback" },
-  { key: "Schedule Interviews", label: "Schedule Interviews", desc: "Schedule or reschedule candidate interview slots" },
-  { key: "Assessments View", label: "Assessments View", desc: "View test submissions and scoring details" },
-  { key: "Create/Edit Tests", label: "Create/Edit Tests", desc: "Manage custom platform assessments and questionnaires" },
-  { key: "Recommendations View", label: "Recommendations View", desc: "View AI recommendations and matches" },
-  { key: "Drops View", label: "Drops View", desc: "Access drop management & view drops history" },
-  { key: "Drops Create", label: "Drops Create", desc: "Post new company drops and updates" },
-  { key: "Drops Edit", label: "Drops Edit", desc: "Modify published company drops" },
-  { key: "Drops Delete", label: "Drops Delete", desc: "Remove published company drops" },
-  { key: "Analytics View", label: "Analytics View", desc: "View recruitment statistics and reports" },
-  { key: "Company Profile View", label: "Company Profile View", desc: "View and edit corporate details" },
-  { key: "Audit Trail View Own", label: "Audit Trail View Own", desc: "View own activities/logs in the audit trail" }
-];
+const ALL_PERMISSIONS = ALL_HR_PERMISSIONS;
 
 export function HrManagement() {
   const { token: contextToken, profile } = useAuth();
@@ -107,6 +87,7 @@ export function HrManagement() {
   const [createdHrPassword, setCreatedHrPassword] = useState('');
   
   // Form States
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [designation, setDesignation] = useState('');
@@ -198,17 +179,19 @@ export function HrManagement() {
 
   const handleOpenCreateModal = () => {
     setEditingHr(null);
+    setName('');
     setEmail('');
     setPassword('');
-    setDesignation('Recruiter');
+    setDesignation('Technical Recruiter');
     setStatus('ACTIVE');
     setSelectedPermissions([
       "Dashboard View",
       "Jobs View",
       "Applicants View",
       "Pipeline View",
-      "Interview View",
-      "Audit Trail View Own"
+      "Pipeline Manage",
+      "Candidate Select/Reject",
+      "Schedule Interviews"
     ]);
     setShowPassword(false);
     setError(null);
@@ -217,6 +200,7 @@ export function HrManagement() {
 
   const handleOpenEditModal = (hr: SubHrUser) => {
     setEditingHr(hr);
+    setName(hr.name || '');
     setEmail(hr.email);
     setPassword(''); 
     setDesignation(hr.designation);
@@ -284,6 +268,7 @@ export function HrManagement() {
       setError(null);
       
       const payload = {
+        name: name.trim() || undefined,
         email,
         password: trimmedPassword || undefined,
         designation,
@@ -320,6 +305,7 @@ export function HrManagement() {
         }
         setIsModalOpen(false);
         // Reset form fields
+        setName('');
         setEmail('');
         setPassword('');
         setDesignation('');
@@ -539,8 +525,15 @@ export function HrManagement() {
                   <div className="space-y-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="overflow-hidden">
-                        <h4 className="text-sm font-bold text-slate-800 truncate" title={hr.email}>{hr.email}</h4>
-                        <div className="flex items-center gap-1.5 mt-1">
+                        {hr.name ? (
+                          <>
+                            <h4 className="text-sm font-black text-slate-900 truncate" title={hr.name}>{hr.name}</h4>
+                            <p className="text-xs text-slate-500 font-medium truncate mt-0.5" title={hr.email}>{hr.email}</p>
+                          </>
+                        ) : (
+                          <h4 className="text-sm font-bold text-slate-800 truncate" title={hr.email}>{hr.email}</h4>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-1.5">
                           <Briefcase size={13} className="text-blue-500 shrink-0" />
                           <span className="text-xs text-slate-500 font-medium truncate">{hr.designation || 'Recruiter'}</span>
                         </div>
@@ -797,15 +790,22 @@ export function HrManagement() {
       {/* CREATE OR UPDATE MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[200] overflow-y-auto">
-          <div className="bg-[#0b0d26] border border-[#1e2354] w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-8">
-            <div className="bg-[#101235] p-6 border-b border-[#1c2253] flex items-center justify-between">
-              <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
-                <Shield className="text-indigo-400" size={22} />
-                {editingHr ? 'Edit Sub HR Credentials & Permissions' : 'Create Sub HR Staff Account'}
-              </h3>
+          <div className="bg-white border border-slate-200 w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-8 animate-in zoom-in-95 duration-200">
+            <div className="bg-slate-50/90 p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                  <Shield className="text-blue-600" size={22} />
+                  {editingHr ? 'Edit Sub HR Credentials & Permissions' : 'Create Sub HR Staff Account'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingHr 
+                    ? 'Update profile details, credentials, or adjust role authorization.' 
+                    : 'Provision a new team member with custom recruiting access and capabilities.'}
+                </p>
+              </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -813,87 +813,101 @@ export function HrManagement() {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
               {error && (
-                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-start gap-3">
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
                   <AlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
-                  <div className="text-xs text-rose-200 leading-normal font-semibold">
+                  <div className="text-xs text-rose-700 leading-normal font-semibold">
                     {error}
                   </div>
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Full Name field */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                    Full Name <span className="text-slate-400 font-bold">(Optional)</span>
+                  </label>
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                    <User size={16} className="text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Sarah Jenkins"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="bg-transparent border-none text-slate-900 text-sm outline-none w-full placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+
                 {/* Email field */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-300 uppercase tracking-wider block">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
                     Staff Email Address <span className="text-rose-500">*</span>
                   </label>
-                  <div className="flex items-center gap-2 bg-[#0e1136] border border-[#21285c] px-3.5 py-2.5 rounded-xl">
-                    <Mail size={16} className="text-slate-500 shrink-0" />
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                    <Mail size={16} className="text-slate-400 shrink-0" />
                     <input
                       type="email"
                       required
                       placeholder="e.g. recruit.officer@domain.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="bg-transparent border-none text-white text-sm outline-none w-full placeholder-slate-600"
+                      className="bg-transparent border-none text-slate-900 text-sm outline-none w-full placeholder-slate-400 font-medium"
                     />
                   </div>
                 </div>
 
                 {/* Designation field */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-300 uppercase tracking-wider block">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
                     Designation/Job Role
                   </label>
-                  <div className="flex items-center gap-2 bg-[#0e1136] border border-[#21285c] px-3.5 py-2.5 rounded-xl">
-                    <Briefcase size={16} className="text-slate-500 shrink-0" />
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                    <Briefcase size={16} className="text-slate-400 shrink-0" />
                     <input
                       type="text"
-                      placeholder="e.g. Associate Recruiter"
+                      placeholder="e.g. Technical Recruiter"
                       value={designation}
                       onChange={(e) => setDesignation(e.target.value)}
-                      className="bg-transparent border-none text-white text-sm outline-none w-full placeholder-slate-600"
+                      className="bg-transparent border-none text-slate-900 text-sm outline-none w-full placeholder-slate-400 font-medium"
                     />
                   </div>
                 </div>
 
                 {/* Password field */}
-                <div className="space-y-1.5 col-span-1 md:col-span-2">
-                  <label className="text-xs font-black text-slate-300 uppercase tracking-wider block">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
                     Account Password {editingHr ? '(Leave blank to keep unchanged)' : <span className="text-slate-400 font-bold">(Optional)</span>}
                   </label>
-                  <div className="flex items-center gap-2 bg-[#0e1136] border border-[#21285c] px-3.5 py-2.5 rounded-xl">
-                    <Key size={16} className="text-slate-500 shrink-0" />
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                    <Key size={16} className="text-slate-400 shrink-0" />
                     <input
                       type={showPassword ? "text" : "password"}
-                      placeholder={editingHr ? "••••••••" : "Leave blank to auto-generate a secure password"}
+                      placeholder={editingHr ? "••••••••" : "Auto-generated if blank"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bg-transparent border-none text-white text-sm outline-none w-full placeholder-slate-600"
+                      className="bg-transparent border-none text-slate-900 text-sm outline-none w-full placeholder-slate-400 font-medium"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="text-slate-400 hover:text-white focus:outline-none focus:ring-0 cursor-pointer shrink-0 ml-1"
+                      className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer shrink-0 ml-1"
                       title={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-normal mt-1">
-                    Leave blank to auto-generate a secure password, or enter a custom password with minimum 6 characters. Credentials will be emailed to the user, and if delivery fails, they will be shown to you once here.
-                  </p>
                 </div>
 
                 {/* Status selection */}
                 {editingHr && (
                   <div className="space-y-1.5 col-span-1 md:col-span-2">
-                    <label className="text-xs font-black text-slate-300 uppercase tracking-wider block">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
                       Account Status
                     </label>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      className="bg-[#0e1136] border border-[#21285c] text-white text-sm rounded-xl px-3.5 py-2.5 w-full outline-none focus:border-indigo-500"
+                      className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl px-3.5 py-2.5 w-full outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-medium"
                     >
                       <option value="ACTIVE">ACTIVE</option>
                       <option value="INACTIVE">INACTIVE / LOCKED</option>
@@ -903,31 +917,31 @@ export function HrManagement() {
               </div>
 
               {/* PERMISSIONS BOX */}
-              <div className="border-t border-[#1c2253] pt-5">
+              <div className="border-t border-slate-100 pt-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <div>
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Configure Role Permissions</h4>
-                    <p className="text-xs text-slate-400">Select precisely which capabilities this staff member is authorized to access.</p>
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Configure Role Permissions</h4>
+                    <p className="text-xs text-slate-500">Select precisely which capabilities this staff member is authorized to access.</p>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={handleSelectAllPermissions}
-                      className="text-[11px] font-black text-indigo-400 hover:text-white uppercase tracking-wider border border-indigo-500/20 px-2.5 py-1 rounded-lg hover:bg-indigo-500/10 transition-all cursor-pointer"
+                      className="text-[11px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-wider border border-blue-200 px-3 py-1 rounded-lg hover:bg-blue-50 transition-all cursor-pointer"
                     >
                       Select All
                     </button>
                     <button
                       type="button"
                       onClick={handleClearAllPermissions}
-                      className="text-[11px] font-black text-slate-400 hover:text-white uppercase tracking-wider border border-slate-500/20 px-2.5 py-1 rounded-lg hover:bg-slate-500/10 transition-all cursor-pointer"
+                      className="text-[11px] font-black text-slate-500 hover:text-slate-700 uppercase tracking-wider border border-slate-200 px-3 py-1 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
                     >
                       Clear All
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0a0c2c] border border-[#1a1f4b] p-4 rounded-2xl max-h-[300px] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl max-h-[300px] overflow-y-auto custom-scrollbar">
                   {ALL_PERMISSIONS.map((perm) => {
                     const isChecked = selectedPermissions.includes(perm.key);
                     return (
@@ -936,18 +950,20 @@ export function HrManagement() {
                         onClick={() => handlePermissionToggle(perm.key)}
                         className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all duration-200 ${
                           isChecked 
-                            ? 'bg-[#121644] border-indigo-500/50' 
-                            : 'bg-[#0b0e35]/30 border-[#1c2253] hover:border-slate-700'
+                            ? 'bg-blue-50/70 border-blue-300 shadow-xs' 
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded-md border shrink-0 mt-0.5 flex items-center justify-center transition-all ${
-                          isChecked ? 'bg-indigo-600 border-indigo-500' : 'border-slate-600 bg-[#0e1136]'
+                          isChecked ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
                         }`}>
-                          {isChecked && <Check size={10} className="text-white font-black" />}
+                          {isChecked && <Check size={11} className="text-white stroke-[3]" />}
                         </div>
                         <div>
-                          <span className="text-xs font-bold text-white block leading-tight">{perm.label}</span>
-                          <span className="text-[10px] text-slate-400 mt-0.5 block leading-normal">{perm.desc}</span>
+                          <span className={`text-xs font-bold block leading-tight ${isChecked ? 'text-blue-950' : 'text-slate-800'}`}>
+                            {perm.label}
+                          </span>
+                          <span className="text-[10px] text-slate-500 mt-0.5 block leading-normal">{perm.desc}</span>
                         </div>
                       </div>
                     );
@@ -956,18 +972,18 @@ export function HrManagement() {
               </div>
 
               {/* Form Buttons */}
-              <div className="border-t border-[#1c2253] pt-5 flex items-center justify-end gap-3">
+              <div className="border-t border-slate-100 pt-5 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="bg-transparent hover:bg-white/5 border border-slate-700 text-slate-300 font-bold py-2.5 px-5 rounded-xl transition-all cursor-pointer"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-5 rounded-xl transition-all cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold py-2.5 px-6 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20 transition-all duration-300 cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2.5 px-6 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/20 transition-all duration-300 cursor-pointer text-xs uppercase tracking-wider"
                 >
                   {submitting && <Loader2 className="animate-spin" size={16} />}
                   {editingHr ? 'Update Sub HR' : 'Register Sub HR'}
@@ -980,28 +996,28 @@ export function HrManagement() {
 
       {/* CREDENTIALS BACKUP DISPLAY MODAL */}
       {credentialsModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]">
-          <div className="bg-[#0b0d26] border border-[#21285c] w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6 text-center animate-in fade-in zoom-in duration-200">
-            <div className="bg-amber-500/10 border border-amber-500/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
-              <Key className="text-amber-500" size={32} />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[210]">
+          <div className="bg-white border border-slate-200 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6 text-center animate-in fade-in zoom-in duration-200">
+            <div className="bg-amber-50 border border-amber-200 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-amber-600">
+              <Key size={32} />
             </div>
             
             <div className="space-y-2">
-              <h3 className="text-xl font-extrabold text-white">Sub HR Created Successfully</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-xl font-extrabold text-slate-900">Sub HR Created Successfully</h3>
+              <p className="text-xs text-slate-500">
                 The account was created, but the credential notification email could not be delivered. Please copy the temporary credentials below and share them with the user securely.
               </p>
             </div>
 
-            <div className="bg-[#0e1136] border border-[#1c2253] p-4 rounded-2xl space-y-3 text-left">
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3 text-left">
               <div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Email Address</span>
-                <span className="text-sm font-semibold text-white break-all">{createdHrEmail}</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Email Address</span>
+                <span className="text-sm font-semibold text-slate-800 break-all">{createdHrEmail}</span>
               </div>
-              <div className="border-t border-[#1c2253]/50 pt-2 flex items-center justify-between gap-2">
+              <div className="border-t border-slate-200/80 pt-2 flex items-center justify-between gap-2">
                 <div>
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Temporary Password</span>
-                  <span className="text-sm font-mono font-bold text-amber-400 select-all">{createdHrPassword}</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Temporary Password</span>
+                  <span className="text-sm font-mono font-bold text-amber-600 select-all">{createdHrPassword}</span>
                 </div>
                 <button
                   type="button"
@@ -1009,7 +1025,7 @@ export function HrManagement() {
                     navigator.clipboard.writeText(createdHrPassword);
                     toast.success("Password copied to clipboard!");
                   }}
-                  className="bg-[#1c2253] hover:bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
                 >
                   Copy
                 </button>
@@ -1023,7 +1039,7 @@ export function HrManagement() {
                 setCreatedHrEmail('');
                 setCreatedHrPassword('');
               }}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl transition-all cursor-pointer"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-600/20 text-xs uppercase tracking-wider"
             >
               Done & Close
             </button>

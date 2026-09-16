@@ -420,37 +420,60 @@ export function InterviewPage() {
     let camDenied = false;
     let micDenied = false;
 
+    // 0. Pre-check permissions to avoid NotFoundError masking a Denied state
+    if (navigator.permissions) {
+      try {
+        const camPerm = await navigator.permissions.query({ name: "camera" as PermissionName });
+        if (camPerm.state === "denied") {
+          camDenied = true;
+          setCameraState("denied");
+        }
+      } catch (e) {}
+
+      try {
+        const micPerm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+        if (micPerm.state === "denied") {
+          micDenied = true;
+          setMicState("denied");
+        }
+      } catch (e) {}
+    }
+
     // 1. Request Video
-    try {
-      videoStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
-      });
-      setCameraState("granted");
-    } catch (err: any) {
-      console.warn("Video access error:", err);
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        camDenied = true;
-        setCameraState("denied");
-      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        setCameraState("not_found");
-      } else {
-        setCameraState("error");
+    if (!camDenied) {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+        });
+        setCameraState("granted");
+      } catch (err: any) {
+        console.warn("Video access error:", err);
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          camDenied = true;
+          setCameraState("denied");
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+          setCameraState("not_found");
+        } else {
+          setCameraState("error");
+        }
       }
     }
 
     // 2. Request Audio
-    try {
-      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setMicState("granted");
-    } catch (err: any) {
-      console.warn("Audio access error:", err);
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        micDenied = true;
-        setMicState("denied");
-      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        setMicState("not_found");
-      } else {
-        setMicState("error");
+    if (!micDenied) {
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setMicState("granted");
+      } catch (err: any) {
+        console.warn("Audio access error:", err);
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          micDenied = true;
+          setMicState("denied");
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+          setMicState("not_found");
+        } else {
+          setMicState("error");
+        }
       }
     }
 
@@ -1120,10 +1143,11 @@ export function InterviewPage() {
                     id="submit-verification-btn"
                     data-testid="submit-verification-btn"
                     onClick={runVerification}
-                    className="w-full btn-primary bg-slate-900 hover:bg-slate-800 text-white py-4 text-lg font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-slate-900/25 cursor-pointer"
+                    className="w-full bg-slate-900 hover:bg-slate-800 py-4 text-lg font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-slate-900/25 cursor-pointer rounded-2xl"
+                    style={{ color: "#ffffff" }}
                   >
-                    <Lock size={20} className="text-white shrink-0" />
-                    <span className="text-white font-bold tracking-wide">Submit & Begin Verification</span>
+                    <Lock size={20} style={{ color: "#ffffff" }} className="shrink-0" />
+                    <span className="font-bold tracking-wide" style={{ color: "#ffffff" }}>Submit & Begin Verification</span>
                   </button>
                 ) : (
                   <button 
@@ -1131,12 +1155,13 @@ export function InterviewPage() {
                     data-testid="start-interview-btn"
                     onClick={startInterview}
                     disabled={!verificationStatus.stable || isStarting}
-                    className="w-full btn-primary bg-blue-600 hover:bg-blue-700 text-white py-4 text-lg font-bold disabled:grayscale disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden transition-all shadow-xl shadow-blue-600/25 cursor-pointer"
+                    className="w-full bg-blue-600 hover:bg-blue-700 py-4 text-lg font-bold rounded-2xl disabled:grayscale disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden transition-all shadow-xl shadow-blue-600/25 cursor-pointer"
+                    style={{ color: "#ffffff" }}
                   >
                     {isStarting ? (
                       <>
-                        <Loader2 className="animate-spin text-white shrink-0" size={20} />
-                        <span className="text-white font-bold">Starting Interview...</span>
+                        <Loader2 className="animate-spin shrink-0" size={20} style={{ color: "#ffffff" }} />
+                        <span className="font-bold" style={{ color: "#ffffff" }}>Starting Interview...</span>
                       </>
                     ) : (
                       <>
@@ -1148,8 +1173,8 @@ export function InterviewPage() {
                             className="absolute inset-0 bg-white/20 skew-x-12"
                           />
                         )}
-                        <Brain size={20} className="text-white shrink-0" />
-                        <span className="text-white font-bold">
+                        <Brain size={20} className="shrink-0" style={{ color: "#ffffff" }} />
+                        <span className="font-bold" style={{ color: "#ffffff" }}>
                           {verificationStatus.stable ? "Submit & Start Professional Interview" : `Verifying Hardware & Identity (${Math.round(verificationProgress)}%)...`}
                         </span>
                       </>

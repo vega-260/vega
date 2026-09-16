@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { DocumentPreviewModal, PreviewDocState } from "../components/company/DocumentPreviewModal.tsx";
 
 const FRONTEND_COUNTRY_RULES: Record<string, {
   identifiers: { key: string; label: string; placeholder: string; required: boolean }[];
@@ -226,17 +227,7 @@ export function CompanyProfile() {
   const [deletingDocType, setDeletingDocType] = useState<string | null>(null);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [previewDoc, setPreviewDoc] = useState<{
-    title: string;
-    blobUrl: string;
-    rawUrl: string;
-    fileUrl?: string;
-    isPdf: boolean;
-    isImage: boolean;
-    isText?: boolean;
-    textContent?: string;
-    mimeType?: string;
-  } | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<PreviewDocState | null>(null);
 
   useEffect(() => {
     if (profile?.status === 'APPROVED' || profile?.status === 'PENDING' || profile?.status === 'PENDING_REVERIFICATION') {
@@ -537,7 +528,7 @@ export function CompanyProfile() {
       let textContent = "";
       let mimeType = "application/pdf";
 
-      // 1. Calculate direct API URL for fallback and non-data URLs
+      // 1. Calculate direct API URL for fallback
       let directFileUrl = docId
         ? `/api/companies/documents/${docId}/file`
         : user?.id
@@ -551,29 +542,39 @@ export function CompanyProfile() {
 
       // 2. Process docUrl if it's a data URL
       if (docUrl && docUrl.startsWith("data:")) {
-        const parts = docUrl.split(",");
-        if (parts.length >= 2) {
-          const meta = parts[0];
-          const rawBase64 = parts.slice(1).join(",").replace(/\s/g, "");
-          const mimeMatch = meta.match(/data:([^;]+)/);
+        const commaIdx = docUrl.indexOf(",");
+        if (commaIdx !== -1) {
+          const meta = docUrl.slice(0, commaIdx);
+          const rawPayload = docUrl.slice(commaIdx + 1).replace(/\s/g, "");
+          const mimeMatch = meta.match(/data:([^;,]+)/);
           mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : "application/pdf";
 
           try {
-            const byteCharacters = atob(rawBase64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            let byteArray: Uint8Array;
+            if (meta.includes(";base64")) {
+              const byteCharacters = atob(rawPayload);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              byteArray = new Uint8Array(byteNumbers);
+            } else {
+              const decoded = decodeURIComponent(rawPayload);
+              byteArray = new TextEncoder().encode(decoded);
             }
-            const byteArray = new Uint8Array(byteNumbers);
 
-            // Sniff magic bytes for accuracy
-            const magic = Array.from(byteArray.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('');
+            // Sniff magic bytes for accurate detection
+            const magic = Array.from(byteArray.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
             if (magic === "25504446") {
               mimeType = "application/pdf";
             } else if (magic === "89504e47") {
               mimeType = "image/png";
             } else if (magic.startsWith("ffd8ff")) {
               mimeType = "image/jpeg";
+            } else if (magic.startsWith("47494638")) {
+              mimeType = "image/gif";
+            } else if (magic.startsWith("52494646")) {
+              mimeType = "image/webp";
             }
 
             isPdf = mimeType.includes("pdf");
@@ -582,9 +583,9 @@ export function CompanyProfile() {
 
             if (isText) {
               try {
-                textContent = new TextDecoder().decode(byteArray);
+                textContent = new TextDecoder("utf-8").decode(byteArray);
               } catch {
-                textContent = byteCharacters;
+                textContent = atob(rawPayload);
               }
               const blob = new Blob([byteArray], { type: "text/plain;charset=utf-8" });
               previewUrl = URL.createObjectURL(blob);
@@ -593,9 +594,23 @@ export function CompanyProfile() {
               previewUrl = URL.createObjectURL(blob);
             }
           } catch (e) {
-            console.error("Error decoding base64 document:", e);
+            console.error("Error decoding document payload:", e);
+            // Fallback for unparseable data URL: display as text or use API endpoint
+            try {
+              textContent = decodeURIComponent(rawPayload);
+              isText = true;
+              const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+              previewUrl = URL.createObjectURL(blob);
+            } catch {
+              previewUrl = directFileUrl;
+              isPdf = true;
+            }
           }
         }
+      } else if (docUrl && (docUrl.includes("example.com") || docUrl.includes("dummy"))) {
+        // Seeded dummy document: use direct server endpoint which serves a real PDF certificate
+        isPdf = true;
+        previewUrl = directFileUrl;
       } else if (docUrl) {
         // External or relative URL
         isPdf = docUrl.toLowerCase().endsWith(".pdf") || docUrl.toLowerCase().includes("application/pdf");
@@ -603,8 +618,9 @@ export function CompanyProfile() {
         isText = !isPdf && !isImage;
         previewUrl = docUrl;
       } else {
-        // Only docId provided, assume PDF for API endpoint unless we can sniff it
+        // Only docId provided
         isPdf = true;
+        previewUrl = directFileUrl;
       }
 
       // Final URL to use in viewer
@@ -623,7 +639,6 @@ export function CompanyProfile() {
       });
     } catch (err) {
       console.error("Error opening document:", err);
-      // Fallback logic
       let directFileUrl = docId
         ? `/api/companies/documents/${docId}/file`
         : user?.id
@@ -634,10 +649,11 @@ export function CompanyProfile() {
       if (token && directFileUrl) {
         directFileUrl = `${directFileUrl}${directFileUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
       }
+
       setPreviewDoc({
         title,
-        blobUrl: docUrl || directFileUrl,
-        rawUrl: docUrl || directFileUrl,
+        blobUrl: directFileUrl,
+        rawUrl: directFileUrl,
         fileUrl: directFileUrl,
         isPdf: true,
         isImage: false,
@@ -2043,109 +2059,7 @@ export function CompanyProfile() {
         </AnimatePresence>
 
         {/* Document Preview Modal */}
-        <AnimatePresence>
-          {previewDoc && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
-              >
-                {/* Modal Header */}
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/90">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <FileCheck size={20} className="text-emerald-500 shrink-0" />
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider truncate">
-                      {previewDoc.title}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (previewDoc.fileUrl) {
-                          window.open(previewDoc.fileUrl, "_blank");
-                        } else if (previewDoc.blobUrl && previewDoc.blobUrl.startsWith("blob:")) {
-                          window.open(previewDoc.blobUrl, "_blank");
-                        } else if (previewDoc.isText && previewDoc.textContent) {
-                          const textBlob = new Blob([previewDoc.textContent], { type: "text/plain;charset=utf-8" });
-                          const textUrl = URL.createObjectURL(textBlob);
-                          window.open(textUrl, "_blank");
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-blue-600 hover:border-blue-300 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                      title="Open in new browser tab"
-                    >
-                      <ExternalLink size={13} />
-                      <span className="hidden sm:inline">Open in Tab</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => downloadDoc(previewDoc.blobUrl.startsWith("blob:") ? previewDoc.blobUrl : (previewDoc.fileUrl || previewDoc.blobUrl), previewDoc.title, previewDoc.isText, previewDoc.isImage)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                      title="Download document"
-                    >
-                      <Download size={13} />
-                      <span className="hidden sm:inline">Download</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewDoc(null)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
-                      title="Close preview"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Modal Document Display Body */}
-                <div className="p-3 sm:p-5 flex-1 overflow-auto bg-slate-100 flex items-center justify-center min-h-[60vh]">
-                  {previewDoc.isImage ? (
-                    <div className="max-w-full max-h-[75vh] flex items-center justify-center p-2 bg-white rounded-2xl shadow-sm border border-slate-200">
-                      <img
-                        src={previewDoc.blobUrl}
-                        alt={previewDoc.title}
-                        className="max-w-full max-h-[70vh] object-contain rounded-xl"
-                        onError={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          img.src = "https://placehold.co/600x400?text=Image+Load+Failed";
-                        }}
-                      />
-                    </div>
-                  ) : previewDoc.isText && previewDoc.textContent ? (
-                    <div className="w-full h-[75vh] bg-slate-900 rounded-2xl shadow-sm border border-slate-800 p-5 overflow-auto flex flex-col">
-                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-slate-400 text-xs font-mono">
-                        <span className="font-semibold text-slate-300 flex items-center gap-2">
-                          <FileText size={14} className="text-blue-400" />
-                          Document Content Preview
-                        </span>
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">{previewDoc.title}</span>
-                      </div>
-                      <pre className="font-mono text-xs text-slate-200 whitespace-pre-wrap break-words leading-relaxed flex-1">
-                        {previewDoc.textContent}
-                      </pre>
-                    </div>
-                  ) : (
-                    <div className="w-full h-[75vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
-                      <iframe
-                        src={previewDoc.blobUrl}
-                        title={previewDoc.title}
-                        className="w-full h-full border-0"
-                        loading="lazy"
-                      />
-                      {/* Fallback for browsers that block PDF iframes or if resource fails */}
-                      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-slate-50/50 opacity-0 hover:opacity-100 transition-opacity">
-                         <p className="text-slate-500 text-sm font-medium">Click "Open in Tab" if preview doesn't load</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+        <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       </div>
     </div>
   );

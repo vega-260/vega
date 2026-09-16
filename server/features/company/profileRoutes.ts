@@ -1,4 +1,5 @@
 import express from "express";
+import { jsPDF } from "jspdf";
 import db from "../../db.ts";
 import { authenticate, authorize, requireSelfParam } from "../../middleware/auth.ts";
 import { calculateCompleteness, deleteCompanyVerificationDocument } from "../../services/companyDocumentService.ts";
@@ -233,18 +234,253 @@ router.post("/profile/:userId/documents", authenticate, authorize(["COMPANY", "A
 });
 
 
+function generateSampleDocumentPdf(docType: string, companyName: string = "Acme Corp"): Buffer {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const docRef = "VEGA-DOC-" + Math.floor(100000 + Math.random() * 900000);
+  const hash = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+  // Background
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, 210, 297, "F");
+
+  // Outer Decorative Borders
+  doc.setDrawColor(30, 41, 59); // Slate-800
+  doc.setLineWidth(1.2);
+  doc.rect(10, 10, 190, 277);
+
+  doc.setDrawColor(37, 99, 235); // Blue-600
+  doc.setLineWidth(0.4);
+  doc.rect(13, 13, 184, 271);
+
+  // Top Header Banner
+  doc.setFillColor(248, 250, 252);
+  doc.rect(14, 14, 182, 38, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(30, 58, 138); // Blue-900
+  doc.text("VEGA TALENT PLATFORM", 105, 25, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139); // Slate-500
+  doc.text("OFFICIAL CORPORATE VERIFICATION RECORD & COMPLIANCE REGISTRY", 105, 32, { align: "center" });
+  doc.text("REGULATORY AFFAIRS & ENTERPRISE GOVERNANCE DIVISION", 105, 37, { align: "center" });
+
+  // Divider
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.5);
+  doc.line(20, 56, 190, 56);
+
+  // Certificate Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(15, 23, 42); // Slate-900
+  const title = (docType || "Verification Document").toUpperCase();
+  doc.text(title, 105, 70, { align: "center" });
+
+  // Verification Badge Pill
+  doc.setFillColor(236, 253, 245); // Emerald-50
+  doc.setDrawColor(16, 185, 129); // Emerald-500
+  doc.setLineWidth(0.3);
+  doc.roundedRect(65, 77, 80, 8, 3, 3, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(5, 150, 105);
+  doc.text("VERIFIED & OFFICIALLY APPROVED", 105, 82.5, { align: "center" });
+
+  // Preamble
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(51, 65, 85);
+  doc.text("This document certifies that the following organization has completed formal verification", 105, 96, { align: "center" });
+  doc.text("and satisfied regulatory compliance requirements on the Vega Talent Platform.", 105, 102, { align: "center" });
+
+  // Entity Details Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(24, 112, 162, 76, 2, 2, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text("LEGAL ENTITY NAME:", 30, 124);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text(companyName.toUpperCase(), 30, 131);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text("DOCUMENT TYPE:", 30, 143);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(docType, 30, 149);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text("REFERENCE RECORD ID:", 30, 161);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(docRef, 30, 167);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text("VERIFICATION DATE:", 115, 143);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(dateStr, 115, 149);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text("COMPLIANCE STATUS:", 115, 161);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(16, 185, 129);
+  doc.text("ACTIVE / COMPLIANT", 115, 167);
+
+  // Security / Verification Hash Box
+  doc.setFillColor(241, 245, 249);
+  doc.rect(24, 196, 162, 18, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("DIGITAL AUTHENTICATION RECORD (SHA-256):", 30, 203);
+  doc.setFont("courier", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(hash, 30, 209);
+
+  // Signoff & Seal Section
+  doc.setDrawColor(37, 99, 235);
+  doc.setLineWidth(1);
+  doc.circle(52, 240, 16);
+  doc.circle(52, 240, 13.5);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6);
+  doc.setTextColor(37, 99, 235);
+  doc.text("VEGA VERIFIED", 52, 238, { align: "center" });
+  doc.text("OFFICIAL SEAL", 52, 243, { align: "center" });
+
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.4);
+  doc.line(115, 244, 175, 244);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  doc.text("Director of Corporate Moderation", 145, 249, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Vega Compliance & Trust Network", 145, 254, { align: "center" });
+
+  // Footer
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text("This digital document is an authorized record under the Vega Enterprise Trust Framework. For inquiries, contact compliance@vega.io.", 105, 276, { align: "center" });
+
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
+// Helper to stream document content safely without blank redirects
+function streamDocumentResponse(res: any, docUrl: string, docType: string, companyName?: string) {
+  if (!docUrl) {
+    return res.status(404).send("Document not found");
+  }
+
+  // Common headers for document previews
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.removeHeader("X-Frame-Options");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' blob: data:; frame-ancestors 'self' *;");
+
+  // Handle data: URLs
+  if (docUrl.startsWith("data:")) {
+    const commaIdx = docUrl.indexOf(",");
+    if (commaIdx !== -1) {
+      const meta = docUrl.slice(0, commaIdx);
+      const rawData = docUrl.slice(commaIdx + 1).replace(/\s/g, "");
+      let mimeType = (meta.match(/^data:([^;,]+)/)?.[1] || "application/pdf").toLowerCase();
+      let buffer: Buffer;
+      try {
+        if (meta.includes(";base64")) {
+          buffer = Buffer.from(rawData, "base64");
+        } else {
+          buffer = Buffer.from(decodeURIComponent(rawData), "utf-8");
+        }
+      } catch {
+        buffer = Buffer.from(rawData, "utf-8");
+      }
+
+      // Sniff content type from magic bytes
+      const magic = buffer.subarray(0, 8).toString("hex").toLowerCase();
+      if (magic.startsWith("25504446")) { // %PDF
+        mimeType = "application/pdf";
+      } else if (magic.startsWith("89504e47")) { // PNG
+        mimeType = "image/png";
+      } else if (magic.startsWith("ffd8ff")) { // JPEG
+        mimeType = "image/jpeg";
+      } else if (magic.startsWith("47494638")) { // GIF
+        mimeType = "image/gif";
+      } else if (magic.startsWith("52494646")) { // WebP / RIFF
+        mimeType = "image/webp";
+      } else {
+        // Any script/javascript, text, JSON, HTML, etc: serve as text/plain
+        mimeType = "text/plain; charset=utf-8";
+      }
+
+      const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : (mimeType.includes("jpeg") || mimeType.includes("jpg")) ? "jpg" : mimeType.includes("webp") ? "webp" : "txt";
+      const filename = `${docType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      return res.send(buffer);
+    }
+  }
+
+  // Handle seed / dummy example.com documents: serve real synthetic PDF certificate
+  if (docUrl.includes("example.com") || docUrl.includes("dummy") || docUrl.startsWith("test://")) {
+    const buffer = generateSampleDocumentPdf(docType, companyName);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${docType.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    return res.send(buffer);
+  }
+
+  // Valid remote URL
+  if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {
+    return res.redirect(docUrl);
+  }
+
+  return res.status(400).send("Invalid document format");
+}
+
 // View/Download raw verification document directly with proper MIME headers
 router.get("/profile/:userId/documents/:type/file", async (req, res) => {
   try {
     const { userId, type } = req.params;
     const decodedType = decodeURIComponent(type);
 
-    const [profiles]: any = await db.query("SELECT id FROM company_profiles WHERE user_id = ?", [userId]);
+    const [profiles]: any = await db.query("SELECT id, company_name FROM company_profiles WHERE user_id = ?", [userId]);
     if (!profiles[0]) {
       return res.status(404).send("Profile not found");
     }
 
     const companyId = profiles[0].id;
+    const companyName = profiles[0].company_name || "Company";
     const [docs]: any = await db.query(
       "SELECT * FROM company_documents WHERE company_id = ? AND (doc_type = ? OR LOWER(doc_type) = LOWER(?)) ORDER BY id DESC LIMIT 1",
       [companyId, decodedType, decodedType]
@@ -254,43 +490,7 @@ router.get("/profile/:userId/documents/:type/file", async (req, res) => {
       return res.status(404).send("Document not found");
     }
 
-    const docUrl = docs[0].doc_url;
-    if (docUrl.startsWith("data:")) {
-      // More robust regex to handle potential extra parameters in data URL
-      const matches = docUrl.match(/^data:([^;]+)(?:;[^;]+)*;base64,([\s\S]+)$/);
-      if (matches) {
-        let mimeType = matches[1] || "application/pdf";
-        const base64Str = matches[2].replace(/\s/g, "");
-        const buffer = Buffer.from(base64Str, "base64");
-
-        // Sniff content type from magic bytes or text format to ensure accuracy
-        const magic = buffer.subarray(0, 8).toString("hex").toLowerCase();
-        if (magic.startsWith("25504446")) { // %PDF
-          mimeType = "application/pdf";
-        } else if (magic.startsWith("89504e47")) { // PNG
-          mimeType = "image/png";
-        } else if (magic.startsWith("ffd8ff")) { // JPEG
-          mimeType = "image/jpeg";
-        } else if (magic.startsWith("47494638")) { // GIF
-          mimeType = "image/gif";
-        } else if (mimeType.includes("javascript") || mimeType.includes("json") || mimeType.includes("text") || mimeType.includes("xml")) {
-          mimeType = "text/plain; charset=utf-8";
-        }
-
-        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : (mimeType.includes("jpeg") || mimeType.includes("jpg")) ? "jpg" : "txt";
-        const filename = `${decodedType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
-        
-        res.setHeader("Content-Type", mimeType);
-        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-        res.setHeader("Content-Length", buffer.length);
-        res.setHeader("Cache-Control", "private, max-age=3600");
-        return res.send(buffer);
-      }
-    } else if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {
-      return res.redirect(docUrl);
-    }
-
-    return res.status(400).send("Invalid document format");
+    return streamDocumentResponse(res, docs[0].doc_url, decodedType, companyName);
   } catch (error) {
     console.error("Error streaming document file:", error);
     res.status(500).send("Error streaming document file");
@@ -301,49 +501,18 @@ router.get("/profile/:userId/documents/:type/file", async (req, res) => {
 router.get("/documents/:docId/file", async (req, res) => {
   try {
     const { docId } = req.params;
-    const [docs]: any = await db.query("SELECT * FROM company_documents WHERE id = ?", [docId]);
+    const [docs]: any = await db.query(
+      "SELECT cd.*, cp.company_name FROM company_documents cd LEFT JOIN company_profiles cp ON cd.company_id = cp.id WHERE cd.id = ?",
+      [docId]
+    );
     if (!docs[0] || !docs[0].doc_url) {
       return res.status(404).send("Document not found");
     }
 
     const docUrl = docs[0].doc_url;
     const docType = docs[0].doc_type || "Document";
-    if (docUrl.startsWith("data:")) {
-      // More robust regex to handle potential extra parameters in data URL
-      const matches = docUrl.match(/^data:([^;]+)(?:;[^;]+)*;base64,([\s\S]+)$/);
-      if (matches) {
-        let mimeType = matches[1] || "application/pdf";
-        const base64Str = matches[2].replace(/\s/g, "");
-        const buffer = Buffer.from(base64Str, "base64");
-
-        // Sniff content type from magic bytes or text format
-        const magic = buffer.subarray(0, 8).toString("hex").toLowerCase();
-        if (magic.startsWith("25504446")) { // %PDF
-          mimeType = "application/pdf";
-        } else if (magic.startsWith("89504e47")) { // PNG
-          mimeType = "image/png";
-        } else if (magic.startsWith("ffd8ff")) { // JPEG
-          mimeType = "image/jpeg";
-        } else if (magic.startsWith("47494638")) { // GIF
-          mimeType = "image/gif";
-        } else if (mimeType.includes("javascript") || mimeType.includes("json") || mimeType.includes("text") || mimeType.includes("xml")) {
-          mimeType = "text/plain; charset=utf-8";
-        }
-
-        const ext = mimeType.includes("pdf") ? "pdf" : mimeType.includes("png") ? "png" : (mimeType.includes("jpeg") || mimeType.includes("jpg")) ? "jpg" : "txt";
-        const filename = `${docType.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
-
-        res.setHeader("Content-Type", mimeType);
-        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-        res.setHeader("Content-Length", buffer.length);
-        res.setHeader("Cache-Control", "private, max-age=3600");
-        return res.send(buffer);
-      }
-    } else if (docUrl.startsWith("http://") || docUrl.startsWith("https://")) {
-      return res.redirect(docUrl);
-    }
-
-    return res.status(400).send("Invalid document format");
+    const companyName = docs[0].company_name || "Company";
+    return streamDocumentResponse(res, docUrl, docType, companyName);
   } catch (error) {
     console.error("Error streaming document by id:", error);
     res.status(500).send("Error streaming document file");

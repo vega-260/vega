@@ -16,11 +16,6 @@ export function isValidUrl(urlString?: string | null): boolean {
   const trimmed = urlString.trim();
   if (!trimmed) return true;
 
-  // Any whitespace within the URL string is invalid
-  if (/\s/.test(trimmed)) {
-    return false;
-  }
-
   // Allow relative asset paths from local uploads or API endpoints or blob/data URLs
   if (
     trimmed.startsWith('/uploads/') ||
@@ -46,7 +41,8 @@ export function isValidUrl(urlString?: string | null): boolean {
     const isLocalhost = parsed.hostname === 'localhost';
     const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(parsed.hostname) || parsed.hostname.startsWith('[');
     // Domain name must have at least one period separating name and TLD (e.g. google.com, drive.google.com)
-    const hasValidDomain = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(parsed.hostname);
+    // allowing underscores since some systems use them in subdomains
+    const hasValidDomain = /^([a-zA-Z0-9_]([a-zA-Z0-9-_]*[a-zA-Z0-9_])?\.)+[a-zA-Z]{2,}$/.test(parsed.hostname);
 
     return isLocalhost || isIp || hasValidDomain;
   } catch {

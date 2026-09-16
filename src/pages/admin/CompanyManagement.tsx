@@ -124,11 +124,13 @@ export function CompanyManagement() {
           console.error("Base64 decoding failed:", e);
           alert("The uploaded file could not be opened because it is corrupted or malformed.");
         }
-      } else {
+      } else if (!docUrl.startsWith("data:")) {
         const newWindow = window.open(docUrl, "_blank");
         if (!newWindow) {
           alert("Popup blocked! Please allow popups to view the document.");
         }
+      } else {
+        alert("The document could not be previewed due to an invalid format.");
       }
     } catch (err) {
       console.error("Error opening document:", err);

@@ -173,9 +173,9 @@ export function CompanyLayout() {
         {/* Unified Sticky Header & Banner Container */}
         <div className="sticky top-0 z-50 flex flex-col w-full">
           {/* Top Navigation */}
-          <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100/50 px-12 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.02)]">
-          <div className="flex items-center gap-8 flex-1">
-             <div className="relative w-[450px] group">
+          <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100/50 px-6 lg:px-12 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center gap-8 flex-1 min-w-0">
+             <div className="relative w-full max-w-[450px] group">
                 <div className="absolute inset-0 bg-slate-100/50 rounded-2xl group-focus-within:bg-white group-focus-within:ring-4 group-focus-within:ring-blue-500/10 transition-all duration-300" />
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors z-10" size={20} />
                 <input 
@@ -273,22 +273,33 @@ export function CompanyLayout() {
 
           <div className="flex items-center gap-6">
              <div className="flex items-center gap-3 bg-slate-50/50 p-1.5 rounded-2xl border border-slate-100/50">
-                <button 
-                  id="company-notifications-btn"
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center relative transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ${
-                    showNotifications ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-white text-slate-500 hover:text-blue-600 shadow-sm'
-                  }`}
-                  title="Notifications"
-                >
-                   <Bell size={20} />
-                   {unreadCount > 0 && !showNotifications && (
-                     <span 
-                       id="pending-notification-indicator" 
-                       className="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white animate-bounce" 
-                     />
-                   )}
-                </button>
+                <div className="relative">
+                  <button 
+                    id="company-notifications-btn"
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center relative transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer ${
+                      showNotifications ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-white text-slate-500 hover:text-blue-600 shadow-sm'
+                    }`}
+                    title="Notifications"
+                  >
+                     <Bell size={20} />
+                     {unreadCount > 0 && !showNotifications && (
+                       <span 
+                         id="pending-notification-indicator" 
+                         className="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full border-2 border-white animate-bounce" 
+                       />
+                     )}
+                  </button>
+
+                  <AnimatePresence>
+                     {showNotifications && (
+                        <NotificationPanel 
+                          onClose={() => setShowNotifications(false)} 
+                          onUnreadCountChange={(count) => setUnreadCount(count)}
+                        />
+                     )}
+                  </AnimatePresence>
+                </div>
                 <button 
                   onClick={() => setShowCalendar(true)}
                   className="w-11 h-11 rounded-xl bg-white text-slate-500 hover:text-blue-600 hover:scale-105 active:scale-95 shadow-sm transition-all duration-300 flex items-center justify-center cursor-pointer"
@@ -302,15 +313,6 @@ export function CompanyLayout() {
                    <MessageSquare size={20} />
                 </button>
              </div>
-
-             <AnimatePresence>
-                {showNotifications && (
-                   <NotificationPanel 
-                     onClose={() => setShowNotifications(false)} 
-                     onUnreadCountChange={(count) => setUnreadCount(count)}
-                   />
-                )}
-             </AnimatePresence>
 
              <div className="h-10 w-px bg-slate-100 mx-2" />
 

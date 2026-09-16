@@ -131,7 +131,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                   key={num} 
                   id={`evaluator-stage-${num}`}
                   data-testid={`evaluator-stage-${num}`}
-                  className="flex items-center gap-3.5 group cursor-default"
+                  className="flex items-center gap-3.5 group cursor-default w-full"
                 >
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${
                     isCompleted 

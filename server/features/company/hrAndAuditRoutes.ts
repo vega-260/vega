@@ -13,7 +13,7 @@ router.get("/sub-hr", authenticate, async (req: any, res) => {
       return res.status(403).json({ success: false, message: "Only Super HR can manage Sub HR accounts." });
     }
     const [hrList]: any = await db.query(`
-      SELECT u.id, u.id AS user_id, u.email, u.status, u.created_at, h.designation, h.permissions, h.role_type
+      SELECT u.id, u.id AS user_id, u.email, u.status, u.created_at, h.designation, h.permissions, h.role_type, h.name
       FROM users u
       JOIN company_hr_profiles h ON u.id = h.user_id
       WHERE h.company_id = ?
@@ -55,6 +55,8 @@ router.post("/sub-hr", authenticate, async (req: any, res) => {
 
     // Normalize designation
     const designation = String(req.body.designation || req.body.role || "Recruiter").trim();
+    // Normalize name
+    const name = String(req.body.name || req.body.fullName || "").trim();
     // Normalize and validate email presence and format
     const email = String(req.body.email || "").trim().toLowerCase();
     if (!email) {
@@ -113,9 +115,9 @@ router.post("/sub-hr", authenticate, async (req: any, res) => {
     const newUserId = userRes.insertId !== undefined ? userRes.insertId : userRes[0]?.insertId;
     // Create HR profile
     await db.query(`
-      INSERT INTO company_hr_profiles (user_id, company_id, designation, permissions, role_type)
-      VALUES (?, ?, ?, ?, 'SUB_HR')
-    `, [newUserId, ctx.companyId, designation, JSON.stringify(normalizedPermissions)]);
+      INSERT INTO company_hr_profiles (user_id, company_id, designation, permissions, role_type, name)
+      VALUES (?, ?, ?, ?, 'SUB_HR', ?)
+    `, [newUserId, ctx.companyId, designation, JSON.stringify(normalizedPermissions), name || null]);
     await logCompanyAudit(
       ctx.companyId,
       ctx.userId,
@@ -123,10 +125,10 @@ router.post("/sub-hr", authenticate, async (req: any, res) => {
       ctx.roleType,
       "CREATE_SUB_HR",
       "HR Management",
-      `Created Sub HR account for ${email} with designation ${designation}.`,
+      `Created Sub HR account for ${name ? `${name} (${email})` : email} with designation ${designation}.`,
       "users",
       newUserId,
-      { email, designation, permissions: normalizedPermissions }
+      { name, email, designation, permissions: normalizedPermissions }
     );
     // Email credentials to the new Sub HR
     const loginUrl = `${process.env.APP_URL || 'http://localhost:3000'}/login`;
@@ -187,7 +189,7 @@ router.put("/sub-hr/:id", authenticate, async (req: any, res) => {
       return res.status(403).json({ success: false, message: "Only Super HR can manage Sub HR accounts." });
     }
     const targetUserId = req.params.id;
-    const { email, password, designation, permissions, status } = req.body;
+    const { email, password, designation, permissions, status, name } = req.body;
     // Verify target Sub HR belongs to this company
     const [hrProfiles]: any = await db.query(
       "SELECT * FROM company_hr_profiles WHERE user_id = ? AND company_id = ?",
@@ -211,11 +213,19 @@ router.put("/sub-hr/:id", authenticate, async (req: any, res) => {
       const hashedPassword = await bcrypt.hash(password, 12);
       await db.query("UPDATE users SET password_hash = ? WHERE id = ?", [hashedPassword, targetUserId]);
     }
-    await db.query(`
-      UPDATE company_hr_profiles
-      SET designation = ?, permissions = ?
-      WHERE user_id = ?
-    `, [designation || "Sub HR", JSON.stringify(permissions || []), targetUserId]);
+    if (name !== undefined) {
+      await db.query(`
+        UPDATE company_hr_profiles
+        SET designation = ?, permissions = ?, name = ?
+        WHERE user_id = ?
+      `, [designation || "Sub HR", JSON.stringify(permissions || []), name || null, targetUserId]);
+    } else {
+      await db.query(`
+        UPDATE company_hr_profiles
+        SET designation = ?, permissions = ?
+        WHERE user_id = ?
+      `, [designation || "Sub HR", JSON.stringify(permissions || []), targetUserId]);
+    }
     await logCompanyAudit(
       ctx.companyId,
       ctx.userId,
@@ -226,7 +236,7 @@ router.put("/sub-hr/:id", authenticate, async (req: any, res) => {
       `Updated Sub HR account details for user ID ${targetUserId}.`,
       "users",
       Number(targetUserId),
-      { email, designation, permissions, status }
+      { name, email, designation, permissions, status }
     );
     res.json({ success: true, message: "Sub HR account updated successfully." });
   } catch (error: any) {

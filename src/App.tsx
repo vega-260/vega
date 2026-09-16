@@ -190,10 +190,30 @@ import CollegeUpdates from './pages/student/CollegeUpdates.tsx';
 
 // Limits concurrent stacked toasts to prevent screen obstruction
 const TOAST_LIMIT = 3;
+const toastTimeouts = new Map();
+
 function ToastLimiter() {
   const { toasts } = useToasterStore();
 
   React.useEffect(() => {
+    toasts.filter(t => t.visible).forEach(t => {
+      if (!toastTimeouts.has(t.id)) {
+        const timer = setTimeout(() => {
+          toast.dismiss(t.id);
+          toastTimeouts.delete(t.id);
+        }, t.duration || 3500);
+        toastTimeouts.set(t.id, timer);
+      }
+    });
+
+    const visibleIds = new Set(toasts.filter(t => t.visible).map(t => t.id));
+    for (const [id, timer] of toastTimeouts.entries()) {
+      if (!visibleIds.has(id)) {
+        clearTimeout(timer);
+        toastTimeouts.delete(id);
+      }
+    }
+
     toasts
       .filter((t) => t.visible)
       .filter((_, i) => i >= TOAST_LIMIT)
@@ -204,6 +224,7 @@ function ToastLimiter() {
 }
 
 export default function App() {
+
   return (
     <LanguageProvider>
       <AuthProvider>

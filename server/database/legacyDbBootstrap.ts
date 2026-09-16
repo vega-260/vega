@@ -2966,6 +2966,7 @@ export async function initDb() {
         id INTEGER PRIMARY KEY ${useMySQL ? 'AUTO_INCREMENT' : 'AUTOINCREMENT'},
         user_id INT NOT NULL,
         company_id INT NOT NULL,
+        name VARCHAR(255) NULL,
         designation VARCHAR(255) NULL,
         permissions TEXT NULL,
         role_type VARCHAR(50) DEFAULT 'SUB_HR',
@@ -2974,6 +2975,9 @@ export async function initDb() {
         UNIQUE (user_id)
       )
     `);
+    try {
+      await performQuery(`ALTER TABLE company_hr_profiles ADD COLUMN name VARCHAR(255) NULL`);
+    } catch (_) {}
     console.log("👥 company_hr_profiles table initialized successfully.");
   } catch (err) {
     console.error("❌ Failed to initialize company_hr_profiles table:", err);

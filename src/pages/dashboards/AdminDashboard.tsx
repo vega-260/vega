@@ -228,30 +228,53 @@ export function AdminDashboard() {
         return;
       }
       if (docUrl && docUrl.startsWith("data:")) {
-        const parts = docUrl.split(",");
-        if (parts.length >= 2) {
-          const meta = parts[0];
-          const base64Data = parts[1];
-          const mimeMatch = meta.match(/data:([^;]+)/);
-          const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
-          const byteCharacters = atob(base64Data);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        const commaIdx = docUrl.indexOf(",");
+        if (commaIdx !== -1) {
+          const meta = docUrl.slice(0, commaIdx);
+          const rawPayload = docUrl.slice(commaIdx + 1).replace(/\s/g, "");
+          const mimeMatch = meta.match(/data:([^;,]+)/);
+          let mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : "application/pdf";
+
+          let byteArray: Uint8Array;
+          if (meta.includes(";base64")) {
+            const byteCharacters = atob(rawPayload);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            byteArray = new Uint8Array(byteNumbers);
+          } else {
+            byteArray = new TextEncoder().encode(decodeURIComponent(rawPayload));
           }
-          const byteArray = new Uint8Array(byteNumbers);
+
+          // Sniff magic bytes
+          const magic = Array.from(byteArray.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+          if (magic === "25504446") {
+            mimeType = "application/pdf";
+          } else if (magic === "89504e47") {
+            mimeType = "image/png";
+          } else if (magic.startsWith("ffd8ff")) {
+            mimeType = "image/jpeg";
+          } else if (magic.startsWith("47494638")) {
+            mimeType = "image/gif";
+          } else if (magic.startsWith("52494646")) {
+            mimeType = "image/webp";
+          } else {
+            mimeType = "text/plain;charset=utf-8";
+          }
+
           const blob = new Blob([byteArray], { type: mimeType });
           const blobUrl = URL.createObjectURL(blob);
           window.open(blobUrl, "_blank");
           return;
         }
       }
-      if (docUrl) {
+      if (docUrl && !docUrl.startsWith("data:")) {
         window.open(docUrl, "_blank");
       }
     } catch (e) {
       console.error("Error opening document:", e);
-      if (docUrl) window.open(docUrl, "_blank");
+      alert("Unable to open the requested document.");
     }
   };
 
