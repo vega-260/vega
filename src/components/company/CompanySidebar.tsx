@@ -78,6 +78,11 @@ export function CompanySidebar({ isCollapsed = false, onToggle }: CompanySidebar
       return true;
     }
 
+    // Company Profile must always be accessible so any Company User can complete verification
+    if (item.to === '/company/profile') {
+      return true;
+    }
+
     // If no permission array is present, show all standard items by default
     if (!profile || !profile.permissions) {
       if (item.to === '/company/hr-management' || item.to === '/company/audit-trail') {
