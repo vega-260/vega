@@ -429,77 +429,125 @@ router.post("/generate-gap-analysis", authenticate, async (req: any, res) => {
 
 // 5. Generate AI Career Success Roadmap
 router.post("/generate-roadmap", authenticate, async (req: any, res) => {
-  const { studentAId, studentBId } = req.body;
+  let { studentAId, studentBId } = req.body;
 
   try {
-    const [profA]: any = await db.query("SELECT p.* FROM student_profiles p WHERE p.id = ?", [studentAId]);
-    const [profB]: any = await db.query("SELECT p.* FROM student_profiles p WHERE p.id = ?", [studentBId]);
+    if (!studentAId && req.user?.userId) {
+      const [myProf]: any = await db.query("SELECT id FROM student_profiles WHERE user_id = ?", [req.user.userId]);
+      if (myProf.length) studentAId = myProf[0].id;
+    }
 
-    if (!profA.length || !profB.length) {
-      return res.status(404).json({ success: false, message: "Compared profiles not found" });
+    // If no studentBId provided, pick top placed candidate or another student in the system
+    if (!studentBId) {
+      const [topPlaced]: any = await db.query("SELECT id FROM student_profiles WHERE is_placed = 1 ORDER BY id DESC LIMIT 1");
+      if (topPlaced.length) {
+        studentBId = topPlaced[0].id;
+      } else {
+        const [anyOther]: any = await db.query("SELECT id FROM student_profiles WHERE id != ? LIMIT 1", [studentAId || 0]);
+        if (anyOther.length) studentBId = anyOther[0].id;
+      }
+    }
+
+    const [profA]: any = await db.query("SELECT p.* FROM student_profiles p WHERE p.id = ?", [studentAId]);
+    const [profB]: any = studentBId ? await db.query("SELECT p.* FROM student_profiles p WHERE p.id = ?", [studentBId]) : [[]];
+
+    if (!profA.length) {
+      return res.status(404).json({ success: false, message: "Student profile not found" });
     }
 
     const studentA = profA[0];
-    const studentB = profB[0];
+    const studentB = profB.length ? profB[0] : null;
 
     const skillsA = studentA.skills_json ? JSON.parse(typeof studentA.skills_json === 'string' ? studentA.skills_json : JSON.stringify(studentA.skills_json)) : [];
-    const skillsB = studentB.skills_json ? JSON.parse(typeof studentB.skills_json === 'string' ? studentB.skills_json : JSON.stringify(studentB.skills_json)) : [];
+    const skillsB = studentB?.skills_json ? JSON.parse(typeof studentB.skills_json === 'string' ? studentB.skills_json : JSON.stringify(studentB.skills_json)) : [];
 
     const uniqueSkillsB = skillsB.filter((s: string) => !skillsA.includes(s));
+    const targetRole = studentA.preferred_job_role || "Software Engineer";
 
     const prompt = `
-      Create an intensive 30, 60, and 90 Day developmental roadmap for ${studentA.full_name} to align with the successfully placed candidate ${studentB.full_name} (Placed at: ${studentB.placed_company || "TCS"}).
-      Current student's missing technical skills to acquire: ${JSON.stringify(uniqueSkillsB)}.
+      Create an intensive 30, 60, and 90 Day developmental roadmap for ${studentA.full_name} targeting the role of ${targetRole} ${studentB ? `to align with placed candidate ${studentB.full_name} (Placed at: ${studentB.placed_company || "TCS"})` : ""}.
+      ${uniqueSkillsB.length ? `Skills to acquire: ${JSON.stringify(uniqueSkillsB)}.` : `Target role focus: ${targetRole}.`}
 
-      Return weekly items for Week 1 (Basic Setup) to Week 12 (Ready to Deploy & mock exams).
+      Return weekly items for Week 1 (Base foundations) to Week 12 (Ready to Deploy & mock exams).
       Respond with structured JSON matching the requested schema.
     `;
 
     console.log("[GEMINI] Generating Week-by-Week Success Roadmap...");
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are a senior engineering manager. Deliver highly technical actions week-by-week. Maintain strict schema compliance.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            thirtyDayPlan: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Items for Month 1 (Weeks 1-4)"
+    let parsedRoadmap: any = null;
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are a senior engineering manager. Deliver highly technical actions week-by-week. Maintain strict schema compliance.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              thirtyDayPlan: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Items for Month 1 (Weeks 1-4)"
+              },
+              sixtyDayPlan: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Items for Month 2 (Weeks 5-8)"
+              },
+              ninetyDayPlan: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Items for Month 3 (Weeks 9-12)"
+              }
             },
-            sixtyDayPlan: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Items for Month 2 (Weeks 5-8)"
-            },
-            ninetyDayPlan: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Items for Month 3 (Weeks 9-12)"
-            }
-          },
-          required: ["thirtyDayPlan", "sixtyDayPlan", "ninetyDayPlan"]
+            required: ["thirtyDayPlan", "sixtyDayPlan", "ninetyDayPlan"]
+          }
         }
-      }
-    });
+      });
 
-    const parsedRoadmap = JSON.parse(response.text?.trim() || "{}");
+      parsedRoadmap = JSON.parse(response.text?.trim() || "{}");
+    } catch (aiErr) {
+      console.warn("AI generation fallback triggered for career roadmap:", aiErr);
+    }
+
+    if (!parsedRoadmap || !Array.isArray(parsedRoadmap.thirtyDayPlan) || !parsedRoadmap.thirtyDayPlan.length) {
+      parsedRoadmap = {
+        thirtyDayPlan: [
+          `Week 1: Core Fundamentals - Master foundational architecture, algorithms, and technical paradigms required for ${targetRole}.`,
+          `Week 2: Problem Solving - Implement 20 standard coding problems (arrays, maps, two pointers) with rigorous unit testing.`,
+          `Week 3: Tooling & Workflow - Configure modern development pipelines, Git feature branches, containerization, and clean code linters.`,
+          `Week 4: Foundation Project - Build a fully structured modular prototype demonstrating clean separation of concerns and robust error handling.`
+        ],
+        sixtyDayPlan: [
+          `Week 5: Production Engineering - Architect a full-stack real-world application featuring authentication, state persistence, and background tasks.`,
+          `Week 6: Cloud & CI/CD - Set up automated deployment pipelines, container orchestration, and health check monitoring.`,
+          `Week 7: Performance Optimization - Profile system bottlenecks, optimize database queries, implement indexing, and integrate caching layers.`,
+          `Week 8: Security & Testing - Conduct security audits, input sanitization, automated integration tests, and API contract documentation.`
+        ],
+        ninetyDayPlan: [
+          `Week 9: Technical Mock Interviews - Complete timed mock problem-solving sessions and whiteboard architecture discussions.`,
+          `Week 10: System Design - Prepare distributed systems architectures (scalability, microservices, load balancing, message queues).`,
+          `Week 11: Behavioral & Leadership - Refine STAR interview stories, leadership impact examples, and quantifiable resume project highlights.`,
+          `Week 12: Placement Finalization - Execute comprehensive final mock assessments with 95%+ readiness score for top-tier hiring drives.`
+        ]
+      };
+    }
 
     // Cache the roadmap
     const roadmapString = JSON.stringify(parsedRoadmap);
-    await db.query(`
-      INSERT INTO ai_roadmaps (student_id, target_id, roadmap_json)
-      VALUES (?, ?, ?)
-    `, [studentA.id, studentB.id, roadmapString]);
+    try {
+      await db.query(`
+        INSERT INTO ai_roadmaps (student_id, target_id, roadmap_json)
+        VALUES (?, ?, ?)
+      `, [studentA.id, studentB?.id || studentA.id, roadmapString]);
 
-    // Update or insert latest comparison history record
-    await db.query(`
-      INSERT INTO comparison_history (student_id, compared_student_id, comparison_type, gap_analysis_json, roadmap_json)
-      VALUES (?, ?, 'AI_ROADMAP', NULL, ?)
-    `, [studentA.user_id, studentB.id, roadmapString]);
+      await db.query(`
+        INSERT INTO comparison_history (student_id, compared_student_id, comparison_type, gap_analysis_json, roadmap_json)
+        VALUES (?, ?, 'AI_ROADMAP', NULL, ?)
+      `, [studentA.user_id, studentB?.id || studentA.id, roadmapString]);
+    } catch (dbErr) {
+      console.warn("Warning inserting roadmap into db history:", dbErr);
+    }
 
     res.json({ success: true, roadmap: parsedRoadmap });
   } catch (error) {

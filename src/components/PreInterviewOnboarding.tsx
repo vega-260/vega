@@ -106,22 +106,29 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full bg-white rounded-[32px] shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col md:flex-row">
+    <div className="max-w-5xl mx-auto w-full bg-white rounded-[24px] md:rounded-[32px] shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col md:flex-row max-h-[calc(100vh-2rem)] md:max-h-none">
       
-      {/* Left Sidebar Layout for Stepper */}
-      <div className="w-full md:w-76 bg-slate-50 p-5 md:p-8 border-b md:border-b-0 md:border-r border-slate-100 flex flex-col justify-between shrink-0">
+      {/* Stepper: Desktop Sidebar & Mobile Compact Header */}
+      <div className="w-full md:w-76 bg-slate-50 p-4 sm:p-5 md:p-8 border-b md:border-b-0 md:border-r border-slate-150 flex flex-col justify-between shrink-0">
         <div>
-          <div className="flex items-center gap-3 mb-6 md:mb-8">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/25 shrink-0">
-              <Sparkles size={18} />
+          <div className="flex items-center justify-between md:justify-start gap-3 mb-3 md:mb-8">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 md:w-10 md:h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/25 shrink-0">
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-xs md:text-sm text-slate-800 uppercase tracking-wider">AI EVALUATOR</h4>
+                <p className="text-[9px] md:text-[10px] font-bold text-slate-400">SESSION ONBOARDING</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">AI EVALUATOR</h4>
-              <p className="text-[10px] font-bold text-slate-400">SESSION ONBOARDING</p>
+            {/* Mobile Active Stage Chip */}
+            <div className="flex md:hidden items-center gap-1 px-2.5 py-1 bg-indigo-100/80 border border-indigo-200 text-indigo-700 text-[10px] font-black rounded-lg uppercase tracking-wider">
+              <span>Stage {step}/6</span>
             </div>
           </div>
 
-          <div className="space-y-3 md:space-y-6" id="ai-evaluator-stages">
+          {/* Desktop Vertical Stepper */}
+          <div className="hidden md:block space-y-3 md:space-y-6" id="ai-evaluator-stages">
             {STEP_LABELS.map((item, idx) => {
               const num = idx + 1;
               const isCompleted = step > num;
@@ -131,11 +138,14 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                   key={num} 
                   id={`evaluator-stage-${num}`}
                   data-testid={`evaluator-stage-${num}`}
-                  className="flex items-center gap-3.5 group cursor-default w-full"
+                  onClick={() => {
+                    if (isCompleted) setStep(num);
+                  }}
+                  className={`flex items-center gap-3.5 group w-full ${isCompleted ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${
                     isCompleted 
-                      ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' 
+                      ? 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200' 
                       : isActive 
                         ? 'bg-indigo-600 text-white font-black shadow-md shadow-indigo-500/20 ring-4 ring-indigo-50' 
                         : 'bg-white text-slate-400 border border-slate-200 group-hover:border-slate-350'
@@ -156,6 +166,59 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               );
             })}
           </div>
+
+          {/* Mobile Horizontal Stepper (Numbers 1-6 + Active Stage Text) */}
+          <div className="block md:hidden" id="ai-evaluator-stages-mobile">
+            {/* Horizontal stage indicators 1–6 */}
+            <div className="flex items-center justify-between gap-1.5 py-1.5">
+              {STEP_LABELS.map((item, idx) => {
+                const num = idx + 1;
+                const isCompleted = step > num;
+                const isActive = step === num;
+                return (
+                  <button
+                    key={num}
+                    id={`evaluator-stage-mob-${num}`}
+                    data-testid={`evaluator-stage-mob-${num}`}
+                    type="button"
+                    onClick={() => {
+                      if (isCompleted) setStep(num);
+                    }}
+                    className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                        : isCompleted
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-white text-slate-400 border border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      {isCompleted ? (
+                        <Check size={12} className="stroke-[3] text-emerald-600" />
+                      ) : (
+                        <span className="text-[11px] font-black">{num}</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Prominent Active Stage Text Bar for Mobile */}
+            <div className="mt-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200/80 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-md bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">
+                  {step}
+                </span>
+                <span className="text-[11px] font-extrabold text-indigo-900 uppercase tracking-wide">
+                  Stage {step}: {STEP_LABELS[step - 1]?.label}
+                </span>
+              </div>
+              <span className="text-[10px] font-semibold text-indigo-600 truncate ml-2">
+                {STEP_LABELS[step - 1]?.desc}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="hidden md:flex items-center gap-2 mt-8 py-3 px-4 bg-slate-100 rounded-xl border border-slate-200 text-slate-500">
@@ -164,18 +227,11 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
         </div>
       </div>
 
-      {/* Main Form Area */}
-      <div className="flex-1 flex flex-col justify-between min-h-0 md:min-h-[520px]">
+      {/* Main Form Area (Question Area) */}
+      <div className="flex-1 flex flex-col justify-between min-h-0 overflow-y-auto">
         
-        {/* Top Progress Bar for Mobile */}
-        <div className="flex md:hidden bg-slate-50 border-b border-slate-100">
-          {STEP_LABELS.map((_, idx) => (
-            <div key={idx} className={`flex-1 h-1.5 ${step >= idx + 1 ? 'bg-indigo-600' : 'bg-slate-200'}`} />
-          ))}
-        </div>
-
         {/* Dynamic Step Content */}
-        <div className="p-5 sm:p-8 md:p-12 flex-1 flex flex-col justify-center">
+        <div className="p-4 sm:p-6 md:p-10 flex-1 flex flex-col justify-start md:justify-center overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -185,20 +241,38 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               transition={{ duration: 0.25 }}
               className="w-full"
             >
-              {/* Stage indicator badge visible in question area */}
-              <div className="flex items-center gap-2 mb-3">
-                <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-150 text-indigo-700 text-[10px] font-black uppercase tracking-widest rounded-lg">
-                  Stage {step} of 6 • {STEP_LABELS[step - 1]?.label}
+              {/* Question Area Stage Header with Question Number and Stage Text */}
+              <div 
+                id="ai-evaluator-stage-header"
+                data-testid="ai-evaluator-stage-header"
+                className="flex items-center justify-between gap-3 mb-4 p-3 sm:p-3.5 bg-indigo-50/90 border border-indigo-200/90 rounded-2xl shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm shadow-indigo-600/20">
+                    {step}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700">Stage {step} of 6</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase hidden xs:inline">• Question Area</span>
+                    </div>
+                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                      {STEP_LABELS[step - 1]?.label}
+                    </h3>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-indigo-700 bg-white border border-indigo-200/80 px-2.5 py-1 rounded-lg shrink-0 shadow-2xs">
+                  {STEP_LABELS[step - 1]?.desc}
                 </span>
               </div>
               {/* STEP 1: Role & Company */}
               {step === 1 && (
                 <div>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
-                    <Briefcase size={22} />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-3 md:mb-6 border border-indigo-100">
+                    <Briefcase size={20} className="md:w-[22px] md:h-[22px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">What role are you preparing for?</h2>
-                  <p className="text-slate-500 text-sm mb-6 max-w-lg leading-relaxed">Let our artificial intelligence design custom questions tailored specifically for your career track and target workplace.</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">What role are you preparing for?</h2>
+                  <p className="text-slate-500 text-xs sm:text-sm mb-4 md:mb-6 max-w-lg leading-relaxed">Let our artificial intelligence design custom questions tailored specifically for your career track and target workplace.</p>
                   
                   <div className="space-y-4 max-w-xl">
                     <div>
@@ -208,7 +282,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                         value={profile.role}
                         onChange={(e) => updateProfile("role", e.target.value)}
                         placeholder="E.g., Full Stack Developer, Data Analyst..."
-                        className="w-full text-lg py-3.5 px-5 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner focus:ring-4 focus:ring-indigo-100"
+                        className="w-full text-base sm:text-lg py-3 px-4 sm:py-3.5 sm:px-5 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner focus:ring-4 focus:ring-indigo-100"
                         onKeyPress={(e) => e.key === "Enter" && handleNext()}
                         autoFocus
                       />
@@ -217,13 +291,13 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                     {/* Popular Job Title Suggestion Chips */}
                     <div className="py-1">
                       <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Or select a popular route:</span>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {POPULAR_ROLES.map((item) => (
                           <button
                             key={item.title}
                             type="button"
                             onClick={() => updateProfile("role", item.title)}
-                            className={`px-3 py-1.5 rounded-xl border text-[11px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all ${
+                            className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 cursor-pointer transition-all ${
                               profile.role.toLowerCase() === item.title.toLowerCase()
                                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/10'
                                 : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-650 hover:border-slate-300'
@@ -236,7 +310,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                       </div>
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-1 sm:pt-2">
                       <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Target Company (Optional)</label>
                       <div className="relative">
                         <Building2 size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -245,21 +319,21 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                           value={profile.company}
                           onChange={(e) => updateProfile("company", e.target.value)}
                           placeholder="E.g., Google, Amazon, Deloitte..."
-                          className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                          className="w-full pl-11 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white outline-none transition-all text-sm"
                           onKeyPress={(e) => e.key === "Enter" && handleNext()}
                         />
                       </div>
                     </div>
 
                     {/* Popular Companies */}
-                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 sm:gap-2 pt-1 flex-wrap">
                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Popular:</span>
                       {POPULAR_COMPANIES.map((comp) => (
                         <button
                           key={comp}
                           type="button"
                           onClick={() => updateProfile("company", comp)}
-                          className="text-[10px] bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 text-slate-500 font-extrabold px-2.5 py-0.5 rounded-lg transition-colors cursor-pointer"
+                          className="text-[10px] bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 text-slate-500 font-extrabold px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
                         >
                           {comp}
                         </button>
@@ -273,29 +347,29 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               {/* STEP 2: Experience Level */}
               {step === 2 && (
                 <div>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
-                    <GraduationCap size={22} />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-3 md:mb-6 border border-indigo-100">
+                    <GraduationCap size={20} className="md:w-[22px] md:h-[22px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">experience seniority</h2>
-                  <p className="text-slate-500 text-sm mb-6 max-w-lg leading-relaxed">Let the evaluation set realistic expectations. We optimize theoretical depth and logic checking based on career years.</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">Experience Seniority</h2>
+                  <p className="text-slate-500 text-xs sm:text-sm mb-4 md:mb-6 max-w-lg leading-relaxed">Let the evaluation set realistic expectations. We optimize theoretical depth and logic checking based on career years.</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 max-w-2xl">
                     {EXPERIENCE_LEVELS.map(levelObj => (
                       <button
                         key={levelObj.level}
                         onClick={() => { updateProfile("level", levelObj.level); setTimeout(handleNext, 200); }}
-                        className={`p-5 text-left rounded-2xl border-2 transition-all flex gap-4 cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
+                        className={`p-3.5 sm:p-5 text-left rounded-2xl border-2 transition-all flex gap-3 sm:gap-4 cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
                           profile.level === levelObj.level 
                             ? "border-indigo-600 bg-indigo-50/50 shadow-md shadow-indigo-500/5" 
                             : "border-slate-200 hover:border-indigo-300 bg-white shadow-sm"
                         }`}
                       >
-                        <span className="text-2xl mt-0.5 shrink-0 select-none">{levelObj.emoji}</span>
+                        <span className="text-xl sm:text-2xl mt-0.5 shrink-0 select-none">{levelObj.emoji}</span>
                         <div>
-                          <span className={`block font-black uppercase tracking-wider text-[12px] leading-tight mb-1 ${
+                          <span className={`block font-black uppercase tracking-wider text-[11px] sm:text-[12px] leading-tight mb-1 ${
                             profile.level === levelObj.level ? "text-indigo-600" : "text-slate-800"
                           }`}>{levelObj.level}</span>
-                          <span className="text-[11px] font-medium text-slate-500 leading-snug block">{levelObj.desc}</span>
+                          <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 leading-snug block">{levelObj.desc}</span>
                         </div>
                       </button>
                     ))}
@@ -306,20 +380,20 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               {/* STEP 3: Tech Stack */}
               {step === 3 && (
                 <div>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
-                    <Code2 size={22} />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-3 md:mb-6 border border-indigo-100">
+                    <Code2 size={20} className="md:w-[22px] md:h-[22px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Technologies and Skills</h2>
-                  <p className="text-slate-500 text-sm mb-6 max-w-lg leading-relaxed">Identify core frameworks, languages, or tools you are confident with. The AI interviewer will tailor questions around these.</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">Technologies and Skills</h2>
+                  <p className="text-slate-500 text-xs sm:text-sm mb-4 md:mb-6 max-w-lg leading-relaxed">Identify core frameworks, languages, or tools you are confident with. The AI interviewer will tailor questions around these.</p>
                   
                   <div className="max-w-xl">
-                    <div className="flex gap-2.5 mb-4">
+                    <div className="flex gap-2 mb-3 sm:mb-4">
                       <input 
                         type="text" 
                         value={techInput}
                         onChange={(e) => setTechInput(e.target.value)}
                         placeholder="Type a technology (e.g., Python, AWS)..."
-                        className="flex-1 py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner"
+                        className="flex-1 py-2.5 sm:py-3 px-3 sm:px-4 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white outline-none transition-all shadow-inner text-sm"
                         onKeyPress={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -338,14 +412,14 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                             setTechInput("");
                           }
                         }}
-                        className="px-5 bg-indigo-600 text-white font-extrabold uppercase text-xs tracking-wider rounded-xl hover:bg-indigo-700 transition flex items-center gap-1 cursor-pointer shadow-lg shadow-indigo-600/10"
+                        className="px-4 sm:px-5 bg-indigo-600 text-white font-extrabold uppercase text-xs tracking-wider rounded-xl hover:bg-indigo-700 transition flex items-center gap-1 cursor-pointer shadow-lg shadow-indigo-600/10"
                       >
                         <Plus size={14} className="stroke-[3]" /> Add
                       </button>
                     </div>
 
                     {/* Skill Quick Suggestions */}
-                    <div className="mb-6">
+                    <div className="mb-4 sm:mb-6">
                       <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Recommended Suggestions (Click to add):</p>
                       <div className="flex flex-wrap gap-1.5">
                         {POPULAR_SKILLS.map(skill => {
@@ -361,7 +435,7 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                                   addTech(skill);
                                 }
                               }}
-                              className={`text-[10px] font-bold px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                                 exists
                                   ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-extrabold shadow-sm'
                                   : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-500'
@@ -380,13 +454,13 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
                         Your Tech Stack ({profile.techstack.length} Added):
                       </p>
                       {profile.techstack.length === 0 ? (
-                        <div className="py-4 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
+                        <div className="py-3 sm:py-4 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
                           No tech stacks added. Choose from standard suggestions above or type your own.
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 bg-slate-50/50 rounded-xl border border-slate-100">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2 max-h-28 sm:max-h-32 overflow-y-auto p-1 bg-slate-50/50 rounded-xl border border-slate-100">
                           {profile.techstack.map(tech => (
-                            <div key={tech} className="px-3.5 py-1.5 bg-indigo-50 border border-indigo-150 text-indigo-700 rounded-xl flex items-center gap-2 text-xs font-bold shadow-sm">
+                            <div key={tech} className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-indigo-50 border border-indigo-150 text-indigo-700 rounded-xl flex items-center gap-1.5 text-xs font-bold shadow-sm">
                               <span>{tech}</span>
                               <button 
                                 onClick={() => removeTech(tech)} 
@@ -407,29 +481,29 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               {/* STEP 4: Interview Type Selection */}
               {step === 4 && (
                 <div>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
-                    <Target size={22} />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-3 md:mb-6 border border-indigo-100">
+                    <Target size={20} className="md:w-[22px] md:h-[22px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Select Interview Type</h2>
-                  <p className="text-slate-500 text-sm mb-6 max-w-lg leading-relaxed">Choose the specific type of mock interview you want to simulate. Our AI adapts its entire behavior, questioning style, and evaluation schema to your selection.</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">Select Interview Type</h2>
+                  <p className="text-slate-500 text-xs sm:text-sm mb-4 md:mb-6 max-w-lg leading-relaxed">Choose the specific type of mock interview you want to simulate. Our AI adapts its entire behavior, questioning style, and evaluation schema to your selection.</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 max-w-2xl">
                     {FOCUS_AREAS.map(item => (
                       <button
                         key={item.title}
                         onClick={() => { updateProfile("focus", item.title); setTimeout(handleNext, 200); }}
-                        className={`p-5 text-left rounded-2xl border-2 transition-all flex gap-4 cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
+                        className={`p-3.5 sm:p-5 text-left rounded-2xl border-2 transition-all flex gap-3 sm:gap-4 cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
                           profile.focus === item.title 
                             ? "border-indigo-600 bg-indigo-50/50 shadow-md shadow-indigo-500/5" 
                             : "border-slate-200 hover:border-indigo-300 bg-white shadow-sm"
                         }`}
                       >
-                        <span className="text-2xl mt-0.5 shrink-0 select-none">{item.emoji}</span>
+                        <span className="text-xl sm:text-2xl mt-0.5 shrink-0 select-none">{item.emoji}</span>
                         <div>
-                          <span className={`block font-black uppercase tracking-wider text-[12px] leading-tight mb-1 ${
+                          <span className={`block font-black uppercase tracking-wider text-[11px] sm:text-[12px] leading-tight mb-1 ${
                             profile.focus === item.title ? "text-indigo-600" : "text-slate-800"
                           }`}>{item.title}</span>
-                          <span className="text-[11px] font-medium text-slate-500 leading-snug block">{item.desc}</span>
+                          <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 leading-snug block">{item.desc}</span>
                         </div>
                       </button>
                     ))}
@@ -440,13 +514,13 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               {/* STEP 5: Difficulty */}
               {step === 5 && (
                 <div>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
-                    <Zap size={22} className="animate-pulse text-indigo-600" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-3 md:mb-6 border border-indigo-100">
+                    <Zap size={20} className="animate-pulse text-indigo-600 md:w-[22px] md:h-[22px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">difficulty assessment standard</h2>
-                  <p className="text-slate-500 text-sm mb-6 max-w-lg leading-relaxed">Select how intense you want the inquiry to be. Real evaluation systems matching live tech companies of all scales.</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">Difficulty Assessment Standard</h2>
+                  <p className="text-slate-500 text-xs sm:text-sm mb-4 md:mb-6 max-w-lg leading-relaxed">Select how intense you want the inquiry to be. Real evaluation systems matching live tech companies of all scales.</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 max-w-2xl">
                     {DIFFICULTIES.map(item => {
                       const isActive = profile.difficulty === item.level;
                       const isFaang = item.level.includes("FAANG");
@@ -483,48 +557,48 @@ export function PreInterviewOnboarding({ onComplete }: { onComplete: (profile: I
               {/* STEP 6: Communication mode */}
               {step === 6 && (
                 <div>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 border border-indigo-100">
-                    <Mic size={22} />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-3 md:mb-6 border border-indigo-100">
+                    <Mic size={20} className="md:w-[22px] md:h-[22px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">choose communication mode</h2>
-                  <p className="text-slate-500 text-sm mb-6 max-w-lg leading-relaxed">Choose voice conversations with real-time speech analytics for the maximum fidelity evaluation, or choose convenient text messaging.</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">Choose Communication Mode</h2>
+                  <p className="text-slate-500 text-xs sm:text-sm mb-4 md:mb-6 max-w-lg leading-relaxed">Choose voice conversations with real-time speech analytics for the maximum fidelity evaluation, or choose convenient text messaging.</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-5 max-w-xl">
                     <button
                       onClick={() => { updateProfile("communication", "Voice"); }}
-                      className={`p-6 text-left flex items-start gap-4 rounded-2xl border-2 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
+                      className={`p-4 sm:p-6 text-left flex items-start gap-3 sm:gap-4 rounded-2xl border-2 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
                         profile.communication === "Voice" 
                           ? "border-indigo-600 bg-indigo-50/50 shadow-md" 
                           : "border-slate-200 hover:border-indigo-300 bg-white"
                       }`}
                     >
-                      <div className={`p-3 rounded-xl shrink-0 ${profile.communication === "Voice" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>
-                        <Mic size={22} />
+                      <div className={`p-2.5 sm:p-3 rounded-xl shrink-0 ${profile.communication === "Voice" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                        <Mic size={20} className="sm:w-[22px] sm:h-[22px]" />
                       </div>
                       <div>
-                        <span className={`block font-black uppercase tracking-wider text-[12.5px] leading-tight mb-1 ${
+                        <span className={`block font-black uppercase tracking-wider text-[11px] sm:text-[12.5px] leading-tight mb-1 ${
                           profile.communication === "Voice" ? "text-indigo-600" : "text-slate-800"
                         }`}>Voice Conversation</span>
-                        <span className="text-[11px] font-medium text-slate-500 leading-normal block">Speak directly using mic. Assesses clarity, vocabulary, accent, and dynamic confidence.</span>
+                        <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 leading-normal block">Speak directly using mic. Assesses clarity, vocabulary, accent, and dynamic confidence.</span>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { updateProfile("communication", "Text"); }}
-                      className={`p-6 text-left flex items-start gap-4 rounded-2xl border-2 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
+                      className={`p-4 sm:p-6 text-left flex items-start gap-3 sm:gap-4 rounded-2xl border-2 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] ${
                         profile.communication === "Text" 
                           ? "border-indigo-600 bg-indigo-50/50 shadow-md" 
                           : "border-slate-200 hover:border-indigo-300 bg-white"
                       }`}
                     >
-                      <div className={`p-3 rounded-xl shrink-0 ${profile.communication === "Text" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>
-                        <Type size={22} />
+                      <div className={`p-2.5 sm:p-3 rounded-xl shrink-0 ${profile.communication === "Text" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                        <Type size={20} className="sm:w-[22px] sm:h-[22px]" />
                       </div>
                       <div>
-                        <span className={`block font-black uppercase tracking-wider text-[12.5px] leading-tight mb-1 ${
+                        <span className={`block font-black uppercase tracking-wider text-[11px] sm:text-[12.5px] leading-tight mb-1 ${
                           profile.communication === "Text" ? "text-indigo-600" : "text-slate-800"
                         }`}>Text Message</span>
-                        <span className="text-[11px] font-medium text-slate-500 leading-normal block">Type your submissions inside chat window. Best for quiet spaces or detailed code.</span>
+                        <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 leading-normal block">Type your submissions inside chat window. Best for quiet spaces or detailed code.</span>
                       </div>
                     </button>
                   </div>

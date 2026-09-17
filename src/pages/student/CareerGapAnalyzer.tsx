@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useLocation, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.tsx";
 import api from "../../services/api.ts";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Briefcase, Award, TrendingUp, Search, History, ShieldAlert, BadgeCheck, CheckCircle2, AlertTriangle, 
-  ArrowRight, Sparkles, BookOpen, UserCheck, Flame, Zap, Compass, RefreshCw, BarChart3, Users, Lock, Eye, Globe 
+  ArrowRight, Sparkles, BookOpen, UserCheck, Flame, Zap, Compass, RefreshCw, BarChart3, Users, Lock, Eye, Globe,
+  CheckSquare, Square, Target, Milestone, Calendar, Download, ChevronRight
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -33,9 +35,41 @@ export const parseSkillsHelper = (val: any): string[] => {
   return [];
 };
 
-export default function CareerGapAnalyzer() {
+export default function CareerGapAnalyzer({ defaultTab }: { defaultTab?: "compare" | "roadmap" | "gallery" | "search" | "insights" | "history" }) {
   const { user, profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<"compare" | "gallery" | "search" | "insights" | "history">("compare");
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const isRoadmapPath = location.pathname === "/roadmap" || searchParams.get("tab") === "roadmap" || defaultTab === "roadmap";
+  const [activeTab, setActiveTab] = useState<"compare" | "roadmap" | "gallery" | "search" | "insights" | "history">(
+    isRoadmapPath ? "roadmap" : (defaultTab || "compare")
+  );
+
+  useEffect(() => {
+    if (location.pathname === "/roadmap" || searchParams.get("tab") === "roadmap" || defaultTab === "roadmap") {
+      setActiveTab("roadmap");
+    }
+  }, [location.pathname, searchParams, defaultTab]);
+
+  // Completed roadmap milestones tracker with persistence
+  const [completedMilestones, setCompletedMilestones] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("vega_completed_roadmap_milestones");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleMilestone = (itemKey: string) => {
+    setCompletedMilestones(prev => {
+      const next = prev.includes(itemKey) ? prev.filter(k => k !== itemKey) : [...prev, itemKey];
+      try {
+        localStorage.setItem("vega_completed_roadmap_milestones", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
   
   // Real dynamic profiles
   const [myProfile, setMyProfile] = useState<any>(null);
@@ -145,6 +179,19 @@ export default function CareerGapAnalyzer() {
       const res = await api.get("/career-gap/history");
       if (res.data?.success) {
         setHistoryLogs(res.data.history || []);
+        // Auto-hydrate roadmap if not loaded yet
+        const priorRoadmapItem = res.data.history?.find((h: any) => h.roadmap || h.roadmap_json);
+        if (priorRoadmapItem) {
+          try {
+            const raw = priorRoadmapItem.roadmap || priorRoadmapItem.roadmap_json;
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (parsed && (parsed.thirtyDayPlan || parsed.sixtyDayPlan)) {
+              setRoadmap((prev: any) => prev || parsed);
+            }
+          } catch (e) {
+            console.error("Error parsing stored roadmap", e);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -321,14 +368,14 @@ export default function CareerGapAnalyzer() {
 
   // Generate Career Roadmap
   const triggerAiRoadmap = async () => {
-    if (!myProfile || !targetProfile) return;
+    if (!myProfile?.id) return;
     try {
       setGeneratingRoadmap(true);
       const res = await api.post("/career-gap/generate-roadmap", {
         studentAId: myProfile.id,
-        studentBId: targetProfile.id
+        studentBId: targetProfile?.id || null
       });
-      if (res.data?.success) {
+      if (res.data?.success && res.data.roadmap) {
         setRoadmap(res.data.roadmap);
         toast.success("🎯 Week-by-Week Success Roadmap Created!");
         loadHistory();
@@ -451,6 +498,7 @@ export default function CareerGapAnalyzer() {
       <div className="max-w-7xl mx-auto mb-8 border-b border-slate-800/60 pb-px">
         <div className="flex flex-wrap gap-2 md:gap-4">
           <button
+            id="tab-compare-stage"
             onClick={() => setActiveTab("compare")}
             className={`flex items-center gap-2 py-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
               activeTab === "compare"
@@ -460,6 +508,19 @@ export default function CareerGapAnalyzer() {
           >
             <BarChart3 className="w-4 h-4" />
             Comparison Stage
+          </button>
+
+          <button
+            id="tab-career-roadmap"
+            onClick={() => setActiveTab("roadmap")}
+            className={`flex items-center gap-2 py-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === "roadmap"
+                ? "border-indigo-500 text-indigo-400 bg-indigo-500/5"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Compass className="w-4 h-4 text-purple-400" />
+            Career Roadmap
           </button>
 
           <button
@@ -940,6 +1001,300 @@ export default function CareerGapAnalyzer() {
               </div>
             </motion.div>
           )}
+
+          {/* Tab: Career Roadmap Module */}
+          {activeTab === "roadmap" && (() => {
+            const targetRole = myProfile?.preferred_job_role || profile?.preferred_job_role || "Full Stack Software Engineer";
+            const currentRoadmap = roadmap || {
+              thirtyDayPlan: [
+                `Week 1: Core Fundamentals - Master foundational architecture, algorithms, and technical paradigms required for ${targetRole}.`,
+                `Week 2: Problem Solving - Implement 20 standard coding problems (arrays, hash maps, two pointers) with rigorous unit testing.`,
+                `Week 3: Tooling & Modern Stack - Configure scalable development pipelines, Git branching strategies, containerization, and clean code linters.`,
+                `Week 4: Foundation Project - Build a fully structured modular prototype demonstrating clean separation of concerns and robust error handling.`
+              ],
+              sixtyDayPlan: [
+                `Week 5: Production Engineering - Architect a full-stack real-world application featuring authentication, state persistence, and background tasks.`,
+                `Week 6: Cloud & CI/CD - Set up automated deployment pipelines, container orchestration, and health check monitoring.`,
+                `Week 7: Performance Optimization - Profile system bottlenecks, optimize database queries, implement indexing, and integrate caching layers.`,
+                `Week 8: Security & Testing - Conduct security audits, input sanitization, automated integration tests, and API contract documentation.`
+              ],
+              ninetyDayPlan: [
+                `Week 9: Technical Mock Interviews - Complete timed mock problem-solving sessions and whiteboard architecture discussions.`,
+                `Week 10: System Design - Prepare distributed systems architectures (scalability, microservices, load balancing, message queues).`,
+                `Week 11: Behavioral & Leadership - Refine STAR interview stories, leadership impact examples, and quantifiable resume project highlights.`,
+                `Week 12: Placement Finalization - Execute comprehensive final mock assessments with 95%+ readiness score for top-tier hiring drives.`
+              ]
+            };
+
+            const allMilestones = [
+              ...(currentRoadmap.thirtyDayPlan || []),
+              ...(currentRoadmap.sixtyDayPlan || []),
+              ...(currentRoadmap.ninetyDayPlan || [])
+            ];
+            const completedCount = allMilestones.filter((_, idx) => completedMilestones.includes(`milestone-${idx}`)).length;
+            const progressPercent = allMilestones.length ? Math.round((completedCount / allMilestones.length) * 100) : 0;
+
+            return (
+              <motion.div
+                key="roadmap"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="space-y-6"
+              >
+                {/* Roadmap Header Banner */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-900/60 border border-slate-800 p-6 md:p-8 rounded-3xl backdrop-blur-md shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl -mr-40 -mt-40 pointer-events-none" />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-bold rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                        <Compass className="w-3.5 h-3.5" />
+                        AI Career Roadmap
+                      </span>
+                      <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-full uppercase tracking-wider">
+                        Active Track
+                      </span>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                      90-Day Developmental Career Pathway
+                    </h2>
+                    <p className="text-slate-400 text-sm mt-2 max-w-2xl leading-relaxed">
+                      Your personalized, week-by-week technical growth timeline designed to bridge skill gaps, build enterprise-grade projects, and guarantee placement interview readiness.
+                    </p>
+                  </div>
+
+                  <div className="relative z-10 flex flex-wrap lg:flex-col gap-3 items-start lg:items-end">
+                    <div className="text-xs bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-300">
+                      Target Role: <strong className="text-indigo-400">{targetRole}</strong>
+                    </div>
+                    <button
+                      onClick={triggerAiRoadmap}
+                      disabled={generatingRoadmap}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${generatingRoadmap ? "animate-spin" : ""}`} />
+                      {generatingRoadmap ? "Synthesizing AI Plan..." : "Regenerate with Gemini"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Progress Overview Card */}
+                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 shadow-md">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Roadmap Progress</span>
+                      <h4 className="text-lg font-extrabold text-white mt-0.5">
+                        {completedCount} of {allMilestones.length} Milestones Completed
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl font-black text-indigo-400">{progressPercent}%</span>
+                      <span className="text-xs text-slate-400">Completion</span>
+                    </div>
+                  </div>
+                  <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercent}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Click each weekly milestone below to check off your progress as you complete coding tasks and mock evaluations.
+                  </p>
+                </div>
+
+                {/* Timeline Grid: 3 Phases */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Month 1: Days 1 - 30 */}
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col relative overflow-hidden">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                      <div>
+                        <span className="px-2.5 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-black rounded-lg uppercase tracking-wider border border-indigo-500/20">
+                          Days 1 - 30
+                        </span>
+                        <h3 className="text-base font-extrabold text-white mt-2">Phase 1: Base Foundations</h3>
+                      </div>
+                      <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 flex-1">
+                      {currentRoadmap.thirtyDayPlan?.map((item: string, idx: number) => {
+                        const key = `milestone-${idx}`;
+                        const isDone = completedMilestones.includes(key);
+                        return (
+                          <div
+                            key={key}
+                            onClick={() => toggleMilestone(key)}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                              isDone
+                                ? "bg-indigo-950/20 border-indigo-500/40 text-slate-300"
+                                : "bg-slate-950/40 border-slate-850 hover:border-slate-700 text-slate-300"
+                            }`}
+                          >
+                            <span className="mt-0.5 text-indigo-400 shrink-0">
+                              {isDone ? <CheckSquare className="w-4 h-4 text-indigo-400" /> : <Square className="w-4 h-4 text-slate-600" />}
+                            </span>
+                            <span className={`text-xs leading-relaxed ${isDone ? "line-through text-slate-500" : ""}`}>
+                              {item}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Month 2: Days 31 - 60 */}
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col relative overflow-hidden">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                      <div>
+                        <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 text-[10px] font-black rounded-lg uppercase tracking-wider border border-purple-500/20">
+                          Days 31 - 60
+                        </span>
+                        <h3 className="text-base font-extrabold text-white mt-2">Phase 2: Production Engineering</h3>
+                      </div>
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 flex-1">
+                      {currentRoadmap.sixtyDayPlan?.map((item: string, idx: number) => {
+                        const key = `milestone-${idx + (currentRoadmap.thirtyDayPlan?.length || 4)}`;
+                        const isDone = completedMilestones.includes(key);
+                        return (
+                          <div
+                            key={key}
+                            onClick={() => toggleMilestone(key)}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                              isDone
+                                ? "bg-purple-950/20 border-purple-500/40 text-slate-300"
+                                : "bg-slate-950/40 border-slate-850 hover:border-slate-700 text-slate-300"
+                            }`}
+                          >
+                            <span className="mt-0.5 text-purple-400 shrink-0">
+                              {isDone ? <CheckSquare className="w-4 h-4 text-purple-400" /> : <Square className="w-4 h-4 text-slate-600" />}
+                            </span>
+                            <span className={`text-xs leading-relaxed ${isDone ? "line-through text-slate-500" : ""}`}>
+                              {item}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Month 3: Days 61 - 90 */}
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col relative overflow-hidden">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                      <div>
+                        <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-black rounded-lg uppercase tracking-wider border border-emerald-500/20">
+                          Days 61 - 90
+                        </span>
+                        <h3 className="text-base font-extrabold text-white mt-2">Phase 3: Placement Readiness</h3>
+                      </div>
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <Award className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 flex-1">
+                      {currentRoadmap.ninetyDayPlan?.map((item: string, idx: number) => {
+                        const offset = (currentRoadmap.thirtyDayPlan?.length || 4) + (currentRoadmap.sixtyDayPlan?.length || 4);
+                        const key = `milestone-${idx + offset}`;
+                        const isDone = completedMilestones.includes(key);
+                        return (
+                          <div
+                            key={key}
+                            onClick={() => toggleMilestone(key)}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                              isDone
+                                ? "bg-emerald-950/20 border-emerald-500/40 text-slate-300"
+                                : "bg-slate-950/40 border-slate-850 hover:border-slate-700 text-slate-300"
+                            }`}
+                          >
+                            <span className="mt-0.5 text-emerald-400 shrink-0">
+                              {isDone ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4 text-slate-600" />}
+                            </span>
+                            <span className={`text-xs leading-relaxed ${isDone ? "line-through text-slate-500" : ""}`}>
+                              {item}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Action Navigation Buttons */}
+                <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6">
+                  <h4 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4">
+                    Action Hub: Accelerate Your Milestones
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Link
+                      to="/interview"
+                      className="p-4 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 hover:border-indigo-500/40 rounded-2xl transition-all group flex flex-col justify-between"
+                    >
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block mb-1">Interactive Simulation</span>
+                        <h5 className="font-bold text-white text-sm group-hover:text-indigo-300 transition-colors">AI Mock Interview</h5>
+                        <p className="text-xs text-slate-400 mt-1">Practice timed behavioral and technical rounds with live audio feedback.</p>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-bold text-indigo-400 mt-4">
+                        Launch Room <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/coding-connect"
+                      className="p-4 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 hover:border-purple-500/40 rounded-2xl transition-all group flex flex-col justify-between"
+                    >
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 block mb-1">DSA & Problem Solving</span>
+                        <h5 className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">Coding Challenges</h5>
+                        <p className="text-xs text-slate-400 mt-1">Solve algorithmic problems with real-time test runner validation.</p>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mt-4">
+                        Solve Problems <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/resume-builder"
+                      className="p-4 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/40 rounded-2xl transition-all group flex flex-col justify-between"
+                    >
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block mb-1">ATS Optimization</span>
+                        <h5 className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors">AI Resume Builder</h5>
+                        <p className="text-xs text-slate-400 mt-1">Align projects and competencies with targeted industry job keywords.</p>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-bold text-emerald-400 mt-4">
+                        Build Resume <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </Link>
+
+                    <button
+                      onClick={() => setActiveTab("compare")}
+                      className="p-4 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 rounded-2xl transition-all group flex flex-col justify-between text-left cursor-pointer"
+                    >
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 block mb-1">Benchmark Intelligence</span>
+                        <h5 className="font-bold text-white text-sm group-hover:text-cyan-300 transition-colors">Compare with Alumni</h5>
+                        <p className="text-xs text-slate-400 mt-1">Cross-reference your skill scores against placed alumni leaders.</p>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-bold text-cyan-400 mt-4">
+                        Open Comparison <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* Tab 2: Success Gallery */}
           {activeTab === "gallery" && (

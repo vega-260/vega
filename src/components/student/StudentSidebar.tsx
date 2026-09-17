@@ -21,7 +21,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Gift,
-  Calendar
+  Calendar,
+  Compass
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext.tsx';
 import { useSidebar } from '../../context/SidebarContext.tsx';
@@ -102,6 +103,7 @@ export function StudentSidebar() {
         { to: '/resume-builder', icon: FileEdit, label: t('resume_nav') },
         { to: '/resume-analysis', icon: FileSearch, label: 'Resume Analysis' },
         { to: '/interview', icon: Bot, label: t('ai_mock') },
+        { to: '/roadmap', icon: Compass, label: 'Career Roadmap' },
         { to: '/career-gap', icon: TrendingUp, label: 'AI Gap Analyzer™' },
         { to: '/student/mock-history', icon: BarChart3, label: t('performance_archives') },
       ]

@@ -336,7 +336,7 @@ export default function App() {
               <Route path="/student/intelligence" element={<IntelligenceDashboard />} />
               <Route path="/student/intelligence/:type" element={<IntelligenceTestView />} />
               <Route path="/career-gap" element={<CareerGapAnalyzer />} />
-              <Route path="/roadmap" element={<Navigate to="/career-gap" replace />} />
+              <Route path="/roadmap" element={<CareerGapAnalyzer defaultTab="roadmap" />} />
               <Route path="/student/college-assessments" element={<CollegeAssessments />} />
               <Route path="/test/:jobId" element={<JobTest />} />
               <Route path="/profile" element={<StudentProfile />} />

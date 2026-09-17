@@ -94,24 +94,16 @@ function AIMentorWidget({ profile, analytics, applications }: { profile: any, an
       <div className="relative z-10 grid grid-cols-2 gap-3 mt-auto pt-2">
         <Link 
           to={insight.type === 'SKILL' || insight.type === 'PROFILE' ? "/profile" : insight.type === 'MOCK' ? "/interview" : "/profile"} 
-          onClick={(e) => {
-            e.preventDefault();
-            const target = insight.type === 'SKILL' || insight.type === 'PROFILE' ? "/profile" : insight.type === 'MOCK' ? "/interview" : "/profile";
-            navigate(target);
-          }}
-          className="py-2.5 bg-indigo-600 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center shadow-md shadow-indigo-900/10 hover:scale-[1.02] active:scale-[0.98] duration-200 cursor-pointer"
+          className="py-2.5 bg-indigo-600 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center shadow-md shadow-indigo-900/10 hover:scale-[1.02] active:scale-[0.98] duration-200 cursor-pointer text-white"
         >
           {insight.action}
         </Link>
         <Link 
-          to="/career-gap"
+          to="/roadmap"
           id="view-roadmap-btn"
           data-testid="view-roadmap-btn"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("/career-gap");
-          }}
-          className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white backdrop-blur-md text-center flex items-center justify-center cursor-pointer hover:scale-[1.02] active:scale-[0.98] duration-200"
+          aria-label="View Career Roadmap"
+          className="py-2.5 bg-white/5 hover:bg-white/10 active:bg-white/15 border border-white/10 hover:border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white backdrop-blur-md text-center flex items-center justify-center cursor-pointer hover:scale-[1.02] active:scale-[0.98] duration-200 select-none outline-none focus:outline-none focus:ring-0"
         >
           {t('view_roadmap')}
         </Link>
